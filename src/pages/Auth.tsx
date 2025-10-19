@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Clock, Upload, Eye, EyeOff, Users, Store, TrendingUp, Shield, Zap, Star, Lock, Phone } from "lucide-react";
+import { Clock, Upload, Eye, EyeOff, Users, Store, TrendingUp, Shield, Zap, Star, Lock, Phone, Mail } from "lucide-react";
 import { z } from "zod";
 import clsx from "clsx";
 
@@ -41,6 +41,7 @@ const Auth = () => {
 
   // Signup form state
   const [signupPhone, setSignupPhone] = useState("");
+  const [signupEmail, setSignupEmail] = useState("");
   const [signupPassword, setSignupPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [fullName, setFullName] = useState("");
@@ -245,6 +246,7 @@ const Auth = () => {
 
                   <IconInput id="fullname" label="Họ và tên" placeholder="Nguyễn Văn A" value={fullName} onChange={(e) => setFullName(e.target.value)} icon={<Users />} />
                   <IconInput id="signup-phone" label="Số điện thoại" placeholder="Vui lòng nhập số điện thoại" value={signupPhone} onChange={(e) => setSignupPhone(e.target.value)} icon={<Phone />} />
+                  <IconInput id="signup-email" label="Email" placeholder="Vui lòng nhập email" value={signupEmail} onChange={(e) => setSignupEmail(e.target.value)} icon={<Mail  />} />
                   <IconInput id="address" label="Địa chỉ" placeholder="123 Đường ABC, Quận XYZ" value={address} onChange={(e) => setAddress(e.target.value)} icon={<Store />} />
                   <IconInput id="signup-password" label="Mật khẩu" type="password" placeholder="••••••••" value={signupPassword} onChange={(e) => setSignupPassword(e.target.value)} icon={<Lock />} showPasswordToggle />
                   <IconInput id="signup-confirm-password" label="Nhập lại mật khẩu" type="password" placeholder="••••••••" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} icon={<Lock />} showPasswordToggle />
