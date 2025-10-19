@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Clock, Upload, Eye, EyeOff, Users, Store, TrendingUp, Shield, Zap, Star, Lock, Phone, Mail } from "lucide-react";
 import { z } from "zod";
 import clsx from "clsx";
+import { signup } from "@/lib/api";
 
 const loginSchema = z.object({
   phone: z.string().min(10, { message: "Số điện thoại phải có ít nhất 10 số" }),
@@ -46,6 +47,8 @@ const Auth = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [address, setAddress] = useState("");
+  const [gender, setGender] = useState<"male" | "female">("male");
+  const [birthday, setBirthday] = useState(""); 
 
   // Forgot password state
   const [forgotPhone, setForgotPhone] = useState("");
@@ -86,21 +89,24 @@ const Auth = () => {
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+
     try {
       signupSchema.parse({ phone: signupPhone, password: signupPassword, fullName, address });
       if (signupPassword !== confirmPassword) throw new Error("Mật khẩu xác nhận không khớp");
 
       setIsLoading(true);
-      const email = `${signupPhone.replace(/\D/g, '')}@smartqueue.app`;
-      const { error: authError } = await supabase.auth.signUp({
-        email,
+
+      const response = await signup({
+        fullName,
+        email: signupEmail || `${signupPhone.replace(/\D/g, '')}@smartqueue.app`,
+        username: signupPhone.replace(/\D/g, ''), 
         password: signupPassword,
-        options: {
-          emailRedirectTo: `${window.location.origin}/`,
-          data: { full_name: fullName, phone: signupPhone, address, avatar_url: avatarPreview || "" },
-        },
+        phoneNumber: signupPhone,
+        gender: gender === "male",
+        address,
+        birthday: birthday ? new Date(birthday) : undefined,
+        imageFile: avatarFile,
       });
-      if (authError) throw authError;
 
       toast({ title: "Đăng ký thành công", description: "Tài khoản của bạn đã được tạo!" });
       navigate("/");
@@ -248,6 +254,43 @@ const Auth = () => {
                   <IconInput id="signup-phone" label="Số điện thoại" placeholder="Vui lòng nhập số điện thoại" value={signupPhone} onChange={(e) => setSignupPhone(e.target.value)} icon={<Phone />} />
                   <IconInput id="signup-email" label="Email" placeholder="Vui lòng nhập email" value={signupEmail} onChange={(e) => setSignupEmail(e.target.value)} icon={<Mail  />} />
                   <IconInput id="address" label="Địa chỉ" placeholder="123 Đường ABC, Quận XYZ" value={address} onChange={(e) => setAddress(e.target.value)} icon={<Store />} />
+                  <div className="space-y-2">
+                    <Label className="text-base">Giới tính</Label>
+                    <div className="flex gap-4">
+                      <label className="inline-flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="gender"
+                          value="male"
+                          checked={gender === "male"}
+                          onChange={() => setGender("male")}
+                          className="accent-primary"
+                        />
+                        Nam
+                      </label>
+                      <label className="inline-flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="gender"
+                          value="female"
+                          checked={gender === "female"}
+                          onChange={() => setGender("female")}
+                          className="accent-primary"
+                        />
+                        Nữ
+                      </label>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="birthday" className="text-base">Ngày sinh</Label>
+                    <Input
+                      id="birthday"
+                      type="date"
+                      value={birthday}
+                      onChange={(e) => setBirthday(e.target.value)}
+                      className="h-12 text-base border-2"
+                    />
+                  </div>
                   <IconInput id="signup-password" label="Mật khẩu" type="password" placeholder="••••••••" value={signupPassword} onChange={(e) => setSignupPassword(e.target.value)} icon={<Lock />} showPasswordToggle />
                   <IconInput id="signup-confirm-password" label="Nhập lại mật khẩu" type="password" placeholder="••••••••" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} icon={<Lock />} showPasswordToggle />
 
