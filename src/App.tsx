@@ -14,6 +14,7 @@ import Index from "./pages/Index";
 // import SupportChat from "./pages/SupportChat";
 import Auth from "./pages/Auth";
 import VendorDashboard from "./components/vendor/VendorDashboard";
+import AdminDashboard from "./pages/admin/AdminDashboard";
 // import Profile from "./pages/Profile";
 
 const queryClient = new QueryClient();
@@ -41,6 +42,7 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/vendor" element={<VendorDashboard />} />
+          <Route path="/admin" element={<AdminDashboard />} />
           {/* <Route path="/profile" element={<Profile />} /> */}
           {/* <Route path="/search" element={<SearchResults />} /> */}
           {/* <Route path="/vendor/:id" element={<VendorDetailPage vendor={{
