@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Link, useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { 
   Search, 
   MapPin, 
@@ -14,13 +15,8 @@ import {
   ShoppingBag,
   Heart,
   MessageCircle,
-  Settings,
-  HelpCircle,
   LogOut,
-  Home,
-  Users,
-  BarChart3,
-  Store
+  Home
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -29,6 +25,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { NotificationDialog } from "./NotificationDialog";
+import { ProfileDialog } from "./ProfileDialog";
 
 interface NavigationProps {
   userType?: "customer" | "guest" | "vendor" | "admin";
@@ -39,7 +36,19 @@ export function Navigation({ userType = "guest", queueCount = 0 }: NavigationPro
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [fullName, setFullName] = useState<string | null>(localStorage.getItem("fullName"));
+  const [userId, setUserId] = useState<string | null>(localStorage.getItem("userId"));
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const handleStorageChange = () => {
+      setFullName(localStorage.getItem("fullName"));
+      setUserId(localStorage.getItem("userId"));
+    };
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, []);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,6 +56,12 @@ export function Navigation({ userType = "guest", queueCount = 0 }: NavigationPro
       navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
       setSearchQuery("");
     }
+  };
+
+  const handleLogout = () => {
+    localStorage.clear();
+    setFullName(null);
+    navigate("/auth"); 
   };
 
   return (
@@ -61,6 +76,7 @@ export function Navigation({ userType = "guest", queueCount = 0 }: NavigationPro
             <span className="text-xl font-bold text-foreground">Smart Queue</span>
           </Link>
 
+          {/* Search */}
           {(userType === 'customer' || userType === 'guest') && (
             <div className="hidden md:flex flex-1 max-w-md mx-8">
               <form onSubmit={handleSearch} className="relative w-full">
@@ -78,11 +94,13 @@ export function Navigation({ userType = "guest", queueCount = 0 }: NavigationPro
             </div>
           )}
 
+          {/* Location */}
           <div className="hidden md:flex items-center space-x-2 text-sm">
             <MapPin className="h-4 w-4 text-muted-foreground" />
             <span className="text-foreground">Vị trí hiện tại</span>
           </div>
 
+          {/* Action buttons */}
           <div className="flex items-center space-x-2">
             {(userType === "customer" || userType === "guest") && (
               <>
@@ -116,50 +134,72 @@ export function Navigation({ userType = "guest", queueCount = 0 }: NavigationPro
               </Badge>
             </Button>
 
+            {/* User Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm">
+                <Button variant="ghost" size="sm" className="flex items-center space-x-1">
                   <User className="h-4 w-4" />
+                  {fullName ? (
+                    <span className="text-sm font-medium">Xin chào, {fullName}</span>
+                  ) : (
+                    <span className="text-sm font-medium">Bạn chưa đăng nhập</span>
+                  )}
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                {userType === "guest" ? (
-                  <>
-                    <DropdownMenuItem>Đăng Nhập</DropdownMenuItem>
-                    <DropdownMenuItem>Đăng Ký</DropdownMenuItem>
-                  </>
-                ) : (
-                  <>
-                    <DropdownMenuItem>
-                      <Link to="/profile" className="flex items-center w-full">
-                        <User className="h-4 w-4 mr-2" />
-                        Hồ sơ
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem>
-                      <Link to="/order-history" className="flex items-center w-full">
-                        <Clock className="h-4 w-4 mr-2" />
-                        Đơn hàng của tôi
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem>
-                      <Link to="/support" className="flex items-center w-full">
-                        <MessageCircle className="h-4 w-4 mr-2" />
-                        Hỗ trợ
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem>Cài đặt</DropdownMenuItem>
-                    <DropdownMenuItem 
-                      className="text-destructive"
-                      onClick={() => navigate('/auth')}
+
+              {fullName ? (
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem asChild>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (!userId) {
+                          toast.error("Người dùng chưa đăng nhập!");
+                          return;
+                        }
+                        setIsProfileOpen(true);
+                      }}
+                      className="flex items-center w-full"
                     >
-                      Đăng xuất
-                    </DropdownMenuItem>
-                  </>
-                )}
-              </DropdownMenuContent>
+                      <User className="h-4 w-4 mr-2" />
+                      Hồ sơ của bạn
+                    </button>
+                  </DropdownMenuItem>
+
+                  <DropdownMenuItem>
+                    <Link to="/order-history" className="flex items-center w-full">
+                      <Clock className="h-4 w-4 mr-2" />
+                      Đơn hàng của tôi
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Link to="/support" className="flex items-center w-full">
+                      <MessageCircle className="h-4 w-4 mr-2" />
+                      Hỗ trợ
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="text-destructive flex items-center"
+                    onClick={handleLogout}
+                  >
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Đăng xuất
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              ) : (
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem onClick={() => navigate("/auth")}>
+                    Đăng nhập
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate("/auth")}>
+                    Đăng ký
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              )}
             </DropdownMenu>
 
+            {/* Mobile menu button */}
             <Button 
               variant="ghost" 
               size="sm" 
@@ -171,6 +211,7 @@ export function Navigation({ userType = "guest", queueCount = 0 }: NavigationPro
           </div>
         </div>
 
+        {/* Mobile menu */}
         {isMobileMenuOpen && (
           <div className="md:hidden py-4 border-t space-y-4">
             {(userType === 'customer' || userType === 'guest') && (
@@ -224,6 +265,12 @@ export function Navigation({ userType = "guest", queueCount = 0 }: NavigationPro
       <NotificationDialog
         isOpen={isNotificationOpen}
         onClose={() => setIsNotificationOpen(false)}
+      />
+
+      <ProfileDialog
+        isOpen={isProfileOpen}
+        onClose={() => setIsProfileOpen(false)}
+        userId={userId!} 
       />
     </nav>
   );

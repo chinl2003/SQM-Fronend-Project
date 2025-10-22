@@ -81,7 +81,6 @@ const Auth = () => {
         password: loginPassword,
         rememberLogin: true,
       });
-      
       if (!response?.code?.toLowerCase().includes("success") || !response?.data?.accessToken) {
         throw new Error(response?.message || "Đăng nhập thất bại");
       }
@@ -89,6 +88,7 @@ const Auth = () => {
       localStorage.setItem("accessToken", response.data.accessToken);
       localStorage.setItem("refreshToken", response.data.refreshToken);
       localStorage.setItem("fullName", response.data.fullName);
+      localStorage.setItem("userId", response.data.userId);
       localStorage.setItem("role", response.data.role);
 
       toast.success("Đăng nhập thành công!");
