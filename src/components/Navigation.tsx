@@ -61,7 +61,6 @@ export function Navigation({ userType = "guest", queueCount = 0 }: NavigationPro
             <span className="text-xl font-bold text-foreground">Smart Queue</span>
           </Link>
 
-          {/* Search Bar (Desktop) */}
           {(userType === 'customer' || userType === 'guest') && (
             <div className="hidden md:flex flex-1 max-w-md mx-8">
               <form onSubmit={handleSearch} className="relative w-full">
@@ -69,25 +68,22 @@ export function Navigation({ userType = "guest", queueCount = 0 }: NavigationPro
                 <Input
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search restaurants, food..."
+                  placeholder="Tìm nhà hàng, món ăn..."
                   className="pl-10 bg-muted/50 border-0 focus:bg-card"
                 />
                 <Button type="submit" size="sm" className="absolute right-1 top-1/2 transform -translate-y-1/2 h-8">
-                  Search
+                  Tìm
                 </Button>
               </form>
             </div>
           )}
 
-          {/* Location (Desktop) */}
           <div className="hidden md:flex items-center space-x-2 text-sm">
             <MapPin className="h-4 w-4 text-muted-foreground" />
-            <span className="text-foreground">Current Location</span>
+            <span className="text-foreground">Vị trí hiện tại</span>
           </div>
 
-          {/* Action Buttons */}
           <div className="flex items-center space-x-2">
-            {/* Queue Indicator */}
             {(userType === "customer" || userType === "guest") && (
               <>
                 <Link to="/order-history">
@@ -108,7 +104,6 @@ export function Navigation({ userType = "guest", queueCount = 0 }: NavigationPro
               </>
             )}
 
-            {/* Notifications */}
             <Button 
               variant="ghost" 
               size="sm" 
@@ -121,7 +116,6 @@ export function Navigation({ userType = "guest", queueCount = 0 }: NavigationPro
               </Badge>
             </Button>
 
-            {/* User Menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="sm">
@@ -131,42 +125,41 @@ export function Navigation({ userType = "guest", queueCount = 0 }: NavigationPro
               <DropdownMenuContent align="end" className="w-48">
                 {userType === "guest" ? (
                   <>
-                    <DropdownMenuItem>Sign In</DropdownMenuItem>
-                    <DropdownMenuItem>Sign Up</DropdownMenuItem>
+                    <DropdownMenuItem>Đăng Nhập</DropdownMenuItem>
+                    <DropdownMenuItem>Đăng Ký</DropdownMenuItem>
                   </>
                 ) : (
                   <>
                     <DropdownMenuItem>
                       <Link to="/profile" className="flex items-center w-full">
                         <User className="h-4 w-4 mr-2" />
-                        Profile
+                        Hồ sơ
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem>
                       <Link to="/order-history" className="flex items-center w-full">
                         <Clock className="h-4 w-4 mr-2" />
-                        My Orders
+                        Đơn hàng của tôi
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem>
                       <Link to="/support" className="flex items-center w-full">
                         <MessageCircle className="h-4 w-4 mr-2" />
-                        Support
+                        Hỗ trợ
                       </Link>
                     </DropdownMenuItem>
-                    <DropdownMenuItem>Settings</DropdownMenuItem>
+                    <DropdownMenuItem>Cài đặt</DropdownMenuItem>
                     <DropdownMenuItem 
                       className="text-destructive"
                       onClick={() => navigate('/auth')}
                     >
-                      Sign Out
+                      Đăng xuất
                     </DropdownMenuItem>
                   </>
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* Mobile Menu Toggle */}
             <Button 
               variant="ghost" 
               size="sm" 
@@ -178,7 +171,6 @@ export function Navigation({ userType = "guest", queueCount = 0 }: NavigationPro
           </div>
         </div>
 
-        {/* Mobile Search Bar & Menu */}
         {isMobileMenuOpen && (
           <div className="md:hidden py-4 border-t space-y-4">
             {(userType === 'customer' || userType === 'guest') && (
@@ -187,41 +179,40 @@ export function Navigation({ userType = "guest", queueCount = 0 }: NavigationPro
                 <Input
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search restaurants, food..."
+                  placeholder="Tìm nhà hàng, món ăn..."
                   className="pl-10 bg-muted/50 border-0"
                 />
               </form>
             )}
             <div className="flex items-center space-x-2 text-sm">
               <MapPin className="h-4 w-4 text-muted-foreground" />
-              <span className="text-foreground">Update Location</span>
+              <span className="text-foreground">Cập nhật vị trí</span>
             </div>
             
-            {/* Mobile Menu Links */}
             {(userType === 'customer' || userType === 'guest') && (
               <div className="flex flex-col space-y-2">
                 <Link to="/" onClick={() => setIsMobileMenuOpen(false)}>
                   <Button variant="ghost" className="w-full justify-start">
                     <Home className="h-4 w-4 mr-2" />
-                    Home
+                    Trang chủ
                   </Button>
                 </Link>
                 <Link to="/active-queue" onClick={() => setIsMobileMenuOpen(false)}>
                   <Button variant="ghost" className="w-full justify-start">
                     <Clock className="h-4 w-4 mr-2" />
-                    Active Queue
+                    Xếp hàng hiện tại
                   </Button>
                 </Link>
                 <Link to="/order-history" onClick={() => setIsMobileMenuOpen(false)}>
                   <Button variant="ghost" className="w-full justify-start">
                     <Heart className="h-4 w-4 mr-2" />
-                    Order History
+                    Lịch sử đơn hàng
                   </Button>
                 </Link>
                 <Link to="/support" onClick={() => setIsMobileMenuOpen(false)}>
                   <Button variant="ghost" className="w-full justify-start">
                     <MessageCircle className="h-4 w-4 mr-2" />
-                    Support
+                    Hỗ trợ
                   </Button>
                 </Link>
               </div>
@@ -230,7 +221,6 @@ export function Navigation({ userType = "guest", queueCount = 0 }: NavigationPro
         )}
       </div>
 
-      {/* Notification Dialog */}
       <NotificationDialog
         isOpen={isNotificationOpen}
         onClose={() => setIsNotificationOpen(false)}

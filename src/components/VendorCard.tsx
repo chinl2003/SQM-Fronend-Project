@@ -50,7 +50,6 @@ export function VendorCard({
       )}
       onClick={onClick}
     >
-      {/* Cover Image */}
       <div className="relative h-48 overflow-hidden">
         <img
           src={coverImage}
@@ -58,21 +57,19 @@ export function VendorCard({
           className="w-full h-full object-cover"
         />
         
-        {/* Overlay Badges */}
         <div className="absolute top-3 left-3 flex flex-wrap gap-1">
           {isPopular && (
             <Badge className="bg-warning text-warning-foreground">
-              🔥 Popular
+              🔥 Phổ biến
             </Badge>
           )}
           {isPreOrderAvailable && (
             <Badge variant="secondary" className="bg-primary/90 text-primary-foreground">
-              Pre-order
+              Đặt trước
             </Badge>
           )}
         </div>
 
-        {/* Queue Status Indicator */}
         <div className="absolute top-3 right-3">
           <div className={cn(
             "flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium",
@@ -87,7 +84,7 @@ export function VendorCard({
       </div>
 
       <CardContent className="p-4">
-        {/* Header */}
+
         <div className="flex items-start justify-between mb-2">
           <div className="flex-1">
             <h3 className="font-semibold text-card-foreground truncate">{name}</h3>
@@ -100,16 +97,14 @@ export function VendorCard({
           </div>
         </div>
 
-        {/* Rating & Reviews */}
         <div className="flex items-center space-x-2 mb-3">
           <div className="flex items-center space-x-1">
             <Star className="h-4 w-4 fill-rating-gold text-rating-gold" />
             <span className="text-sm font-medium">{rating.toFixed(1)}</span>
           </div>
-          <span className="text-sm text-muted-foreground">({reviewCount})</span>
+          <span className="text-sm text-muted-foreground">({reviewCount} đánh giá)</span>
         </div>
 
-        {/* Quick Stats */}
         <div className="grid grid-cols-2 gap-2 mb-4 text-sm">
           <div className="flex items-center space-x-1 text-muted-foreground">
             <Clock className="h-3 w-3" />
@@ -121,7 +116,6 @@ export function VendorCard({
           </div>
         </div>
 
-        {/* Mock Google Map */}
         <div className="mb-4 rounded-lg overflow-hidden">
           <MockGoogleMap
             lat={lat}
@@ -132,7 +126,6 @@ export function VendorCard({
           />
         </div>
 
-        {/* Action Buttons */}
         <div className="flex space-x-2">
           <Button 
             className="flex-1" 
@@ -140,12 +133,12 @@ export function VendorCard({
             disabled={queueSize >= 20}
           >
             <Utensils className="h-4 w-4 mr-1" />
-            {queueSize >= 20 ? 'Queue Full' : 'Join Queue'}
+            {queueSize >= 20 ? 'Hết chỗ' : 'Tham gia xếp hàng'}
           </Button>
           
           {isPreOrderAvailable && (
             <Button variant="outline" size="sm" className="flex-1">
-              Pre-order
+              Đặt trước
             </Button>
           )}
         </div>
