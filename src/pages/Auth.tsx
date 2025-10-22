@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Clock, Upload, Eye, EyeOff, Users, Store, TrendingUp, Shield, Zap, Star, Lock, Phone, Mail } from "lucide-react";
 import { z } from "zod";
 import clsx from "clsx";
-import { signup } from "@/lib/api";
+import { api } from "@/lib/api";
 
 const loginSchema = z.object({
   phone: z.string().min(10, { message: "Số điện thoại phải có ít nhất 10 số" }),
@@ -55,6 +55,11 @@ const Auth = () => {
   const [otp, setOtp] = useState("");
   const [newPassword, setNewPassword] = useState("");
 
+  // OTP verification state
+  const [showOtpVerification, setShowOtpVerification] = useState(false);
+  const [otpForVerification, setOtpForVerification] = useState("");
+  const [signupPhoneForOtp, setSignupPhoneForOtp] = useState("");
+
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -96,20 +101,23 @@ const Auth = () => {
 
       setIsLoading(true);
 
-      const response = await signup({
-        fullName,
-        email: signupEmail || `${signupPhone.replace(/\D/g, '')}@smartqueue.app`,
-        username: signupPhone.replace(/\D/g, ''), 
-        password: signupPassword,
-        phoneNumber: signupPhone,
-        gender: gender === "male",
-        address,
-        birthday: birthday ? new Date(birthday) : undefined,
-        imageFile: avatarFile,
-      });
+      const formData = new FormData();
+      formData.append("FullName", fullName);
+      formData.append("Email", signupEmail || `${signupPhone.replace(/\D/g, '')}@smartqueue.app`);
+      formData.append("Username", signupPhone.replace(/\D/g, ''));
+      formData.append("Password", signupPassword);
+      formData.append("PhoneNumber", signupPhone);
+      formData.append("Gender", gender === "male" ? "true" : "false");
+      if (address) formData.append("Address", address);
+      if (birthday) formData.append("Birthday", new Date(birthday).toISOString());
+      if (avatarFile) formData.append("Image", avatarFile);
+
+      const response = await api.post("/api/account/register", formData);
+
+      setSignupPhoneForOtp(signupEmail || signupPhone);
+      setShowOtpVerification(true);
 
       toast({ title: "Đăng ký thành công", description: "Tài khoản của bạn đã được tạo!" });
-      navigate("/");
     } catch (error: any) {
       toast({
         title: "Đăng ký thất bại",
@@ -135,6 +143,46 @@ const Auth = () => {
       setForgotPhone("");
       setOtp("");
       setNewPassword("");
+    }
+  };
+
+  const handleOtpVerification = async () => {
+    if (!otpForVerification || otpForVerification.length !== 6) {
+      toast({
+        title: "OTP không hợp lệ",
+        description: "Vui lòng nhập đúng mã OTP",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+
+      const email =
+        signupEmail && signupEmail.trim() !== ""
+          ? signupEmail.trim()
+          : `${signupPhoneForOtp.replace(/\D/g, "")}@smartqueue.app`;
+
+       const data = await api.post("/api/account/verify-otp", {
+          email,
+          otp: otpForVerification,
+        });
+
+      toast({ title: "Xác thực thành công", description: "Xác thực tài khoản của bạn thành công!" });
+      setShowOtpVerification(false);
+      setOtpForVerification("");
+      setSignupPhoneForOtp("");
+      setIsSignup(false);
+      navigate("/login");
+    } catch (error: any) {
+      toast({
+        title: "Xác thực thất bại",
+        description: error.message || "Vui lòng thử lại",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -378,6 +426,31 @@ const Auth = () => {
           </Button>
         </DialogContent>
       </Dialog>
+
+       {/* OTP Verification Modal */}
+        {showOtpVerification && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white p-6 rounded-lg w-96">
+              <h2 className="text-2xl font-bold mb-4">Xác thực OTP</h2>
+              <p className="mb-4">Nhập mã OTP đã gửi tới số {signupPhoneForOtp}</p>
+              <Input
+                placeholder="000000"
+                value={otpForVerification}
+                onChange={(e) => setOtpForVerification(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                maxLength={6}
+                className="mb-4 text-center text-xl"
+              />
+              <div className="flex gap-4">
+                <Button className="flex-1" onClick={handleOtpVerification} disabled={isLoading}>
+                  {isLoading ? "Đang xác thực..." : "Xác thực"}
+                </Button>
+                <Button className="flex-1" onClick={() => setShowOtpVerification(false)}>
+                  Hủy
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
     </div>
   );
 };

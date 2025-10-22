@@ -1,47 +1,48 @@
 const API_URL = import.meta.env.VITE_API_URL;
-console.log("API_URL:", API_URL); 
-export async function login(phone: string, password: string) {
-  const res = await fetch(`${API_URL}/api/account/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ phone, password }),
-  });
-  return res.json();
-}
 
-/**
- * Đăng ký user mới
- */
-export async function signup(data: {
-  fullName: string;
-  email: string;
-  username: string;
-  password: string;
-  phoneNumber: string;
-  gender: boolean;
-  address?: string;
-  birthday?: Date;
-  imageFile?: File | null;
-}) {
-  const formData = new FormData();
-  formData.append("FullName", data.fullName);
-  formData.append("Email", data.email);
-  formData.append("Username", data.username);
-  formData.append("Password", data.password);
-  formData.append("PhoneNumber", data.phoneNumber);
-  formData.append("Gender", data.gender ? "true" : "false");
-  if (data.address) formData.append("Address", data.address);
-  if (data.birthday instanceof Date && !isNaN(data.birthday.getTime())) {
-    formData.append("Birthday", data.birthday.toISOString());
+type RequestOptions = {
+  method?: "GET" | "POST" | "PUT" | "DELETE";
+  body?: any;
+  headers?: Record<string, string>;
+};
+
+async function request<T>(route: string, options: RequestOptions = {}): Promise<T> {
+  const { method = "GET", body, headers = {} } = options;
+
+  let fullRoute = route;
+  if (!route.includes("api-version")) {
+    fullRoute += route.includes("?") ? "&api-version=1.0" : "?api-version=1.0";
   }
-  if (data.imageFile) formData.append("Image", data.imageFile);
 
-  const res = await fetch(`${API_URL}/api/account/register?api-version=1.0`, {
-    method: "POST",
-    body: formData,
-  });
-  console.log("Response status:", res);
-  const json = await res.json();
-  if (!res.ok) throw new Error(json?.message || "Đăng ký thất bại");
-  return json;
+  const fetchOptions: RequestInit = {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+      ...headers,
+    },
+  };
+
+  if (body) {
+    if (body instanceof FormData) {
+      fetchOptions.body = body;
+      delete fetchOptions.headers!["Content-Type"];
+    } else {
+      fetchOptions.body = JSON.stringify(body);
+    }
+  }
+
+  const res = await fetch(`${API_URL}${fullRoute}`, fetchOptions);
+
+  const data = await res.json();
+
+  if (!res.ok) throw new Error(data?.message || "Lỗi khi gọi API");
+
+  return data;
 }
+
+export const api = {
+  get: <T>(route: string, headers?: Record<string, string>) => request<T>(route, { method: "GET", headers }),
+  post: <T>(route: string, body?: any, headers?: Record<string, string>) => request<T>(route, { method: "POST", body, headers }),
+  put: <T>(route: string, body?: any, headers?: Record<string, string>) => request<T>(route, { method: "PUT", body, headers }),
+  delete: <T>(route: string, body?: any, headers?: Record<string, string>) => request<T>(route, { method: "DELETE", body, headers }),
+};
