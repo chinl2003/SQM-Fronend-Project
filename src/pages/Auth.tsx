@@ -92,7 +92,16 @@ const Auth = () => {
       localStorage.setItem("role", response.data.role);
 
       toast.success("Đăng nhập thành công!");
-      navigate("/");
+      const role = response.data.role?.toLowerCase();
+      if (role === "customer") {
+        navigate("/");
+      } else if (role === "vendor") {
+        navigate("/vendor");
+      } else if (role === "admin") {
+        navigate("/admin");
+      } else {
+        navigate("/"); 
+      }
     } catch (error) {
       if (error instanceof z.ZodError) {
         toast.error(error.errors[0].message);

@@ -13,6 +13,7 @@ import Index from "./pages/Index";
 // import OrderHistory from "./pages/OrderHistory";
 // import SupportChat from "./pages/SupportChat";
 import Auth from "./pages/Auth";
+import VendorDashboard from "./components/vendor/VendorDashboard";
 // import Profile from "./pages/Profile";
 
 const queryClient = new QueryClient();
@@ -39,6 +40,7 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
+          <Route path="/vendor" element={<VendorDashboard />} />
           {/* <Route path="/profile" element={<Profile />} /> */}
           {/* <Route path="/search" element={<SearchResults />} /> */}
           {/* <Route path="/vendor/:id" element={<VendorDetailPage vendor={{
