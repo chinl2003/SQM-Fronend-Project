@@ -42,7 +42,9 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
-          <Route
+          <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/vendor" element={<VendorDashboard />} />
+          {/* <Route
             path="/admin"
             element={
               <ProtectedRoute requiredRole="admin">
@@ -58,7 +60,7 @@ const App = () => (
                 <VendorDashboard />
               </ProtectedRoute>
             }
-          />
+          /> */}
           {/* <Route path="/profile" element={<Profile />} /> */}
           {/* <Route path="/search" element={<SearchResults />} /> */}
           {/* <Route path="/vendor/:id" element={<VendorDetailPage vendor={{
