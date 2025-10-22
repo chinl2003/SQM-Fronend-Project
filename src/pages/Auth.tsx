@@ -6,16 +6,15 @@ import { IconInput } from "@/components/IconInput";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
-// import { useToast } from "@/hooks/use-toast";
 import { toast } from "sonner";
 import { Clock, Upload, Eye, EyeOff, Users, Store, TrendingUp, Shield, Zap, Star, Lock, Phone, Mail } from "lucide-react";
 import { z } from "zod";
 import clsx from "clsx";
 import { api } from "@/lib/api";
+import type { ApiResponse, LoginResponse } from "@/lib/api";
 
 const loginSchema = z.object({
-  phone: z.string().min(10, { message: "Số điện thoại phải có ít nhất 10 số" }),
+  email: z.string().email({ message: "Email không hợp lệ" }),
   password: z.string().min(6, { message: "Mật khẩu phải có ít nhất 6 ký tự" }),
 });
 
@@ -28,7 +27,6 @@ const signupSchema = z.object({
 
 const Auth = () => {
   const navigate = useNavigate();
-  // const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string>("");
@@ -38,7 +36,7 @@ const Auth = () => {
   const [forgotPasswordStep, setForgotPasswordStep] = useState<"phone" | "otp" | "newPassword">("phone");
 
   // Login form state
-  const [loginPhone, setLoginPhone] = useState("");
+  const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
 
   // Signup form state
@@ -73,26 +71,34 @@ const Auth = () => {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+
     try {
-      loginSchema.parse({ phone: loginPhone, password: loginPassword });
+      loginSchema.parse({ email: loginEmail, password: loginPassword });
       setIsLoading(true);
 
-      const email = `${loginPhone.replace(/\D/g, '')}@smartqueue.app`;
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
+      const response = await api.post<ApiResponse<LoginResponse>>("/api/account/login", {
+        email: loginEmail.trim(),
         password: loginPassword,
+        rememberLogin: true,
       });
+      
+      if (!response?.code?.toLowerCase().includes("success") || !response?.data?.accessToken) {
+        throw new Error(response?.message || "Đăng nhập thất bại");
+      }
 
-      if (error) throw error;
+      localStorage.setItem("accessToken", response.data.accessToken);
+      localStorage.setItem("refreshToken", response.data.refreshToken);
+      localStorage.setItem("fullName", response.data.fullName);
+      localStorage.setItem("role", response.data.role);
 
-      toast.success("Đăng nhập thành công! Chào mừng bạn quay trở lại.");
+      toast.success("Đăng nhập thành công!");
       navigate("/");
-    } catch (error: any) {
-      toast.error(
-        error instanceof z.ZodError
-          ? error.errors[0].message
-          : error.message || "Lỗi xác thực! Vui lòng thử lại."
-      );
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        toast.error(error.errors[0].message);
+      } else {
+        toast.error(error.message || "Đăng nhập thất bại! Vui lòng thử lại.");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -230,12 +236,12 @@ const Auth = () => {
               {!isSignup ? (
                 <form onSubmit={handleLogin} className="space-y-5">
                   <IconInput
-                    id="login-phone"
-                    label="Số điện thoại"
-                    placeholder="Vui lòng nhập số điện thoại"
-                    value={loginPhone}
-                    onChange={(e) => setLoginPhone(e.target.value)}
-                    icon={<Phone />}
+                    id="login-email"
+                    label="Email"
+                    placeholder="Vui lòng nhập email"
+                    value={loginEmail}
+                    onChange={(e) => setLoginEmail(e.target.value)}
+                    icon={<Mail />}
                   />
                   <div className="space-y-2">
                     <Label htmlFor="login-password" className="text-base">Mật khẩu</Label>

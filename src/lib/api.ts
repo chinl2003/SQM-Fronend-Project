@@ -2,11 +2,29 @@ const API_URL = import.meta.env.VITE_API_URL;
 
 type RequestOptions = {
   method?: "GET" | "POST" | "PUT" | "DELETE";
-  body?: any;
+  body?: unknown;
   headers?: Record<string, string>;
 };
 
-async function request<T>(route: string, options: RequestOptions = {}): Promise<T> {
+export type ApiResponse<T> = {
+  code: string;
+  message: string;
+  data: T;
+};
+
+export type LoginResponse = {
+  accessToken: string;
+  refreshToken: string;
+  fullName: string;
+  role: string;
+};
+
+export type RegisterResponse = {
+  userId: string;
+  email: string;
+};
+
+async function request< T = unknown>(route: string, options: RequestOptions = {}): Promise<T> {
   const { method = "GET", body, headers = {} } = options;
 
   let fullRoute = route;
