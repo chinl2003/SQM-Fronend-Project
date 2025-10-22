@@ -7,7 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
+// import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { Clock, Upload, Eye, EyeOff, Users, Store, TrendingUp, Shield, Zap, Star, Lock, Phone, Mail } from "lucide-react";
 import { z } from "zod";
 import clsx from "clsx";
@@ -27,7 +28,7 @@ const signupSchema = z.object({
 
 const Auth = () => {
   const navigate = useNavigate();
-  const { toast } = useToast();
+  // const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string>("");
@@ -75,18 +76,23 @@ const Auth = () => {
     try {
       loginSchema.parse({ phone: loginPhone, password: loginPassword });
       setIsLoading(true);
+
       const email = `${loginPhone.replace(/\D/g, '')}@smartqueue.app`;
-      const { error } = await supabase.auth.signInWithPassword({ email, password: loginPassword });
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password: loginPassword,
+      });
+
       if (error) throw error;
 
-      toast({ title: "Đăng nhập thành công", description: "Chào mừng bạn quay trở lại!" });
+      toast.success("Đăng nhập thành công! Chào mừng bạn quay trở lại.");
       navigate("/");
     } catch (error: any) {
-      toast({
-        title: "Lỗi xác thực",
-        description: error instanceof z.ZodError ? error.errors[0].message : error.message || "Vui lòng thử lại",
-        variant: "destructive",
-      });
+      toast.error(
+        error instanceof z.ZodError
+          ? error.errors[0].message
+          : error.message || "Lỗi xác thực! Vui lòng thử lại."
+      );
     } finally {
       setIsLoading(false);
     }
@@ -117,12 +123,15 @@ const Auth = () => {
       setSignupPhoneForOtp(signupEmail || signupPhone);
       setShowOtpVerification(true);
 
-      toast({ title: "Đăng ký thành công", description: "Tài khoản của bạn đã được tạo!" });
-    } catch (error: any) {
-      toast({
-        title: "Đăng ký thất bại",
-        description: error instanceof z.ZodError ? error.errors[0].message : error.message || "Vui lòng thử lại",
-        variant: "destructive",
+      toast.success("Đăng ký thành công", {
+        description: "Tài khoản của bạn đã được tạo!",
+      });
+    } catch (error) {
+      toast.error("Đăng ký thất bại", {
+        description:
+          error instanceof z.ZodError
+            ? error.errors[0].message
+            : error.message || "Vui lòng thử lại",
       });
     } finally {
       setIsLoading(false);
@@ -131,13 +140,19 @@ const Auth = () => {
 
   const handleForgotPasswordSubmit = async () => {
     if (forgotPasswordStep === "phone") {
-      toast({ title: "OTP đã được gửi", description: "Vui lòng kiểm tra điện thoại của bạn" });
+      toast.success("OTP đã được gửi! Vui lòng kiểm tra điện thoại của bạn.");
       setForgotPasswordStep("otp");
-    } else if (forgotPasswordStep === "otp") {
-      if (otp.length === 6) setForgotPasswordStep("newPassword");
-      else toast({ title: "OTP không hợp lệ", description: "Vui lòng nhập đúng mã OTP", variant: "destructive" });
-    } else if (forgotPasswordStep === "newPassword") {
-      toast({ title: "Đổi mật khẩu thành công", description: "Vui lòng đăng nhập lại với mật khẩu mới" });
+    } 
+    else if (forgotPasswordStep === "otp") {
+      if (otp.length === 6) {
+        toast.success("Xác thực OTP thành công!");
+        setForgotPasswordStep("newPassword");
+      } else {
+        toast.error("OTP không hợp lệ! Vui lòng nhập đúng mã OTP.");
+      }
+    } 
+    else if (forgotPasswordStep === "newPassword") {
+      toast.success("Đổi mật khẩu thành công! Vui lòng đăng nhập lại với mật khẩu mới.");
       setShowForgotPassword(false);
       setForgotPasswordStep("phone");
       setForgotPhone("");
@@ -148,11 +163,7 @@ const Auth = () => {
 
   const handleOtpVerification = async () => {
     if (!otpForVerification || otpForVerification.length !== 6) {
-      toast({
-        title: "OTP không hợp lệ",
-        description: "Vui lòng nhập đúng mã OTP",
-        variant: "destructive",
-      });
+      toast.error("OTP không hợp lệ! Vui lòng nhập đúng mã OTP.");
       return;
     }
 
@@ -164,23 +175,18 @@ const Auth = () => {
           ? signupEmail.trim()
           : `${signupPhoneForOtp.replace(/\D/g, "")}@smartqueue.app`;
 
-       const data = await api.post("/api/account/verify-otp", {
-          email,
-          otp: otpForVerification,
-        });
+      const response = await api.post("/api/account/verify-otp", {
+        email,
+        otp: otpForVerification,
+      });
 
-      toast({ title: "Xác thực thành công", description: "Xác thực tài khoản của bạn thành công!" });
+      toast.success("Xác thực thành công! Tài khoản của bạn đã được kích hoạt.");
       setShowOtpVerification(false);
       setOtpForVerification("");
       setSignupPhoneForOtp("");
       setIsSignup(false);
-      navigate("/login");
-    } catch (error: any) {
-      toast({
-        title: "Xác thực thất bại",
-        description: error.message || "Vui lòng thử lại",
-        variant: "destructive",
-      });
+    } catch (error) {
+      toast.error(error.message || "Xác thực thất bại! Vui lòng thử lại.");
     } finally {
       setIsLoading(false);
     }
