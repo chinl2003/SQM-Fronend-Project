@@ -37,7 +37,10 @@ import { OrderDetailModal } from "./OrderDetailModal";
 import { api, ApiResponse } from "@/lib/api";
 import { useParams } from "react-router-dom";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-
+import SettingsMenu from "@/components/vendor/SettingsMenu";
+import SettingsDebt from "@/components/vendor/SettingsDebt";
+import SettingsPreOrder from "@/components/vendor/SettingsPreOrder";
+import SettingsAccount from "@/components/vendor/SettingsAccount";
 // ==== Types (shape kept flexible to match backend) ====
 interface VendorFromApi {
   id: string;
@@ -811,11 +814,51 @@ const VendorDashboard = () => {
         {/* Main Content Tabs */}
         <Tabs defaultValue="queue" className="space-y-4">
           <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="queue">Hàng đợi</TabsTrigger>
-            <TabsTrigger value="menu">Thực đơn</TabsTrigger>
-            <TabsTrigger value="analytics">Thống kê</TabsTrigger>
-            <TabsTrigger value="reviews">Đánh giá</TabsTrigger>
-            <TabsTrigger value="settings">Cài đặt</TabsTrigger>
+            <TabsTrigger value="queue" className="
+                py-2 text-sm font-medium transition-all
+                data-[state=active]:bg-green-500 
+                data-[state=active]:text-white 
+                data-[state=active]:shadow-sm
+                hover:bg-muted/60
+                rounded-md
+              ">Hàng đợi
+            </TabsTrigger>
+            <TabsTrigger value="menu" className="
+                py-2 text-sm font-medium transition-all
+                data-[state=active]:bg-green-500 
+                data-[state=active]:text-white 
+                data-[state=active]:shadow-sm
+                hover:bg-muted/60
+                rounded-md
+              ">Thực đơn
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="
+                py-2 text-sm font-medium transition-all
+                data-[state=active]:bg-green-500 
+                data-[state=active]:text-white 
+                data-[state=active]:shadow-sm
+                hover:bg-muted/60
+                rounded-md
+              ">Thống kê
+            </TabsTrigger>
+            <TabsTrigger value="reviews" className="
+                py-2 text-sm font-medium transition-all
+                data-[state=active]:bg-green-500 
+                data-[state=active]:text-white 
+                data-[state=active]:shadow-sm
+                hover:bg-muted/60
+                rounded-md
+              ">Đánh giá
+            </TabsTrigger>
+            <TabsTrigger value="settings" className="
+                py-2 text-sm font-medium transition-all
+                data-[state=active]:bg-green-500 
+                data-[state=active]:text-white 
+                data-[state=active]:shadow-sm
+                hover:bg-muted/60
+                rounded-md
+              ">Cài đặt
+            </TabsTrigger>
           </TabsList>
 
           {/* Queue Management */}
@@ -1059,12 +1102,64 @@ const VendorDashboard = () => {
           <TabsContent value="settings" className="space-y-4">
             {/* Inner tabs for settings sections if needed later; for now, show Đăng kí */}
             <Tabs defaultValue="registration" className="space-y-4">
-              <TabsList>
-                <TabsTrigger value="registration">Đăng kí</TabsTrigger>
-                {/* <TabsTrigger value="other">Khác</TabsTrigger> */}
+              <TabsList className="
+                flex w-full justify-start rounded-xl bg-muted/40 p-1
+                shadow-sm border border-border
+                h-10
+              ">
+                <TabsTrigger value="registration" className="
+                    px-3 py-1.5 text-sm font-medium rounded-lg transition-all
+                    hover:bg-gray-200
+                    data-[state=active]:bg-gray-200 
+                    data-[state=active]:shadow-sm
+                  ">Thông tin
+                </TabsTrigger>
+                <TabsTrigger value="menu" className="
+                    px-3 py-1.5 text-sm font-medium rounded-lg transition-all
+                    hover:bg-gray-200
+                    data-[state=active]:bg-gray-200 
+                    data-[state=active]:shadow-sm
+                  ">Thực đơn
+                </TabsTrigger>
+                <TabsTrigger value="debt" className="
+                    px-3 py-1.5 text-sm font-medium rounded-lg transition-all
+                    hover:bg-gray-200
+                    data-[state=active]:bg-gray-200 
+                    data-[state=active]:shadow-sm
+                  ">Công nợ
+                </TabsTrigger>
+                <TabsTrigger value="preorder" className="
+                    px-3 py-1.5 text-sm font-medium rounded-lg transition-all
+                    hover:bg-gray-200
+                    data-[state=active]:bg-gray-200 
+                    data-[state=active]:shadow-sm
+                  ">Đặt trước
+                </TabsTrigger>
+                <TabsTrigger value="account" className="
+                    px-3 py-1.5 text-sm font-medium rounded-lg transition-all
+                    hover:bg-gray-200
+                    data-[state=active]:bg-gray-200 
+                    data-[state=active]:shadow-sm
+                  ">Tài khoản
+                </TabsTrigger>
               </TabsList>
               <TabsContent value="registration">
                 <RegistrationSection vendor={vendor} editable={isEditable} />
+              </TabsContent>
+              <TabsContent value="menu">
+                <SettingsMenu />
+              </TabsContent>
+
+              <TabsContent value="debt">
+                <SettingsDebt />
+              </TabsContent>
+
+              <TabsContent value="preorder">
+                <SettingsPreOrder />
+              </TabsContent>
+
+              <TabsContent value="account">
+                <SettingsAccount />
               </TabsContent>
             </Tabs>
           </TabsContent>
