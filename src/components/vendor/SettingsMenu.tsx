@@ -423,7 +423,7 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
       <Card className="shadow-md">
         <CardHeader className="flex flex-row items-center justify-between border-b border-border px-4 py-3 bg-muted/30 rounded-t-xl">
           <CardTitle className="text-xl font-semibold text-foreground">
-            Quản lý Menu
+            Quản lý thực đơn
           </CardTitle>
 
           <Button

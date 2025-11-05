@@ -6,18 +6,10 @@ import { GoogleMap } from "@/components/GoogleMap";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import {
-  TrendingUp,
-  Clock,
-  Star,
-  Utensils,
-  MapPin,
-  Repeat,
-  Calendar,
-  Map,
-} from "lucide-react";
+import { Utensils, MapPin } from "lucide-react";
 import heroImage from "@/assets/hero-image.jpg";
 import { api, ApiResponse } from "@/lib/api";
+import { VendorQuickView } from "@/components/customer/VendorQuickView";
 
 // ---------- Types ----------
 type ApiVendor = {
@@ -41,8 +33,6 @@ function buildMediaUrl(path?: string | null) {
 }
 
 function extractVendorsFromResponse(res: any): ApiVendor[] {
-  // API trả: BaseResponseModel<IEnumerable<Vendor>>
-  // nên dữ liệu thường nằm ở res.data.data (tùy wrapper api của bạn)
   const outer = res?.data ?? res;
   const list =
     (Array.isArray(outer) && outer) ||
@@ -55,8 +45,12 @@ export default function Index() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [vendors, setVendors] = useState<ApiVendor[]>([]);
-
-  // categories giữ nguyên như cũ
+  const [quickViewId, setQuickViewId] = useState<string | null>(null); // <-- NEW
+  const [currentCustomerId, setCurrentCustomerId] = useState<string | null>(null);
+  useEffect(() => {
+    const cid = localStorage.getItem("userId") || null;
+    setCurrentCustomerId(cid);
+  }, []);
   const categories = [
     { name: "Ý", icon: "🍕", count: 23 },
     { name: "Châu Á", icon: "🍜", count: 18 },
@@ -91,7 +85,6 @@ export default function Index() {
     };
   }, []);
 
-  // Chuẩn hóa data cho GoogleMap (thay cho vendorLocations giả)
   const vendorLocations = useMemo(
     () =>
       vendors.map((v) => ({
@@ -104,21 +97,19 @@ export default function Index() {
     [vendors]
   );
 
-  // Map dữ liệu API -> props mà VendorCard đang cần
-  // (các trường thiếu sẽ gán mặc định để không phá UI hiện có)
   const vendorCards = useMemo(
     () =>
       vendors.map((v) => ({
         id: v.id,
         name: v.name ?? "—",
-        coverImage: buildMediaUrl(v.logoUrl) || heroImage, // fallback
+        coverImage: buildMediaUrl(v.logoUrl) || heroImage,
         rating: typeof v.averageRating === "number" ? v.averageRating : 0,
         reviewCount: 0,
-        eta: "", // chưa có từ API
+        eta: "", // dùng mặc định "0" trong VendorCard
         queueSize: v.queueCount ?? 0,
-        distance: "", // chưa có từ API
-        cuisineType: "", // chưa có từ API
-        priceRange: "€€" as const, // mặc định
+        distance: "", // dùng mặc định "0" trong VendorCard
+        cuisineType: "",
+        priceRange: "€€" as const,
         isPreOrderAvailable: !!v.allowPreorder,
         isPopular: false,
         lat: v.latitude ?? 0,
@@ -128,7 +119,7 @@ export default function Index() {
   );
 
   const handleVendorClick = (vendorId: string) => {
-    console.log("Đi tới vendor:", vendorId);
+    setQuickViewId(vendorId); // mở modal
   };
 
   const handleFilterChange = (filters: any) => {
@@ -168,7 +159,7 @@ export default function Index() {
       </section>
 
       <div className="container mx-auto px-4 py-6 space-y-8">
-        {/* Bản đồ vẫn hiển thị, dùng dữ liệu thật */}
+        {/* Map */}
         <section>
           <GoogleMap
             vendors={vendorLocations}
@@ -177,7 +168,7 @@ export default function Index() {
           />
         </section>
 
-        {/* Duyệt theo danh mục (giữ nguyên UI, không thay đổi logic) */}
+        {/* Categories */}
         <section>
           <h2 className="text-xl font-semibold mb-4 flex items-center">
             <Utensils className="mr-2 h-5 w-5" />
@@ -208,18 +199,7 @@ export default function Index() {
           </div>
         </section>
 
-        {/* 4 mục dưới tạm ẨN theo yêu cầu:
-            - Đặt lại món
-            - Xu hướng hôm nay
-            - Đặt trước tối nay
-            - Đánh giá cao
-            - Gợi ý cho bạn
-            - Xu hướng hôm nay (danh sách)
-            - Thời gian chờ ngắn nhất
-            - Đặt trước tối nay (danh sách)
-        */}
-
-        {/* NHÀ HÀNG MỚI — ĐỔ DỮ LIỆU THẬT */}
+        {/* Nhà hàng mới */}
         <section>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold">
@@ -263,6 +243,13 @@ export default function Index() {
           )}
         </section>
       </div>
+
+      <VendorQuickView
+        open={!!quickViewId}
+        vendorId={quickViewId}
+        onClose={() => setQuickViewId(null)}
+        customerId={currentCustomerId}
+      />
 
       <div className="h-16 md:h-0" />
     </div>
