@@ -5,14 +5,33 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  CheckCircle, XCircle, Pause, Eye, Search,
-  ShoppingBag, MapPin, Star, Users, DollarSign,
-  AlertTriangle, Clock, Menu
+  CheckCircle,
+  XCircle,
+  Pause,
+  Eye,
+  Search,
+  ShoppingBag,
+  MapPin,
+  Star,
+  Users,
+  DollarSign,
+  AlertTriangle,
+  Clock,
+  Menu,
+  Loader2,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import VendorDetail from "@/components/admin/VendorDetail";
 import { api, ApiResponse } from "@/lib/api";
 import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 type Vendor = {
   id: string;
@@ -23,7 +42,7 @@ type Vendor = {
   averageRating?: number;
   queueCount?: number | null;
   allowPreorder?: boolean;
-  status?: number | string; 
+  status?: number | string;
   createdTime?: string;
   type?: string;
   location?: string;
@@ -57,6 +76,17 @@ const STATUS_MAP = {
   menu_pending: "MenuPending",
   debt: "InDebt",
   closure: "ClosureRequested",
+} as const;
+
+const VENDOR_STATUS_ENUM = {
+  Draft: 0,
+  PendingReview: 1,
+  Approved: 2,
+  Rejected: 3,
+  MenuPending: 4,
+  InDebt: 5,
+  ClosureRequested: 6,
+  Suspended: 7,
 } as const;
 
 const STATUS_NUM_TO_TEXT: Record<
@@ -94,7 +124,7 @@ const fmtDate = (iso?: string) => {
   const dd = String(d.getDate()).padStart(2, "0");
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const yyyy = d.getFullYear();
-  return `${dd}-${mm}-${yyyy}`; 
+  return `${dd}-${mm}-${yyyy}`;
 };
 
 function normalizeStatus(s: Vendor["status"]): string {
@@ -103,9 +133,12 @@ function normalizeStatus(s: Vendor["status"]): string {
   return "";
 }
 
-function extractVendorsFromResponse(res: any): { list: Vendor[]; page: number | undefined; total: number | undefined } {
- 
-  const outer = res?.data ?? res; 
+function extractVendorsFromResponse(res: any): {
+  list: Vendor[];
+  page: number | undefined;
+  total: number | undefined;
+} {
+  const outer = res?.data ?? res;
   const maybeArray =
     (Array.isArray(outer) && outer) ||
     (Array.isArray(outer?.data) && outer.data) ||
@@ -131,6 +164,11 @@ function extractVendorsFromResponse(res: any): { list: Vendor[]; page: number | 
 
 const VendorManagement = () => {
   const [searchTerm, setSearchTerm] = useState("");
+  const [showApprovalModal, setShowApprovalModal] = useState(false);
+  const [approvingTarget, setApprovingTarget] = useState<{
+    id: string;
+    name?: string;
+  } | null>(null);
   const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
   const [activeTab, setActiveTab] = useState<
     "active" | "pending" | "menu_pending" | "debt" | "closure"
@@ -141,8 +179,12 @@ const VendorManagement = () => {
   const [pageNumber, setPageNumber] = useState(DEFAULT_PAGE);
   const [pageSize] = useState(DEFAULT_SIZE);
   const [totalCount, setTotalCount] = useState<number | undefined>(undefined);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
 
-  async function fetchVendorsByStatus(tab: typeof activeTab, page = DEFAULT_PAGE) {
+  async function fetchVendorsByStatus(
+    tab: typeof activeTab,
+    page = DEFAULT_PAGE
+  ) {
     try {
       setLoading(true);
 
@@ -180,20 +222,82 @@ const VendorManagement = () => {
   const filtered = useMemo(() => {
     if (!searchTerm) return vendors;
     const key = searchTerm.toLowerCase();
-    return vendors.filter((v) =>
-      (v.name ?? "").toLowerCase().includes(key) ||
-      (v.type ?? "").toLowerCase().includes(key) ||
-      (v.address ?? v.location ?? "").toLowerCase().includes(key)
+    return vendors.filter(
+      (v) =>
+        (v.name ?? "").toLowerCase().includes(key) ||
+        (v.type ?? "").toLowerCase().includes(key) ||
+        (v.address ?? v.location ?? "").toLowerCase().includes(key)
     );
   }, [vendors, searchTerm]);
 
   const handleApprove = async (vendorId: string) => {
     try {
-      toast.success("Duyệt quán thành công!");
+      setApprovingId(vendorId);
+
+      const token = localStorage.getItem("accessToken") || "";
+      await api.post<ApiResponse<any>>(
+        `/api/vendor/${vendorId}/status`,
+        { status: VENDOR_STATUS_ENUM.MenuPending },
+        {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          "Content-Type": "application/json",
+        } as any
+      );
+
+      toast.success(
+        "Đã duyệt hồ sơ thành công! Trạng thái chuyển sang 'Chờ cấp phép'."
+      );
+      // Cập nhật UI
+      setVendors((prev) => prev.filter((v) => v.id !== vendorId));
       fetchVendorsByStatus(activeTab, pageNumber);
-    } catch (e) {
+    } catch (e: any) {
+      console.error(e);
       toast.error(e?.message || "Duyệt thất bại");
+    } finally {
+      setApprovingId(null);
     }
+  };
+
+  const renderLoadingCards = (count = 3) => (
+    <div className="space-y-4">
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="border rounded-lg p-4">
+          <div className="animate-pulse grid lg:grid-cols-4 gap-4 items-center">
+            <div className="lg:col-span-2 flex items-start gap-3">
+              <div className="w-12 h-12 bg-muted rounded-lg" />
+              <div className="flex-1 space-y-2">
+                <div className="h-4 bg-muted rounded w-1/3" />
+                <div className="flex gap-4">
+                  <div className="h-3 bg-muted rounded w-24" />
+                  <div className="h-3 bg-muted rounded w-32" />
+                </div>
+                <div className="h-3 bg-muted rounded w-40" />
+              </div>
+            </div>
+            <div className="flex flex-col items-center gap-2">
+              <div className="h-6 bg-muted rounded w-24" />
+              <div className="h-3 bg-muted rounded w-16" />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <div className="h-9 bg-muted rounded w-10" />
+              <div className="h-9 bg-muted rounded w-10" />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
+  const openApproveModal = (vendor: Vendor) => {
+    setApprovingTarget({ id: vendor.id, name: vendor.name });
+    setShowApprovalModal(true);
+  };
+
+  const handleApprovalConfirm = async () => {
+    if (!approvingTarget?.id) return;
+    await handleApprove(approvingTarget.id);
+    setShowApprovalModal(false);
+    setApprovingTarget(null);
   };
 
   const handleReject = async (vendorId: string) => {
@@ -221,8 +325,7 @@ const VendorManagement = () => {
     if (s === "approved") return <Badge variant="default">Đã duyệt</Badge>;
     if (s === "pendingreview" || s === "pending")
       return <Badge variant="secondary">Chờ duyệt</Badge>;
-    if (s === "suspended")
-      return <Badge variant="destructive">Tạm khóa</Badge>;
+    if (s === "suspended") return <Badge variant="destructive">Tạm khóa</Badge>;
     if (s === "menupending" || s === "menu_pending")
       return (
         <Badge variant="outline" className="border-warning text-warning">
@@ -248,7 +351,10 @@ const VendorManagement = () => {
     }
   };
 
-  const renderCardRow = (vendor: Vendor, highlight?: "pending" | "primary" | "danger") => {
+  const renderCardRow = (
+    vendor: Vendor,
+    highlight?: "pending" | "primary" | "danger"
+  ) => {
     const iconWrap =
       highlight === "pending"
         ? "bg-warning/10 text-warning"
@@ -263,7 +369,9 @@ const VendorManagement = () => {
         <div className="grid lg:grid-cols-4 gap-4 items-center">
           <div className="lg:col-span-2">
             <div className="flex items-start gap-3">
-              <div className={`w-12 h-12 ${iconWrap} rounded-lg flex items-center justify-center`}>
+              <div
+                className={`w-12 h-12 ${iconWrap} rounded-lg flex items-center justify-center`}
+              >
                 <ShoppingBag className="w-6 h-6" />
               </div>
               <div className="flex-1">
@@ -276,7 +384,8 @@ const VendorManagement = () => {
                   )}
                   {(vendor.location || vendor.address) && (
                     <span className="flex items-center gap-1">
-                      <MapPin className="w-3 h-3" /> {vendor.location || vendor.address}
+                      <MapPin className="w-3 h-3" />{" "}
+                      {vendor.location || vendor.address}
                     </span>
                   )}
                 </div>
@@ -310,10 +419,18 @@ const VendorManagement = () => {
           </div>
 
           <div className="flex gap-2 justify-end">
-            <Button size="sm" variant="outline" onClick={() => handleViewDetails(vendor)}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleViewDetails(vendor)}
+            >
               <Eye className="w-4 h-4" />
             </Button>
-            <Button size="sm" variant="outline" onClick={() => handleSuspend(vendor.id)}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleSuspend(vendor.id)}
+            >
               <Pause className="w-4 h-4" />
             </Button>
           </div>
@@ -333,7 +450,11 @@ const VendorManagement = () => {
         />
       )}
 
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="space-y-6">
+      <Tabs
+        value={activeTab}
+        onValueChange={(v) => setActiveTab(v as typeof activeTab)}
+        className="space-y-6"
+      >
         <TabsList className="grid grid-cols-5 lg:w-fit">
           <TabsTrigger value="active">Đang hoạt động</TabsTrigger>
           <TabsTrigger value="pending">Chờ duyệt</TabsTrigger>
@@ -357,7 +478,10 @@ const VendorManagement = () => {
                   className="pl-10"
                 />
               </div>
-              <Button variant="outline" onClick={() => fetchVendorsByStatus(activeTab, DEFAULT_PAGE)}>
+              <Button
+                variant="outline"
+                onClick={() => fetchVendorsByStatus(activeTab, DEFAULT_PAGE)}
+              >
                 {loading ? "Đang tải..." : "Làm mới"}
               </Button>
             </div>
@@ -384,121 +508,136 @@ const VendorManagement = () => {
         </TabsContent>
 
         <TabsContent value="pending">
-  <Card>
-    <CardHeader>
-      <CardTitle>Danh sách quán đang chờ xét duyệt</CardTitle>
-    </CardHeader>
-    <CardContent>
-      <div className="space-y-4">
-        {filtered.map((v) => {
-          const pendingDate = v.joinDate || v.createdTime; 
-          return (
-            <div
-              key={v.id}
-              className="border rounded-lg p-4 bg-secondary/5"
-            >
-              <div className="grid lg:grid-cols-4 gap-4 items-center">
-                <div className="lg:col-span-2">
-                  <div className="flex items-start gap-3">
-                    <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-orange-50 overflow-hidden">
-                        {v.logoUrl ? (
-                            <img
-                            src={
-                                v.logoUrl.startsWith("http")
-                                ? v.logoUrl
-                                : `${import.meta.env.VITE_API_URL || ""}/${v.logoUrl}`
-                            }
-                            alt={v.name}
-                            className="object-cover w-full h-full rounded-xl"
-                            />
-                        ) : (
-                            <Clock className="w-6 h-6 text-orange-500" />
-                        )}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                Danh sách quán đang chờ xét duyệt
+                {loading && (
+                  <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {filtered.map((v) => {
+                  const pendingDate = v.joinDate || v.createdTime;
+                  return (
+                    <div
+                      key={v.id}
+                      className="border rounded-lg p-4 bg-secondary/5"
+                    >
+                      <div className="grid lg:grid-cols-4 gap-4 items-center">
+                        <div className="lg:col-span-2">
+                          <div className="flex items-start gap-3">
+                            <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-orange-50 overflow-hidden">
+                              {v.logoUrl ? (
+                                <img
+                                  src={
+                                    v.logoUrl.startsWith("http")
+                                      ? v.logoUrl
+                                      : `${
+                                          import.meta.env.VITE_API_URL || ""
+                                        }/${v.logoUrl}`
+                                  }
+                                  alt={v.name}
+                                  className="object-cover w-full h-full rounded-xl"
+                                />
+                              ) : (
+                                <Clock className="w-6 h-6 text-orange-500" />
+                              )}
+                            </div>
+
+                            <div className="flex-1">
+                              <h3 className="font-semibold text-lg">
+                                {v.name}
+                              </h3>
+
+                              <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                                {v.type && (
+                                  <span className="flex items-center gap-1">
+                                    <ShoppingBag className="w-3 h-3" />
+                                    {v.type}
+                                  </span>
+                                )}
+                                {(v.location || v.address) && (
+                                  <span className="flex items-center gap-1">
+                                    <MapPin className="w-3 h-3" />
+                                    {v.location || v.address}
+                                  </span>
+                                )}
+                              </div>
+
+                              {pendingDate && (
+                                <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
+                                  <Clock className="w-3 h-3 text-orange-500" />
+                                  <span>
+                                    Ngày đăng ký: {fmtDate(pendingDate)}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
                         </div>
 
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-lg">{v.name}</h3>
+                        <div className="text-center">
+                          <span className="inline-flex items-center rounded-full bg-emerald-50 text-emerald-600 px-3 py-1 text-sm font-medium">
+                            Chờ duyệt
+                          </span>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            Chờ xem xét hồ sơ
+                          </p>
+                        </div>
 
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                        {v.type && (
-                          <span className="flex items-center gap-1">
-                            <ShoppingBag className="w-3 h-3" />
-                            {v.type}
-                          </span>
-                        )}
-                        {(v.location || v.address) && (
-                          <span className="flex items-center gap-1">
-                            <MapPin className="w-3 h-3" />
-                            {v.location || v.address}
-                          </span>
-                        )}
+                        <div className="flex gap-2 justify-end">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="rounded-lg"
+                            onClick={() => handleViewDetails(v)}
+                            title="Xem chi tiết"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
+
+                          <Button
+                            size="sm"
+                            className="rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white"
+                            onClick={() => openApproveModal(v)} // ← mở modal
+                            disabled={approvingId === v.id}
+                            title="Duyệt"
+                          >
+                            {approvingId === v.id ? (
+                              "Đang duyệt..."
+                            ) : (
+                              <CheckCircle className="w-4 h-4" />
+                            )}
+                          </Button>
+
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="rounded-lg"
+                            onClick={() => handleReject(v.id)}
+                            title="Từ chối"
+                          >
+                            <XCircle className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </div>
-
-                      {pendingDate && (
-                        <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
-                          <Clock className="w-3 h-3 text-orange-500" />
-                          <span>Ngày đăng ký: {fmtDate(pendingDate)}</span>
-                        </div>
-                      )}
                     </div>
+                  );
+                })}
+
+                {!loading && filtered.length === 0 && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <CheckCircle className="w-12 h-12 mx-auto mb-4 text-success" />
+                    <p>Không có quán nào chờ xét duyệt</p>
                   </div>
-                </div>
-
-                <div className="text-center">
-                  <span className="inline-flex items-center rounded-full bg-emerald-50 text-emerald-600 px-3 py-1 text-sm font-medium">
-                    Chờ duyệt
-                  </span>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Chờ xem xét hồ sơ
-                  </p>
-                </div>
-
-                <div className="flex gap-2 justify-end">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="rounded-lg"
-                    onClick={() => handleViewDetails(v)}
-                    title="Xem chi tiết"
-                  >
-                    <Eye className="w-4 h-4" />
-                  </Button>
-
-                  <Button
-                    size="sm"
-                    className="rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white"
-                    onClick={() => handleApprove(v.id)}
-                    title="Duyệt"
-                  >
-                    <CheckCircle className="w-4 h-4" />
-                  </Button>
-
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    className="rounded-lg"
-                    onClick={() => handleReject(v.id)}
-                    title="Từ chối"
-                  >
-                    <XCircle className="w-4 h-4" />
-                  </Button>
-                </div>
+                )}
               </div>
-            </div>
-          );
-        })}
-
-        {!loading && filtered.length === 0 && (
-          <div className="text-center py-8 text-muted-foreground">
-            <CheckCircle className="w-12 h-12 mx-auto mb-4 text-success" />
-            <p>Không có quán nào chờ xét duyệt</p>
-          </div>
-        )}
-      </div>
-    </CardContent>
-  </Card>
-</TabsContent>
-
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="menu_pending">
           <Card>
@@ -511,7 +650,10 @@ const VendorManagement = () => {
             <CardContent>
               <div className="space-y-4">
                 {filtered.map((v) => (
-                  <div key={v.id} className="border rounded-lg p-4 bg-primary/5">
+                  <div
+                    key={v.id}
+                    className="border rounded-lg p-4 bg-primary/5"
+                  >
                     <div className="grid lg:grid-cols-4 gap-4 items-center">
                       <div className="lg:col-span-2">
                         <div className="flex items-start gap-3">
@@ -550,11 +692,17 @@ const VendorManagement = () => {
 
                       <div className="text-center">
                         {getStatusBadge(v)}
-                        <p className="text-sm text-muted-foreground mt-1">Sẵn sàng hoạt động</p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Sẵn sàng hoạt động
+                        </p>
                       </div>
 
                       <div className="flex gap-2 justify-end">
-                        <Button size="sm" variant="outline" onClick={() => handleViewDetails(v)}>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleViewDetails(v)}
+                        >
                           <Eye className="w-4 h-4" />
                         </Button>
                         <Button size="sm" onClick={() => handleApprove(v.id)}>
@@ -580,12 +728,17 @@ const VendorManagement = () => {
           <Card>
             <CardHeader>
               <CardTitle>Quản lý Công nợ</CardTitle>
-              <p className="text-sm text-muted-foreground">Danh sách quán có nợ phí sàn hoặc quá hạn</p>
+              <p className="text-sm text-muted-foreground">
+                Danh sách quán có nợ phí sàn hoặc quá hạn
+              </p>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 {filtered.map((v) => (
-                  <div key={v.id} className="border rounded-lg p-4 bg-destructive/5">
+                  <div
+                    key={v.id}
+                    className="border rounded-lg p-4 bg-destructive/5"
+                  >
                     <div className="grid lg:grid-cols-4 gap-4 items-center">
                       <div className="lg:col-span-2">
                         <div className="flex items-start gap-3">
@@ -605,7 +758,11 @@ const VendorManagement = () => {
                             <div className="flex items-center gap-2 mt-1">
                               <DollarSign className="w-4 h-4 text-destructive" />
                               <span className="text-destructive font-medium">
-                                Nợ: {(v.outstandingAmount ?? 0).toLocaleString("vi-VN")}đ
+                                Nợ:{" "}
+                                {(v.outstandingAmount ?? 0).toLocaleString(
+                                  "vi-VN"
+                                )}
+                                đ
                               </span>
                             </div>
                           </div>
@@ -614,21 +771,37 @@ const VendorManagement = () => {
 
                       <div className="text-center">
                         <Badge variant="destructive" className="mb-2">
-                          {v.monthlyFeeStatus === "overdue" ? "Quá hạn" : "Nợ tiền"}
+                          {v.monthlyFeeStatus === "overdue"
+                            ? "Quá hạn"
+                            : "Nợ tiền"}
                         </Badge>
                         {v.joinDate && (
-                          <p className="text-sm text-muted-foreground">Từ {v.joinDate}</p>
+                          <p className="text-sm text-muted-foreground">
+                            Từ {v.joinDate}
+                          </p>
                         )}
                       </div>
 
                       <div className="flex gap-2 justify-end">
-                        <Button size="sm" variant="outline" onClick={() => handleViewDetails(v)}>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleViewDetails(v)}
+                        >
                           <Eye className="w-4 h-4" />
                         </Button>
-                        <Button size="sm" variant="outline" className="border-warning text-warning">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-warning text-warning"
+                        >
                           Nhắc nhở
                         </Button>
-                        <Button size="sm" variant="destructive" onClick={() => handleSuspend(v.id)}>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleSuspend(v.id)}
+                        >
                           <Pause className="w-4 h-4" />
                         </Button>
                       </div>
@@ -650,7 +823,9 @@ const VendorManagement = () => {
           <Card>
             <CardHeader>
               <CardTitle>Yêu cầu Đóng App</CardTitle>
-              <p className="text-sm text-muted-foreground">Danh sách quán yêu cầu đóng app</p>
+              <p className="text-sm text-muted-foreground">
+                Danh sách quán yêu cầu đóng app
+              </p>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
@@ -665,26 +840,39 @@ const VendorManagement = () => {
                           <div className="flex-1">
                             <h3 className="font-semibold text-lg">{v.name}</h3>
                             {v.joinDate && (
-                              <p className="text-sm text-muted-foreground">Ngày yêu cầu: {v.joinDate}</p>
+                              <p className="text-sm text-muted-foreground">
+                                Ngày yêu cầu: {v.joinDate}
+                              </p>
                             )}
                           </div>
                         </div>
                       </div>
 
                       <div className="text-center">
-                        <Badge variant="outline" className="mb-2 border-orange-500 text-orange-500">
+                        <Badge
+                          variant="outline"
+                          className="mb-2 border-orange-500 text-orange-500"
+                        >
                           Chờ xét duyệt
                         </Badge>
                       </div>
 
                       <div className="flex gap-2 justify-end">
-                        <Button size="sm" variant="outline" onClick={() => handleViewDetails(v)}>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleViewDetails(v)}
+                        >
                           <Eye className="w-4 h-4" />
                         </Button>
                         <Button size="sm" onClick={() => handleApprove(v.id)}>
                           <CheckCircle className="w-4 h-4" />
                         </Button>
-                        <Button size="sm" variant="destructive" onClick={() => handleReject(v.id)}>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleReject(v.id)}
+                        >
                           <XCircle className="w-4 h-4" />
                         </Button>
                       </div>
@@ -702,6 +890,29 @@ const VendorManagement = () => {
           </Card>
         </TabsContent>
       </Tabs>
+      <Dialog open={showApprovalModal} onOpenChange={setShowApprovalModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Xác nhận Xét duyệt</DialogTitle>
+            <DialogDescription>
+              Bạn có chắc chắn muốn xét duyệt quán "{approvingTarget?.name}"
+              không?
+              <br />
+              Sau khi xét duyệt, quán này sẽ được yêu cầu cập nhật menu để hoạt
+              động.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowApprovalModal(false)}
+            >
+              Hủy
+            </Button>
+            <Button onClick={handleApprovalConfirm}>Xác nhận</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 };

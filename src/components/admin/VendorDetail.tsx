@@ -2,14 +2,28 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-  Dialog, DialogContent, DialogDescription,
-  DialogFooter, DialogHeader, DialogTitle
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import {
-  ShoppingBag, MapPin, Clock, Phone, Mail, FileText,
-  CreditCard, CheckCircle, XCircle,
-  DollarSign, Calendar, Menu as MenuIcon, ImageIcon
+  ShoppingBag,
+  MapPin,
+  Clock,
+  Phone,
+  Mail,
+  FileText,
+  CreditCard,
+  CheckCircle,
+  XCircle,
+  DollarSign,
+  Calendar,
+  Menu as MenuIcon,
+  ImageIcon,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { api, ApiResponse } from "@/lib/api";
@@ -46,14 +60,22 @@ type VendorDetailModel = {
 interface VendorDetailProps {
   vendor: { id: string; name?: string } | null;
   onClose: () => void;
-  onApprove: (vendorId: string) => void;
+  // ĐỔI: để có thể await khi bấm xác nhận
+  onApprove: (vendorId: string) => Promise<void>;
   onReject: (vendorId: string) => void;
 }
 
 // ---- Helpers ----
-const STATUS_NUM_TO_TEXT: Record<number,
-  "rejected" | "indebt" | "draft" | "approved" |
-  "pendingreview" | "menupending" | "suspended" | "closurerequested"
+const STATUS_NUM_TO_TEXT: Record<
+  number,
+  | "rejected"
+  | "indebt"
+  | "draft"
+  | "approved"
+  | "pendingreview"
+  | "menupending"
+  | "suspended"
+  | "closurerequested"
 > = {
   0: "draft",
   1: "pendingreview",
@@ -92,36 +114,50 @@ function buildMediaUrl(path?: string) {
   return `${base}/${path.replace(/^\/+/, "")}`;
 }
 
-// VN labels + colored badge
-function statusLabelVi(s?: string) {
-  switch (s) {
-    case "draft": return "Bản nháp";
-    case "pendingreview": return "Chờ duyệt";
-    case "approved": return "Đã duyệt";
-    case "rejected": return "Đã từ chối";
-    case "menupending": return "Chờ cấp phép";
-    case "indebt": return "Đang nợ";
-    case "closurerequested": return "Yêu cầu đóng";
-    case "suspended": return "Tạm khóa";
-    default: return "—";
-  }
-}
 function StatusBadge({ status }: { status?: string }) {
   const s = status;
   if (s === "approved")
-    return <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white">Đã duyệt</Badge>;
+    return (
+      <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white">
+        Đã duyệt
+      </Badge>
+    );
   if (s === "pendingreview")
-    return <Badge className="bg-amber-500 hover:bg-amber-500 text-white">Chờ duyệt</Badge>;
+    return (
+      <Badge className="bg-amber-500 hover:bg-amber-500 text-white">
+        Chờ duyệt
+      </Badge>
+    );
   if (s === "rejected")
-    return <Badge className="bg-rose-600 hover:bg-rose-600 text-white">Đã từ chối</Badge>;
+    return (
+      <Badge className="bg-rose-600 hover:bg-rose-600 text-white">
+        Đã từ chối
+      </Badge>
+    );
   if (s === "menupending")
-    return <Badge className="bg-sky-600 hover:bg-sky-600 text-white">Chờ cấp phép</Badge>;
+    return (
+      <Badge className="bg-sky-600 hover:bg-sky-600 text-white">
+        Chờ cấp phép
+      </Badge>
+    );
   if (s === "indebt")
-    return <Badge className="bg-orange-600 hover:bg-orange-600 text-white">Đang nợ</Badge>;
+    return (
+      <Badge className="bg-orange-600 hover:bg-orange-600 text-white">
+        Đang nợ
+      </Badge>
+    );
   if (s === "closurerequested")
-    return <Badge className="bg-orange-500 hover:bg-orange-500 text-white">Yêu cầu đóng</Badge>;
+    return (
+      <Badge className="bg-orange-500 hover:bg-orange-500 text-white">
+        Yêu cầu đóng
+      </Badge>
+    );
   if (s === "suspended")
-    return <Badge className="bg-zinc-600 hover:bg-zinc-600 text-white">Tạm khóa</Badge>;
+    return (
+      <Badge className="bg-zinc-600 hover:bg-zinc-600 text-white">
+        Tạm khóa
+      </Badge>
+    );
   return <Badge variant="secondary">—</Badge>;
 }
 
@@ -130,10 +166,16 @@ const cardBase =
   "transition-shadow duration-200 transform-gpu [will-change:transform] " +
   "hover:shadow-lg hover:ring-1 hover:ring-primary/20";
 
-const VendorDetail = ({ vendor, onClose, onApprove, onReject }: VendorDetailProps) => {
+const VendorDetail = ({
+  vendor,
+  onClose,
+  onApprove,
+  onReject,
+}: VendorDetailProps) => {
   const [loading, setLoading] = useState(false);
   const [detail, setDetail] = useState<VendorDetailModel | null>(null);
   const [showApprovalModal, setShowApprovalModal] = useState(false);
+  const [approving, setApproving] = useState(false); // <-- loading khi xác nhận duyệt
 
   // ---- Fetch detail by id ----
   useEffect(() => {
@@ -149,7 +191,8 @@ const VendorDetail = ({ vendor, onClose, onApprove, onReject }: VendorDetailProp
         );
         const payload = (res?.data as any) ?? res;
         const data: VendorDetailModel =
-          (payload?.data as VendorDetailModel) ?? (payload as VendorDetailModel);
+          (payload?.data as VendorDetailModel) ??
+          (payload as VendorDetailModel);
         if (mounted) setDetail(data);
       } catch (e) {
         console.error(e);
@@ -158,7 +201,9 @@ const VendorDetail = ({ vendor, onClose, onApprove, onReject }: VendorDetailProp
       }
     }
     fetchDetail();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [vendor?.id]);
 
   const statusText = normalizeStatus(detail?.status);
@@ -187,10 +232,19 @@ const VendorDetail = ({ vendor, onClose, onApprove, onReject }: VendorDetailProp
     );
   }, [isApproved]);
 
-  const handleApprovalConfirm = () => {
+  // ---- Confirm approve from modal ----
+  const handleApprovalConfirm = async () => {
     if (!detail?.id) return;
-    onApprove(detail.id);
-    setShowApprovalModal(false);
+    try {
+      setApproving(true);
+      // Gọi đúng API duyệt thông qua onApprove của parent (đã implement POST /api/vendor/{id}/status)
+      await onApprove(detail.id);
+      // đóng modal confirm + đóng dialog chi tiết
+      setShowApprovalModal(false);
+      onClose();
+    } finally {
+      setApproving(false);
+    }
   };
 
   return (
@@ -210,7 +264,9 @@ const VendorDetail = ({ vendor, onClose, onApprove, onReject }: VendorDetailProp
                   <ShoppingBag className="w-5 h-5 text-primary" />
                 )}
               </div>
-              {loading ? "Đang tải..." : `${detail?.name ?? vendor?.name ?? ""}`}
+              {loading
+                ? "Đang tải..."
+                : `${detail?.name ?? vendor?.name ?? ""}`}
             </DialogTitle>
             <DialogDescription>
               Thông tin đăng ký và trạng thái thanh toán của quán
@@ -219,9 +275,12 @@ const VendorDetail = ({ vendor, onClose, onApprove, onReject }: VendorDetailProp
 
           {/* ==== BODY ==== */}
           <div className="grid gap-6">
-            <Card className="border border-amber-300 bg-amber-50 
+            {/* Payment card (vàng nhạt) */}
+            <Card
+              className="border border-amber-300 bg-amber-50 
                 transition-shadow duration-200 transform-gpu [will-change:transform]
-                hover:shadow-lg hover:ring-1 hover:ring-amber-300/60">
+                hover:shadow-lg hover:ring-1 hover:ring-amber-300/60"
+            >
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   <span className="flex items-center gap-2">
@@ -237,14 +296,18 @@ const VendorDetail = ({ vendor, onClose, onApprove, onReject }: VendorDetailProp
                     <span>Phí thuê slot:</span>
                     <span className="font-semibold">
                       {SLOT_FEE.toLocaleString("vi-VN")}đ
-                      {isApproved && <CheckCircle className="w-4 h-4 text-success inline ml-2" />}
+                      {isApproved && (
+                        <CheckCircle className="w-4 h-4 text-success inline ml-2" />
+                      )}
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span>Phí sàn tháng này:</span>
                     <span className="font-semibold">
                       {MONTHLY_FEE.toLocaleString("vi-VN")}đ
-                      {isApproved && <CheckCircle className="w-4 h-4 text-success inline ml-2" />}
+                      {isApproved && (
+                        <CheckCircle className="w-4 h-4 text-success inline ml-2" />
+                      )}
                     </span>
                   </div>
                 </div>
@@ -287,11 +350,15 @@ const VendorDetail = ({ vendor, onClose, onApprove, onReject }: VendorDetailProp
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="text-sm font-medium text-muted-foreground">Loại hình</label>
+                      <label className="text-sm font-medium text-muted-foreground">
+                        Loại hình
+                      </label>
                       <p>{detail?.businessTypeId || "—"}</p>
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-muted-foreground">Giờ hoạt động</label>
+                      <label className="text-sm font-medium text-muted-foreground">
+                        Giờ hoạt động
+                      </label>
                       <p className="flex items-center gap-1">
                         <Clock className="w-4 h-4 text-muted-foreground" />
                         {detail?.openingHours || "—"}
@@ -321,8 +388,12 @@ const VendorDetail = ({ vendor, onClose, onApprove, onReject }: VendorDetailProp
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div>
-                    <label className="text-sm font-medium text-muted-foreground">Số giấy tờ chủ quán</label>
-                    <p className="font-semibold">{detail?.personalIdentityNumber || "—"}</p>
+                    <label className="text-sm font-medium text-muted-foreground">
+                      Số giấy tờ chủ quán
+                    </label>
+                    <p className="font-semibold">
+                      {detail?.personalIdentityNumber || "—"}
+                    </p>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
@@ -407,26 +478,35 @@ const VendorDetail = ({ vendor, onClose, onApprove, onReject }: VendorDetailProp
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div>
-                    <label className="text-sm font-medium text-muted-foreground">Ngân hàng</label>
+                    <label className="text-sm font-medium text-muted-foreground">
+                      Ngân hàng
+                    </label>
                     <p className="font-semibold">
                       {detail?.bankName || "—"}
                       {detail?.bankBin ? ` (BIN: ${detail.bankBin})` : ""}
                     </p>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-muted-foreground">Số tài khoản</label>
+                    <label className="text-sm font-medium text-muted-foreground">
+                      Số tài khoản
+                    </label>
                     <p className="font-semibold">
-                      {detail?.bankAccountNumber || "—"} {detail?.bankAccountHolder ? `- ${detail.bankAccountHolder}` : ""}
+                      {detail?.bankAccountNumber || "—"}{" "}
+                      {detail?.bankAccountHolder
+                        ? `- ${detail.bankAccountHolder}`
+                        : ""}
                     </p>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-muted-foreground">Thông tin xuất hóa đơn</label>
+                    <label className="text-sm font-medium text-muted-foreground">
+                      Thông tin xuất hóa đơn
+                    </label>
                     <p>{detail?.invoiceInfo || "—"}</p>
                   </div>
                 </CardContent>
               </Card>
 
-              {/* Terms & Commitments / Status */}
+              {/* Status */}
               <Card className={cardBase}>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -458,11 +538,15 @@ const VendorDetail = ({ vendor, onClose, onApprove, onReject }: VendorDetailProp
                 <Button
                   variant="destructive"
                   onClick={() => onReject(detail.id)}
+                  disabled={approving}
                 >
                   <XCircle className="w-4 h-4 mr-2" />
                   Từ chối
                 </Button>
-                <Button onClick={() => setShowApprovalModal(true)}>
+                <Button
+                  onClick={() => setShowApprovalModal(true)}
+                  disabled={approving}
+                >
                   <CheckCircle className="w-4 h-4 mr-2" />
                   Xét duyệt
                 </Button>
@@ -470,14 +554,14 @@ const VendorDetail = ({ vendor, onClose, onApprove, onReject }: VendorDetailProp
             )}
 
             {isApproved && (
-              <Button>
+              <Button disabled={approving}>
                 <MenuIcon className="w-4 h-4 mr-2" />
                 Yêu cầu cập nhật Menu
               </Button>
             )}
 
             {isMenuPending && (
-              <Button>
+              <Button disabled={approving}>
                 <CheckCircle className="w-4 h-4 mr-2" />
                 Phê duyệt hoạt động
               </Button>
@@ -494,15 +578,20 @@ const VendorDetail = ({ vendor, onClose, onApprove, onReject }: VendorDetailProp
             <DialogDescription>
               Bạn có chắc chắn muốn xét duyệt quán "{detail?.name}" không?
               <br />
-              Sau khi xét duyệt, quán này sẽ được yêu cầu cập nhật menu để hoạt động.
+              Sau khi xét duyệt, quán này sẽ được yêu cầu cập nhật menu để hoạt
+              động.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowApprovalModal(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setShowApprovalModal(false)}
+              disabled={approving}
+            >
               Hủy
             </Button>
-            <Button onClick={handleApprovalConfirm}>
-              Xác nhận
+            <Button onClick={handleApprovalConfirm} disabled={approving}>
+              {approving ? "Đang duyệt..." : "Xác nhận"}
             </Button>
           </DialogFooter>
         </DialogContent>
