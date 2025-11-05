@@ -1,8 +1,9 @@
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
@@ -10,229 +11,514 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Store, Camera, Upload, Shield, FileText, DollarSign, AlertTriangle } from "lucide-react";
+import { toast } from "sonner";
+import { api, ApiResponse, VendorRegisterResponse } from "@/lib/api";
 
 type VendorRegisterDialogProps = {
   isOpen: boolean;
   onClose: () => void;
-  // Bạn có thể thêm onSubmit, defaultValues... nếu cần
+};
+
+const Req = () => <span className="text-red-600 ml-0.5">*</span>;
+
+const sectionFx =
+  "transition-shadow transition-colors motion-safe:duration-300 motion-safe:ease-out " +
+  "hover:shadow-lg hover:border-primary/30 focus-within:shadow-lg focus-within:border-primary/40";
+
+type VietQRBank = {
+  id: number;
+  name: string;      
+  code: string;      
+  bin: string;       
+  shortName: string;  
+  logo: string;      
+  lookupSupported?: boolean;
+};
+type VietQRBanksResponse = {
+  code: string;
+  desc: string;
+  data: VietQRBank[];
 };
 
 export function VendorRegisterDialog({ isOpen, onClose }: VendorRegisterDialogProps) {
+  const [banks, setBanks] = useState<VietQRBank[]>([]);
+  const [banksLoading, setBanksLoading] = useState(false);
+  const [banksError, setBanksError] = useState<string | null>(null);
+
+  const [selectedBankBin, setSelectedBankBin] = useState<string>("");
+  const [bankAccount, setBankAccount] = useState<string>("");
+  const [accountHolder, setAccountHolder] = useState<string>("");
+
+  const [businessTypeId, setBusinessTypeId] = useState<string>("");
+const [paymentMethod, setPaymentMethod] = useState<"vnpay">("vnpay");
+const [submitting, setSubmitting] = useState(false);
+  const selectedBank = useMemo(
+    () => banks.find((b) => b.bin === selectedBankBin),
+    [banks, selectedBankBin]
+  );
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        setBanksLoading(true);
+        setBanksError(null);
+        const res = await fetch("/vietqr/v2/banks");
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json: VietQRBanksResponse = await res.json();
+        if (cancelled) return;
+        setBanks(json?.data ?? []);
+      } catch (err) {
+        if (cancelled) return;
+        setBanksError("Không tải được danh sách ngân hàng. Vui lòng thử lại.");
+        toast.error("Không tải được danh sách ngân hàng.");
+      } finally {
+        if (!cancelled) setBanksLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
+
+  async function lookupAccountName() {
+    try {
+      if (!selectedBankBin) {
+        toast.message("Chọn ngân hàng trước khi tra cứu");
+        return;
+      }
+      if (!bankAccount) {
+        toast.message("Nhập số tài khoản trước khi tra cứu");
+        return;
+      }
+      const clientId = import.meta.env.VITE_VIETQR_CLIENT_ID as string | undefined;
+      const apiKey = import.meta.env.VITE_VIETQR_API_KEY as string | undefined;
+      if (!clientId || !apiKey) {
+        toast.warning("Thiếu API key VietQR. Vui lòng cấu hình biến môi trường.");
+        return;
+      }
+
+      const res = await fetch("/vietqr/v2/lookup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-client-id": clientId,
+          "x-api-key": apiKey,
+        },
+        body: JSON.stringify({
+          bin: selectedBankBin,
+          accountNumber: bankAccount,
+        }),
+      });
+      if (!res.ok) {
+        toast.error("Tra cứu thất bại. Vui lòng thử lại.");
+        return;
+      }
+      const data = await res.json();
+      const name = data?.data?.accountName as string | undefined;
+      if (name) {
+        setAccountHolder(name);
+        toast.success("Đã điền tên chủ tài khoản.");
+      } else {
+        toast.message("Không tìm thấy tên chủ tài khoản. Vui lòng nhập tay.");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Có lỗi khi tra cứu tên chủ tài khoản.");
+    }
+  }
+
+  async function handleSubmit() {
+  try {
+    setSubmitting(true);
+
+    const brandName = (document.getElementById("brandName") as HTMLInputElement)?.value?.trim();
+    const address = (document.getElementById("address") as HTMLInputElement)?.value?.trim();
+    const openingHours = (document.getElementById("openingHours") as HTMLInputElement)?.value?.trim();
+    const phone = (document.getElementById("phone") as HTMLInputElement)?.value?.trim();
+    const email = (document.getElementById("email") as HTMLInputElement)?.value?.trim();
+    const invoiceInfo = (document.getElementById("invoiceInfo") as HTMLTextAreaElement)?.value ?? "";
+    const cccdNumber = (document.getElementById("idNumber") as HTMLInputElement)?.value?.trim();
+
+    const logoFile = (document.getElementById("logo") as HTMLInputElement)?.files?.[0];
+    const businessLicenseFile = (document.getElementById("businessLicense") as HTMLInputElement)?.files?.[0];
+    const foodSafetyFile = (document.getElementById("foodSafety") as HTMLInputElement)?.files?.[0];
+    const cccdFrontFile = (document.getElementById("idFront") as HTMLInputElement)?.files?.[0];
+    const cccdBackFile = (document.getElementById("idBack") as HTMLInputElement)?.files?.[0];
+
+    const acceptTerms = (document.getElementById("terms") as HTMLInputElement)?.checked;
+    const commitNoFraud = (document.getElementById("commitment1") as HTMLInputElement)?.checked;
+    const commitAnalytics = (document.getElementById("commitment2") as HTMLInputElement)?.checked;
+
+    if (!brandName || !businessTypeId || !address || !openingHours || !phone || !email) {
+      toast.error("Vui lòng điền đầy đủ thông tin cơ bản.");
+      return;
+    }
+    if (!logoFile || !businessLicenseFile || !foodSafetyFile || !cccdFrontFile || !cccdBackFile || !cccdNumber) {
+      toast.error("Vui lòng cung cấp đầy đủ giấy tờ pháp lý và CCCD.");
+      return;
+    }
+    if (!selectedBankBin || !bankAccount || !accountHolder) {
+      toast.error("Vui lòng chọn ngân hàng và nhập thông tin tài khoản.");
+      return;
+    }
+    if (!acceptTerms || !commitNoFraud || !commitAnalytics) {
+      toast.error("Bạn cần đồng ý điều khoản và các cam kết.");
+      return;
+    }
+
+    const paymentMethodEnum = 1;
+
+    const fd = new FormData();
+    fd.append("Name", brandName);
+    fd.append("BusinessTypeId", businessTypeId);
+    fd.append("Address", address);
+    fd.append("OpeningHours", openingHours);
+    fd.append("Phone", phone);
+    fd.append("Email", email);
+
+    fd.append("Logo", logoFile);
+    fd.append("BusinessLicense", businessLicenseFile);
+    fd.append("FoodSafetyCert", foodSafetyFile);
+
+    fd.append("PersonalIdentityNumber", cccdNumber!);
+    fd.append("PersonalIdentityFront", cccdFrontFile!);
+    fd.append("PersonalIdentityBack", cccdBackFile!);
+
+    fd.append("BankBin", selectedBankBin);
+    fd.append("BankName", selectedBank?.shortName || selectedBank?.name || "");
+    fd.append("BankAccountNumber", bankAccount);
+    fd.append("BankAccountHolder", accountHolder);
+    fd.append("InvoiceInfo", invoiceInfo ?? "");
+
+    fd.append("PaymentMethod", String(paymentMethodEnum));
+    fd.append("AcceptTerms", String(acceptTerms));
+    fd.append("CommitNoFraud", String(commitNoFraud));
+    fd.append("CommitAnalytics", String(commitAnalytics));
+
+    const token = localStorage.getItem("accessToken") || "";
+    const userId = localStorage.getItem("userId") || "";
+
+    const headers: Record<string, string> = {};
+    if (token) headers.Authorization = `Bearer ${token}`;
+    if (userId) headers["X-User-Id"] = userId;
+
+    const res = await api.post<ApiResponse<VendorRegisterResponse>>("/api/vendor/register", fd, headers);
+
+    if (!res?.code?.toLowerCase().includes("success")) {
+      throw new Error(res?.message || "Đăng kí hồ sơ thất bại! Vui lòng liên hệ hỗ trợ.");
+    }
+
+    toast.success("Đăng kí hồ sơ thành công! Vui lòng chờ xét duyệt.");
+    onClose?.();
+  } catch (e) {
+    console.error(e);
+    toast.error(e?.message || "Có lỗi khi gửi hồ sơ đăng ký.");
+  } finally {
+    setSubmitting(false);
+  }
+}
+
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-3xl">
-        <DialogHeader>
+      <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto p-0">
+        <DialogHeader className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b px-6 py-4">
           <DialogTitle>Đăng ký cửa hàng</DialogTitle>
           <DialogDescription>Điền thông tin bên dưới để tạo cửa hàng của bạn.</DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue="registration" className="w-full">
-          <TabsList>
-            <TabsTrigger value="registration">Đăng ký</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="registration" className="space-y-6">
-            {/* Thông tin cơ bản */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Store className="h-5 w-5" />
-                  Thông tin cơ bản về quán *
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="brandName">Tên quán / thương hiệu *</Label>
-                    <Input id="brandName" placeholder="Nhập tên quán" required />
+        <div className="px-6 py-5 space-y-6">
+          <Tabs defaultValue="registration" className="w-full">
+            <TabsContent value="registration" className="space-y-6">
+              <Card className={`border-primary/25 bg-primary/5 ${sectionFx}`}>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-primary">
+                    <Store className="h-5 w-5" />
+                    Thông tin cơ bản về quán <Req />
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="brandName">Tên quán / thương hiệu <Req /></Label>
+                      <Input id="brandName" placeholder="Nhập tên quán" required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="businessType">Loại hình kinh doanh <Req /></Label>
+                      <Select value={businessTypeId} onValueChange={setBusinessTypeId}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Chọn loại hình" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="street-food">Street Food</SelectItem>
+                          <SelectItem value="drinks">Đồ uống</SelectItem>
+                          <SelectItem value="bakery">Bánh</SelectItem>
+                          <SelectItem value="fast-food">Fast Food</SelectItem>
+                          <SelectItem value="others">Khác</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
+
                   <div className="space-y-2">
-                    <Label htmlFor="businessType">Loại hình kinh doanh *</Label>
-                    <Select>
+                    <Label htmlFor="address">Địa chỉ hoạt động <Req /></Label>
+                    <Input id="address" placeholder="Nhập địa chỉ chi tiết" required />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="openingHours">Giờ hoạt động <Req /></Label>
+                      <Input id="openingHours" placeholder="VD: 08:00 - 22:00" required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="phone">Số điện thoại <Req /></Label>
+                      <Input id="phone" placeholder="Nhập số điện thoại" required />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="email">Email liên hệ <Req /></Label>
+                      <Input id="email" type="email" placeholder="Nhập email" required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="logo">Hình ảnh/Logo quán <Req /></Label>
+                      <div className="flex items-center gap-2">
+                        <Input id="logo" type="file" accept="image/*" required />
+                        <Camera className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className={`border-primary/25 bg-primary/5 ${sectionFx}`}>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-primary">
+                    <Shield className="h-5 w-5" />
+                    Thông tin pháp lý / xác thực <Req />
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="businessLicense">Giấy phép kinh doanh <Req /></Label>
+                    <div className="flex items-center gap-2">
+                      <Input id="businessLicense" type="file" accept="image/*" required />
+                      <Upload className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="foodSafety">Giấy chứng nhận vệ sinh an toàn thực phẩm <Req /></Label>
+                    <div className="flex items-center gap-2">
+                      <Input id="foodSafety" type="file" accept="image/*" required />
+                      <Upload className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-2 md:col-span-1">
+                      <Label htmlFor="idNumber">Mã số CCCD <Req /></Label>
+                      <Input id="idNumber" placeholder="Nhập mã số CCCD" required />
+                    </div>
+                    <div className="space-y-2 md:col-span-1">
+                      <Label htmlFor="idFront">Ảnh CCCD mặt trước <Req /></Label>
+                      <div className="flex items-center gap-2">
+                        <Input id="idFront" type="file" accept="image/*" required />
+                        <Upload className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                    </div>
+                    <div className="space-y-2 md:col-span-1">
+                      <Label htmlFor="idBack">Ảnh CCCD mặt sau <Req /></Label>
+                      <div className="flex items-center gap-2">
+                        <Input id="idBack" type="file" accept="image/*" required />
+                        <Upload className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className={`border-primary/25 bg-primary/5 ${sectionFx}`}>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-primary">
+                    <DollarSign className="h-5 w-5" />
+                    Thông tin tài chính / thanh toán <Req />
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="bankName">Tên ngân hàng <Req /></Label>
+                    <Select
+                      value={selectedBankBin}
+                      onValueChange={setSelectedBankBin}
+                      disabled={banksLoading || !!banksError}
+                    >
                       <SelectTrigger>
-                        <SelectValue placeholder="Chọn loại hình" />
+                        <SelectValue
+                          placeholder={
+                            banksLoading
+                              ? "Đang tải danh sách ngân hàng..."
+                              : (banksError ? "Không tải được danh sách. Thử lại." : "Chọn ngân hàng")
+                          }
+                        />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-80">
+                        {banks.length === 0 ? (
+                          <div className="px-3 py-2 text-sm text-muted-foreground">
+                            {banksError ? banksError : "Không có dữ liệu ngân hàng"}
+                          </div>
+                        ) : (
+                          banks.map((b) => (
+                            <SelectItem key={b.bin} value={b.bin}>
+                              <span className="flex items-center gap-2">
+                                <img
+                                  src={b.logo}
+                                  alt={b.shortName}
+                                  className="h-4 w-4 rounded-sm object-contain"
+                                  loading="lazy"
+                                  onError={(e) => {
+                                    (e.currentTarget as HTMLImageElement).style.visibility = "hidden";
+                                  }}
+                                />
+                                <span className="truncate">{b.shortName || b.name}</span>
+                              </span>
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                    {selectedBank && (
+                      <p className="text-xs text-muted-foreground">
+                        Mã BIN: {selectedBank.bin}
+                        {selectedBank.lookupSupported ? " • Hỗ trợ tra cứu chủ TK" : ""}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="bankAccount">Tài khoản ngân hàng / ví điện tử <Req /></Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="bankAccount"
+                        placeholder="Nhập số tài khoản"
+                        required
+                        value={bankAccount}
+                        onChange={(e) => setBankAccount(e.target.value)}
+                      />
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={lookupAccountName}
+                        disabled={!selectedBankBin || !bankAccount || !selectedBank?.lookupSupported}
+                        title={
+                          !selectedBank?.lookupSupported
+                            ? "Ngân hàng này không hỗ trợ tra cứu chủ TK"
+                            : "Tra cứu tên chủ tài khoản"
+                        }
+                      >
+                        Tra cứu
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Chọn ngân hàng và nhập số tài khoản, sau đó bấm <em>Tra cứu</em> để điền tên chủ tài khoản (nếu được hỗ trợ).
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="accountHolder">Tên chủ tài khoản <Req /></Label>
+                    <Input
+                      id="accountHolder"
+                      placeholder="Tên chủ tài khoản"
+                      required
+                      value={accountHolder}
+                      onChange={(e) => setAccountHolder(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="invoiceInfo">Thông tin xuất hóa đơn</Label>
+                    <Textarea id="invoiceInfo" placeholder="Nhập thông tin xuất hóa đơn (nếu có)" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className={`border-primary/25 bg-primary/5 ${sectionFx}`}>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-primary">
+                    <FileText className="h-5 w-5" />
+                    Điều khoản & cam kết <Req />
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center space-x-2">
+                    <input type="checkbox" id="terms" required />
+                    <Label htmlFor="terms">Tôi chấp nhận Terms of Service & Policy <Req /></Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <input type="checkbox" id="commitment1" required />
+                    <Label htmlFor="commitment1">Cam kết không gian lận hàng chờ, không ghost order <Req /></Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <input type="checkbox" id="commitment2" required />
+                    <Label htmlFor="commitment2">Đồng ý cung cấp dữ liệu vận hành cho mục đích analytics <Req /></Label>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-amber-200 bg-amber-50">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-amber-800">
+                    <DollarSign className="h-5 w-5" />
+                    Thông tin chi phí
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-sm font-medium">Phí đăng ký lần đầu:</Label>
+                      <p className="text-lg font-bold text-green-600">500,000 VND</p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">Phí hàng tháng:</Label>
+                      <p className="text-lg font-bold text-blue-600">200,000 VND/tháng</p>
+                    </div>
+                  </div>
+
+                  <Alert>
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription className="text-sm">
+                      <strong>Quy định thanh toán:</strong><br />
+                      • Thời hạn: Trước ngày 30 mỗi tháng<br />
+                      • Chậm thanh toán: Shop bị khóa và không hoàn lại phí thuê slot<br />
+                      • Phí phạt mở lại: 50% phí thuê slot + số tiền nợ tháng trước<br />
+                      • Yêu cầu đóng shop: Phải tạo yêu cầu trước 1 tháng
+                    </AlertDescription>
+                  </Alert>
+
+                  <div className="space-y-2">
+                    <Label>Phương thức thanh toán</Label>
+                    <Select value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as "vnpay")}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Chọn phương thức thanh toán" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="street-food">Street Food</SelectItem>
-                        <SelectItem value="drinks">Đồ uống</SelectItem>
-                        <SelectItem value="bakery">Bánh</SelectItem>
-                        <SelectItem value="fast-food">Fast Food</SelectItem>
-                        <SelectItem value="others">Khác</SelectItem>
+                        <SelectItem value="vnpay">VNPay</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-                </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="address">Địa chỉ hoạt động *</Label>
-                  <Input id="address" placeholder="Nhập địa chỉ chi tiết" required />
-                </div>
+                  <Button className="w-full" onClick={handleSubmit} disabled={submitting}>
+                    {submitting ? "Đang gửi..." : "Thanh toán và gửi yêu cầu đăng ký"}
+                </Button>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="openingHours">Giờ hoạt động *</Label>
-                    <Input id="openingHours" placeholder="VD: 08:00 - 22:00" required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">Số điện thoại *</Label>
-                    <Input id="phone" placeholder="Nhập số điện thoại" required />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email liên hệ *</Label>
-                    <Input id="email" type="email" placeholder="Nhập email" required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="logo">Hình ảnh/Logo quán *</Label>
-                    <div className="flex items-center gap-2">
-                      <Input id="logo" type="file" accept="image/*" required />
-                      <Camera className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Pháp lý */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Shield className="h-5 w-5" />
-                  Thông tin pháp lý / xác thực *
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="businessLicense">Giấy phép kinh doanh *</Label>
-                  <div className="flex items-center gap-2">
-                    <Input id="businessLicense" type="file" accept="image/*" required />
-                    <Upload className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="foodSafety">Giấy chứng nhận vệ sinh an toàn thực phẩm *</Label>
-                  <div className="flex items-center gap-2">
-                    <Input id="foodSafety" type="file" accept="image/*" required />
-                    <Upload className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="idCard">CMND/CCCD của chủ quán *</Label>
-                  <div className="flex items-center gap-2">
-                    <Input id="idCard" type="file" accept="image/*" required />
-                    <Upload className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Tài chính */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <DollarSign className="h-5 w-5" />
-                  Thông tin tài chính / thanh toán *
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="bankAccount">Tài khoản ngân hàng / ví điện tử *</Label>
-                  <Input id="bankAccount" placeholder="Nhập số tài khoản" required />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="bankName">Tên ngân hàng *</Label>
-                  <Input id="bankName" placeholder="Nhập tên ngân hàng" required />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="accountHolder">Tên chủ tài khoản *</Label>
-                  <Input id="accountHolder" placeholder="Nhập tên chủ tài khoản" required />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="invoiceInfo">Thông tin xuất hóa đơn</Label>
-                  <Textarea id="invoiceInfo" placeholder="Nhập thông tin xuất hóa đơn (nếu có)" />
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Điều khoản */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  Điều khoản & cam kết *
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center space-x-2">
-                  <input type="checkbox" id="terms" required />
-                  <Label htmlFor="terms">Tôi chấp nhận Terms of Service & Policy *</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <input type="checkbox" id="commitment1" required />
-                  <Label htmlFor="commitment1">Cam kết không gian lận hàng chờ, không ghost order *</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <input type="checkbox" id="commitment2" required />
-                  <Label htmlFor="commitment2">Đồng ý cung cấp dữ liệu vận hành cho mục đích analytics *</Label>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Chi phí & thanh toán */}
-            <Card className="border-amber-200 bg-amber-50">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-amber-800">
-                  <DollarSign className="h-5 w-5" />
-                  Thông tin chi phí
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-sm font-medium">Phí đăng ký lần đầu:</Label>
-                    <p className="text-lg font-bold text-green-600">500,000 VND</p>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium">Phí hàng tháng:</Label>
-                    <p className="text-lg font-bold text-blue-600">200,000 VND/tháng</p>
-                  </div>
-                </div>
-
-                <Alert>
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertDescription className="text-sm">
-                    <strong>Quy định thanh toán:</strong><br />
-                    • Thời hạn: Trước ngày 30 mỗi tháng<br />
-                    • Chậm thanh toán: Shop bị khóa và không hoàn lại phí thuê slot<br />
-                    • Phí phạt mở lại: 50% phí thuê slot + số tiền nợ tháng trước<br />
-                    • Yêu cầu đóng shop: Phải tạo yêu cầu trước 1 tháng
-                  </AlertDescription>
-                </Alert>
-
-                <div className="space-y-2">
-                  <Label>Phương thức thanh toán</Label>
-                  <Select>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Chọn phương thức thanh toán" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="vnpay">VNPay</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <Button className="w-full">Thanh toán và gửi yêu cầu đăng ký</Button>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </div>
       </DialogContent>
     </Dialog>
   );

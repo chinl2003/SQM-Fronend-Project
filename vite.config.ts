@@ -8,7 +8,15 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8085,
-    open: "/" 
+    open: "/",
+    proxy: {
+      "/vietqr": {
+        target: "https://api.vietqr.io",
+        changeOrigin: true,    
+        secure: true,         
+        rewrite: (path) => path.replace(/^\/vietqr/, ""),
+      },
+    },
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {

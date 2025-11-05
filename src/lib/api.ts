@@ -21,6 +21,12 @@ export type LoginResponse = {
   userId: string;
 };
 
+export type VendorRegisterResponse = {
+  id: string;
+  name: string;
+  status: string;
+};
+
 export type RegisterResponse = {
   userId: string;
   email: string;
