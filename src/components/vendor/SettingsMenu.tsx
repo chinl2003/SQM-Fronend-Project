@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,87 +19,192 @@ import {
   Settings as SettingsIcon,
   Trash2,
   Save,
+  Image as ImageIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { api, ApiResponse } from "@/lib/api";
 
 type SettingsMenuProps = {
-  vendorId: string; 
+  vendorId: string;
 };
 
 type MenuItem = {
-  id: string;
+  id: string;               // id thật từ server (nếu có) hoặc id tạm thời client
   name: string;
-  price: string;
-  prepMinutes: string;
-  image?: File | null;
-  dailyQuantity: string;
+  price: string;            // hiển thị dạng "120,000.50"
+  prepMinutes: string;      // phút (string cho dễ gõ)
+  image?: File | null;      // file mới chọn
+  imageUrl?: string | null; // ảnh đang có từ server (preview)
+  dailyQuantity: string;    // hiển thị dạng "50" hoặc "1,000"
   description?: string;
+  isNew?: boolean;          // true nếu là item mới tạo trên client, sẽ POST create
 };
 
 type Category = {
   id: string;
-  name: string;
+  name: string;     // TypeOfFood
   items: MenuItem[];
 };
 
 const uid = () => crypto.randomUUID();
 
-export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
-  const [categories, setCategories] = useState<Category[]>([
-    {
-      id: uid(),
-      name: "Đồ ăn chính",
-      items: [
-        {
-          id: uid(),
-          name: "Pizza Margherita",
-          price: "120000",
-          prepMinutes: "15",
-          image: null,
-          dailyQuantity: "50",
-          description: "Pizza truyền thống với cà chua và phô mai",
-        },
-        {
-          id: uid(),
-          name: "Pasta Carbonara",
-          price: "95000",
-          prepMinutes: "12",
-          image: null,
-          dailyQuantity: "50",
-          description: "Mì Ý với sốt kem và thịt xông khói",
-        },
-      ],
-    },
-    {
-      id: uid(),
-      name: "Đồ uống",
-      items: [
-        {
-          id: uid(),
-          name: "Coca Cola",
-          price: "15000",
-          prepMinutes: "2",
-          image: null,
-          dailyQuantity: "50",
-          description: "Nước ngọt có ga",
-        },
-      ],
-    },
-  ]);
+// Build ảnh tuyệt đối (tương tự VendorDetail)
+function buildMediaUrl(path?: string | null) {
+  if (!path) return "";
+  if (path.startsWith("http")) return path;
+  const base = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
+  return `${base}/${path.replace(/^\/+/, "")}`;
+}
 
+// ---- helpers số ----
+function formatNumberForDisplay(n?: number | null): string {
+  if (n == null || Number.isNaN(n)) return "";
+  // tối đa 2 số thập phân
+  const [i, d] = n.toString().split(".");
+  const intPretty = i.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return d ? `${intPretty}.${d.slice(0, 2)}` : intPretty;
+}
+
+function sanitizeNumeric(input: string) {
+  let s = input.replace(/[^\d.]/g, "");
+  const firstDot = s.indexOf(".");
+  if (firstDot !== -1) {
+    s = s.slice(0, firstDot + 1) + s.slice(firstDot + 1).replace(/\./g, "");
+  }
+  const [intPartRaw, decRaw = ""] = s.split(".");
+  const dec = decRaw.slice(0, 2);
+  const int = intPartRaw.replace(/^0+(?=\d)/, "");
+  const intPretty = (int === "" ? "0" : int).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return decRaw.length > 0 ? `${intPretty}.${dec}` : intPretty;
+}
+
+function unformatNumber(n: string): number {
+  const s = (n || "").replace(/,/g, "").trim();
+  return s === "" ? NaN : Number(s);
+}
+function toInt(n: string): number {
+  const f = unformatNumber(n);
+  return Number.isFinite(f) ? Math.floor(f) : NaN;
+}
+
+// --- build FormData đúng schema [FromForm] MenuItemRequest ---
+function buildMenuItemForm(
+  body: {
+    vendorId: string;
+    name: string;
+    description: string | null;
+    code?: string | undefined;
+    price: number;     // decimal
+    quantity: number;  // int
+    prepTime: number;  // phút
+    typeOfFood: string;
+    status: boolean;
+  },
+  image?: File | null
+) {
+  const fd = new FormData();
+  fd.append("VendorId", body.vendorId);
+  fd.append("Name", body.name);
+  if (body.description != null) fd.append("Description", body.description);
+  if (body.code != null) fd.append("Code", body.code);
+  fd.append("Price", body.price.toString());
+  fd.append("Quantity", body.quantity.toString());
+  fd.append("PrepTime", body.prepTime.toString()); // minutes
+  fd.append("TypeOfFood", body.typeOfFood);
+  fd.append("Status", body.status ? "true" : "false");
+  if (image) {
+    fd.append("ImageFile", image, image.name);
+  }
+  return fd;
+}
+
+export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  // dialog thêm danh mục
   const [addCatOpen, setAddCatOpen] = useState(false);
   const [newCatNames, setNewCatNames] = useState<string[]>([""]);
+
+  // submitting
   const [submitting, setSubmitting] = useState(false);
 
   const canSubmit = useMemo(() => categories.length > 0, [categories]);
 
+  // ====== FETCH EXISTING ITEMS BY VENDOR ======
+  useEffect(() => {
+    async function fetchMenu() {
+      if (!vendorId) return;
+      setLoading(true);
+      try {
+        const token = localStorage.getItem("accessToken") || "";
+        const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+
+        const res = await api.get<ApiResponse<any>>(
+          `/api/menuitem/by-vendor/${vendorId}`,
+          headers
+        );
+
+        // payload có thể là BaseResponseModel
+        const payload = (res?.data as any) ?? res;
+        const data: Array<{
+          id: string;
+          name?: string;
+          description?: string;
+          price?: number | null;
+          quantity?: number | null;
+          prepTime?: number | null; // minutes
+          typeOfFood?: string | null;
+          imageUrl?: string | null;
+        }> = (payload?.data as any) ?? payload;
+
+        // group theo typeOfFood
+        const map = new Map<string, Category>();
+        for (const it of data ?? []) {
+          const catName = (it.typeOfFood || "Khác").trim();
+          if (!map.has(catName)) {
+            map.set(catName, {
+              id: uid(),
+              name: catName,
+              items: [],
+            });
+          }
+          const cat = map.get(catName)!;
+          cat.items.push({
+            id: it.id,
+            name: it.name || "",
+            description: it.description || "",
+            price: formatNumberForDisplay(it.price ?? 0),
+            dailyQuantity: formatNumberForDisplay(it.quantity ?? 0),
+            prepMinutes: String(Math.floor(it.prepTime ?? 0)),
+            image: null,
+            imageUrl: buildMediaUrl(it.imageUrl),
+            isNew: false,
+          });
+        }
+
+        setCategories(Array.from(map.values()));
+        // nếu vendor chưa có món, để mảng rỗng (UI sẽ hiện hướng dẫn)
+        if (!data || data.length === 0) {
+          setCategories([]);
+        }
+      } catch (e) {
+        console.error(e);
+        toast.error("Không tải được menu của quán.");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchMenu();
+  }, [vendorId]);
+
+  // ====== category handlers ======
   const openAddCategory = () => {
     setNewCatNames([""]);
     setAddCatOpen(true);
   };
-
   const addMoreCatRow = () => setNewCatNames((p) => [...p, ""]);
   const removeCatRow = (idx: number) =>
     setNewCatNames((p) => p.filter((_, i) => i !== idx));
@@ -124,6 +229,7 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
     setCategories((prev) => prev.filter((c) => c.id !== catId));
   };
 
+  // ====== item handlers ======
   const addItem = (catId: string) => {
     setCategories((prev) =>
       prev.map((c) =>
@@ -133,13 +239,15 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
               items: [
                 ...c.items,
                 {
-                  id: uid(),
+                  id: `new-${uid()}`,
                   name: "",
                   price: "",
                   prepMinutes: "",
                   image: null,
+                  imageUrl: null,
                   dailyQuantity: "",
                   description: "",
+                  isNew: true,
                 },
               ],
             }
@@ -178,6 +286,7 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
     );
   };
 
+  // ====== save (create new only) ======
   const handleSave = async () => {
     if (!vendorId) {
       toast.error("Thiếu VendorId. Vui lòng tải lại trang hoặc đăng nhập lại.");
@@ -187,40 +296,43 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
     const forms: FormData[] = [];
     const errors: string[] = [];
 
+    // chỉ tạo những món mới (isNew === true)
     categories.forEach((cat) => {
-      cat.items.forEach((item, iIdx) => {
-        const path = `Danh mục "${cat.name}" › Món #${iIdx + 1}`;
+      cat.items
+        .filter((item) => item.isNew)
+        .forEach((item, iIdx) => {
+          const path = `Danh mục "${cat.name}" › Món mới #${iIdx + 1}`;
 
-        if (!item.name?.trim()) errors.push(`${path}: thiếu Tên món`);
+          if (!item.name?.trim()) errors.push(`${path}: thiếu Tên món`);
 
-        const price = unformatNumber(item.price);
-        if (!Number.isFinite(price))
-          errors.push(`${path}: Giá bán không hợp lệ`);
+          const price = unformatNumber(item.price);
+          if (!Number.isFinite(price))
+            errors.push(`${path}: Giá bán không hợp lệ`);
 
-        const qty = toInt(item.dailyQuantity);
-        if (!Number.isFinite(qty))
-          errors.push(`${path}: Số lượng mỗi ngày không hợp lệ`);
+          const qty = toInt(item.dailyQuantity);
+          if (!Number.isFinite(qty))
+            errors.push(`${path}: Số lượng mỗi ngày không hợp lệ`);
 
-        const prep = toInt(item.prepMinutes);
-        if (!Number.isFinite(prep))
-          errors.push(`${path}: Thời gian chế biến (phút) không hợp lệ`);
+          const prep = toInt(item.prepMinutes);
+          if (!Number.isFinite(prep))
+            errors.push(`${path}: Thời gian chế biến (phút) không hợp lệ`);
 
-        if (errors.length === 0) {
-          const body = {
-            vendorId,
-            name: item.name.trim(),
-            description: item.description?.trim() || null,
-            code: undefined,
-            price: Number(price.toFixed(2)),
-            quantity: qty,
-            prepTime: prep,
-            typeOfFood: cat.name,
-            status: true,
-          };
-          const fd = buildMenuItemForm(body, item.image);
-          forms.push(fd);
-        }
-      });
+          if (errors.length === 0) {
+            const body = {
+              vendorId,
+              name: item.name.trim(),
+              description: item.description?.trim() || null,
+              code: undefined,
+              price: Number(price.toFixed(2)),
+              quantity: qty,
+              prepTime: prep, // phút
+              typeOfFood: cat.name,
+              status: true,
+            };
+            const fd = buildMenuItemForm(body, item.image);
+            forms.push(fd);
+          }
+        });
     });
 
     if (errors.length > 0) {
@@ -239,7 +351,7 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
     }
 
     if (forms.length === 0) {
-      toast.info("Không có món nào để lưu.");
+      toast.info("Không có món mới để lưu.");
       return;
     }
 
@@ -248,10 +360,9 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
       const token = localStorage.getItem("accessToken") || "";
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
 
+      // ĐỪNG set Content-Type ở đây (để XHR tự set kèm boundary)
       const results = await Promise.allSettled(
-        forms.map((fd) =>
-          api.post<ApiResponse<any>>("/api/menuitem", fd, headers)
-        )
+        forms.map((fd) => api.post<ApiResponse<any>>("/api/menuitem", fd, headers))
       );
 
       const ok = results.filter((r) => r.status === "fulfilled").length;
@@ -259,10 +370,43 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
 
       if (ok > 0 && fail === 0) {
         toast.success(`Đã tạo ${ok} món thành công!`);
+        // reload danh sách sau khi tạo
+        // => cách nhanh: fetch lại
+        try {
+          const token2 = localStorage.getItem("accessToken") || "";
+          const headers2 = token2 ? { Authorization: `Bearer ${token2}` } : undefined;
+          const res2 = await api.get<ApiResponse<any>>(
+            `/api/menuitem/by-vendor/${vendorId}`,
+            headers2
+          );
+          const payload2 = (res2?.data as any) ?? res2;
+          const data2: any[] = (payload2?.data as any) ?? payload2;
+
+          const map2 = new Map<string, Category>();
+          for (const it of data2 ?? []) {
+            const catName = (it.typeOfFood || "Khác").trim();
+            if (!map2.has(catName)) {
+              map2.set(catName, { id: uid(), name: catName, items: [] });
+            }
+            const cat = map2.get(catName)!;
+            cat.items.push({
+              id: it.id,
+              name: it.name || "",
+              description: it.description || "",
+              price: formatNumberForDisplay(it.price ?? 0),
+              dailyQuantity: formatNumberForDisplay(it.quantity ?? 0),
+              prepMinutes: String(Math.floor(it.prepTime ?? 0)),
+              image: null,
+              imageUrl: buildMediaUrl(it.imageUrl),
+              isNew: false,
+            });
+          }
+          setCategories(Array.from(map2.values()));
+        } catch {
+          // không reload được thì thôi
+        }
       } else if (ok > 0 && fail > 0) {
-        toast.warning(
-          `Một phần thành công: ${ok} món tạo OK, ${fail} món lỗi.`
-        );
+        toast.warning(`Một phần thành công: ${ok} món tạo OK, ${fail} món lỗi.`);
       } else {
         toast.error("Tạo menu thất bại. Vui lòng thử lại.");
       }
@@ -274,60 +418,6 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
     }
   };
 
-  function sanitizeNumeric(input: string) {
-    let s = input.replace(/[^\d.]/g, "");
-    const firstDot = s.indexOf(".");
-    if (firstDot !== -1) {
-      s = s.slice(0, firstDot + 1) + s.slice(firstDot + 1).replace(/\./g, "");
-    }
-    const [intPartRaw, decRaw = ""] = s.split(".");
-    const dec = decRaw.slice(0, 2);
-    const int = intPartRaw.replace(/^0+(?=\d)/, "");
-    const intPretty = (int === "" ? "0" : int).replace(
-      /\B(?=(\d{3})+(?!\d))/g,
-      ","
-    );
-    return decRaw.length > 0 ? `${intPretty}.${dec}` : intPretty;
-  }
-
-  function unformatNumber(n: string): number {
-    const s = (n || "").replace(/,/g, "").trim();
-    return s === "" ? NaN : Number(s);
-  }
-  function toInt(n: string): number {
-    const f = unformatNumber(n);
-    return Number.isFinite(f) ? Math.floor(f) : NaN;
-  }
-
-  function buildMenuItemForm(
-    body: {
-      vendorId: string;
-      name: string;
-      description: string | null;
-      code?: string | undefined;
-      price: number; 
-      quantity: number; 
-      prepTime: number; 
-      typeOfFood: string;
-      status: boolean;
-    },
-    image?: File | null
-  ) {
-    const fd = new FormData();
-    fd.append("VendorId", body.vendorId);
-    fd.append("Name", body.name);
-    if (body.description != null) fd.append("Description", body.description);
-    if (body.code != null) fd.append("Code", body.code);
-    fd.append("Price", body.price.toString());
-    fd.append("Quantity", body.quantity.toString());
-    fd.append("PrepTime", body.prepTime.toString());
-    fd.append("TypeOfFood", body.typeOfFood);
-    fd.append("Status", body.status ? "true" : "false");
-    if (image) {
-      fd.append("ImageFile", image, image.name);
-    }
-    return fd;
-  }
   return (
     <>
       <Card className="shadow-md">
@@ -347,13 +437,20 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
         </CardHeader>
 
         <CardContent className="space-y-6 pt-4">
-          {categories.length === 0 && (
-            <div className="h-48 rounded-lg border border-dashed flex items-center justify-center text-muted-foreground">
-              <Package className="mr-2 h-5 w-5" /> Chưa có danh mục. Hãy bấm
-              “Thêm danh mục”.
+          {loading && (
+            <div className="h-24 rounded-lg border flex items-center justify-center text-muted-foreground">
+              Đang tải menu...
             </div>
           )}
 
+          {!loading && categories.length === 0 && (
+            <div className="h-48 rounded-lg border border-dashed flex items-center justify-center text-muted-foreground">
+              <Package className="mr-2 h-5 w-5" /> Chưa có danh mục / món. Hãy bấm
+              “Thêm danh mục” rồi “Thêm món”.
+            </div>
+          )}
+
+          {/* Danh mục */}
           {categories.map((cat) => (
             <div
               key={cat.id}
@@ -362,6 +459,7 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
                 "shadow-sm hover:shadow-md transition-shadow"
               )}
             >
+              {/* Header danh mục */}
               <div className="flex items-center justify-between px-4 py-3">
                 <div className="flex items-center gap-2">
                   <SettingsIcon className="h-4 w-4 text-muted-foreground" />
@@ -391,6 +489,7 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
 
               <Separator />
 
+              {/* Items */}
               <div className="space-y-4 p-4">
                 {cat.items.length === 0 && (
                   <div className="rounded-md border border-dashed px-4 py-8 text-sm text-muted-foreground flex items-center justify-center">
@@ -406,6 +505,7 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
                       "hover:ring-1 hover:ring-primary/20 hover:shadow-sm transition-all"
                     )}
                   >
+                    {/* Nút xóa góc phải */}
                     <Button
                       size="icon"
                       variant="ghost"
@@ -417,6 +517,7 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
                     </Button>
 
                     <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-start">
+                      {/* Tên món */}
                       <div className="md:col-span-3 space-y-1.5">
                         <Label className="font-semibold">
                           Tên món <span className="text-destructive">*</span>
@@ -430,10 +531,10 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
                         />
                       </div>
 
+                      {/* Giá bán */}
                       <div className="md:col-span-2 space-y-1.5">
                         <Label className="font-semibold">
-                          Giá bán (VND){" "}
-                          <span className="text-destructive">*</span>
+                          Giá bán (VND) <span className="text-destructive">*</span>
                         </Label>
                         <Input
                           inputMode="decimal"
@@ -466,10 +567,10 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
                         />
                       </div>
 
+                      {/* Thời gian chế biến */}
                       <div className="md:col-span-2 space-y-1.5">
                         <Label className="font-semibold">
-                          Thời gian chế biến (phút){" "}
-                          <span className="text-destructive">*</span>
+                          Thời gian chế biến (phút) <span className="text-destructive">*</span>
                         </Label>
                         <Input
                           inputMode="numeric"
@@ -486,10 +587,10 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
                         />
                       </div>
 
+                      {/* Số lượng mỗi ngày */}
                       <div className="md:col-span-2 space-y-1.5">
                         <Label className="font-semibold">
-                          Số lượng mỗi ngày{" "}
-                          <span className="text-destructive">*</span>
+                          Số lượng mỗi ngày <span className="text-destructive">*</span>
                         </Label>
                         <Input
                           inputMode="decimal"
@@ -497,12 +598,7 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
                           value={item.dailyQuantity}
                           onChange={(e) => {
                             const pretty = sanitizeNumeric(e.target.value);
-                            updateItem(
-                              cat.id,
-                              item.id,
-                              "dailyQuantity",
-                              pretty
-                            );
+                            updateItem(cat.id, item.id, "dailyQuantity", pretty);
                           }}
                           onKeyDown={(e) => {
                             const allowedKeys = [
@@ -527,6 +623,7 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
                         />
                       </div>
 
+                      {/* Hình ảnh + preview */}
                       <div className="md:col-span-3 space-y-1.5">
                         <Label className="font-semibold">Hình ảnh</Label>
                         <div className="flex items-center gap-2">
@@ -543,8 +640,27 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
                             }
                           />
                         </div>
+                        {item.imageUrl && !item.image && (
+                          <div className="mt-2 w-full h-24 rounded border overflow-hidden bg-muted flex items-center justify-center">
+                            {item.imageUrl ? (
+                              <img
+                                src={item.imageUrl}
+                                alt={item.name || "image"}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <ImageIcon className="w-6 h-6 text-muted-foreground" />
+                            )}
+                          </div>
+                        )}
+                        {item.image && (
+                          <div className="mt-2 text-xs text-muted-foreground">
+                            Đã chọn: {item.image.name}
+                          </div>
+                        )}
                       </div>
 
+                      {/* Mô tả */}
                       <div className="md:col-span-12 space-y-1.5">
                         <Label className="font-semibold">Mô tả</Label>
                         <Textarea
@@ -567,6 +683,7 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
             </div>
           ))}
 
+          {/* Footer actions */}
           <div className="flex items-center justify-end">
             <Button
               className="gap-2 shadow-sm"
@@ -581,6 +698,7 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
         </CardContent>
       </Card>
 
+      {/* Dialog thêm danh mục */}
       <Dialog open={addCatOpen} onOpenChange={setAddCatOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>

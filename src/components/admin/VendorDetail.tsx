@@ -24,14 +24,17 @@ import {
   Calendar,
   Menu as MenuIcon,
   ImageIcon,
+  UtensilsCrossed,
+  Timer,
+  Package,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { api, ApiResponse } from "@/lib/api";
 
-// ---- Types ----
+// ==== Types (theo API mới) ====
 type VendorDetailModel = {
   id: string;
-  name: string;
+  name?: string;
   address?: string;
   phone?: string;
   email?: string;
@@ -40,27 +43,42 @@ type VendorDetailModel = {
   status?: number | string;
   createdTime?: string;
   logoUrl?: string;
-  // legal files
   businessLicenseUrl?: string;
   foodSafetyCertUrl?: string;
   personalIdentityNumber?: string;
   personalIdentityFront?: string;
   personalIdentityBack?: string;
-  // finance
   bankBin?: string;
   bankName?: string;
   bankAccountNumber?: string;
   bankAccountHolder?: string;
   invoiceInfo?: string | null;
   paymentMethod?: number;
-  // others
   averageRating?: number;
+};
+
+type MenuItemResponse = {
+  id: string;
+  name?: string;
+  description?: string;
+  price?: number | null;
+  quantity?: number | null;
+  active?: boolean | null;
+  code?: string | null;
+  prepTime?: number | null; // minutes
+  vendorId?: string;
+  typeOfFood?: string | null;
+  imageUrl?: string | null;
+};
+
+type VendorWithMenuResponse = {
+  vendor: VendorDetailModel;
+  menuItems: MenuItemResponse[];
 };
 
 interface VendorDetailProps {
   vendor: { id: string; name?: string } | null;
   onClose: () => void;
-  // ĐỔI: để có thể await khi bấm xác nhận
   onApprove: (vendorId: string) => Promise<void>;
   onReject: (vendorId: string) => void;
 }
@@ -107,11 +125,26 @@ const fmtDate = (iso?: string) => {
   return `${dd}-${mm}-${yyyy}`;
 };
 
-function buildMediaUrl(path?: string) {
+function buildMediaUrl(path?: string | null) {
   if (!path) return "";
   if (path.startsWith("http")) return path;
   const base = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
-  return `${base}/${path.replace(/^\/+/, "")}`;
+  return `${base}/${(path || "").replace(/^\/+/, "")}`;
+}
+
+function priceVN(n?: number | null) {
+  if (n == null) return "—";
+  return `${n.toLocaleString("vi-VN")} đ`;
+}
+
+function minutes(n?: number | null) {
+  if (n == null) return "—";
+  return `${Math.round(n)} phút`;
+}
+
+function qty(n?: number | null) {
+  if (n == null) return "—";
+  return n.toLocaleString("vi-VN");
 }
 
 function StatusBadge({ status }: { status?: string }) {
@@ -174,10 +207,11 @@ const VendorDetail = ({
 }: VendorDetailProps) => {
   const [loading, setLoading] = useState(false);
   const [detail, setDetail] = useState<VendorDetailModel | null>(null);
+  const [menuItems, setMenuItems] = useState<MenuItemResponse[]>([]);
   const [showApprovalModal, setShowApprovalModal] = useState(false);
-  const [approving, setApproving] = useState(false); // <-- loading khi xác nhận duyệt
+  const [approving, setApproving] = useState(false);
 
-  // ---- Fetch detail by id ----
+  // ---- Fetch vendor + menu by id (API mới) ----
   useEffect(() => {
     let mounted = true;
     async function fetchDetail() {
@@ -185,15 +219,19 @@ const VendorDetail = ({
       try {
         setLoading(true);
         const token = localStorage.getItem("accessToken") || "";
-        const res = await api.get<ApiResponse<VendorDetailModel>>(
+        const res = await api.get<ApiResponse<VendorWithMenuResponse>>(
           `/api/vendor/${vendor.id}`,
           token ? { Authorization: `Bearer ${token}` } : undefined
         );
+
         const payload = (res?.data as any) ?? res;
-        const data: VendorDetailModel =
-          (payload?.data as VendorDetailModel) ??
-          (payload as VendorDetailModel);
-        if (mounted) setDetail(data);
+        const data: VendorWithMenuResponse =
+          (payload?.data as VendorWithMenuResponse) ??
+          (payload as VendorWithMenuResponse);
+
+        if (!mounted) return;
+        setDetail(data?.vendor ?? null);
+        setMenuItems(Array.isArray(data?.menuItems) ? data.menuItems : []);
       } catch (e) {
         console.error(e);
       } finally {
@@ -206,6 +244,7 @@ const VendorDetail = ({
     };
   }, [vendor?.id]);
 
+  // ---- UI states ----
   const statusText = normalizeStatus(detail?.status);
   const isPending = statusText === "pendingreview";
   const isApproved = statusText === "approved";
@@ -232,14 +271,23 @@ const VendorDetail = ({
     );
   }, [isApproved]);
 
+  // ---- Group menu theo TypeOfFood ----
+  const groupedMenu = useMemo(() => {
+    const map = new Map<string, MenuItemResponse[]>();
+    for (const it of menuItems) {
+      const key = (it.typeOfFood || "Khác").trim();
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(it);
+    }
+    return Array.from(map.entries()); // [ [type, items], ... ]
+  }, [menuItems]);
+
   // ---- Confirm approve from modal ----
   const handleApprovalConfirm = async () => {
     if (!detail?.id) return;
     try {
       setApproving(true);
-      // Gọi đúng API duyệt thông qua onApprove của parent (đã implement POST /api/vendor/{id}/status)
       await onApprove(detail.id);
-      // đóng modal confirm + đóng dialog chi tiết
       setShowApprovalModal(false);
       onClose();
     } finally {
@@ -250,7 +298,7 @@ const VendorDetail = ({
   return (
     <>
       <Dialog open={true} onOpenChange={onClose}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-3">
               <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center overflow-hidden">
@@ -264,18 +312,16 @@ const VendorDetail = ({
                   <ShoppingBag className="w-5 h-5 text-primary" />
                 )}
               </div>
-              {loading
-                ? "Đang tải..."
-                : `${detail?.name ?? vendor?.name ?? ""}`}
+              {loading ? "Đang tải..." : `${detail?.name ?? vendor?.name ?? ""}`}
             </DialogTitle>
             <DialogDescription>
-              Thông tin đăng ký và trạng thái thanh toán của quán
+              Thông tin đăng ký, trạng thái thanh toán và thực đơn của quán
             </DialogDescription>
           </DialogHeader>
 
           {/* ==== BODY ==== */}
           <div className="grid gap-6">
-            {/* Payment card (vàng nhạt) */}
+            {/* Payment card */}
             <Card
               className="border border-amber-300 bg-amber-50 
                 transition-shadow duration-200 transform-gpu [will-change:transform]
@@ -323,6 +369,7 @@ const VendorDetail = ({
               </CardContent>
             </Card>
 
+            {/* 2 cột thông tin */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Basic Information */}
               <Card className={cardBase}>
@@ -468,44 +515,6 @@ const VendorDetail = ({
                 </CardContent>
               </Card>
 
-              {/* Financial Information */}
-              <Card className={cardBase}>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <CreditCard className="w-5 h-5" />
-                    Thông tin Tài chính
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">
-                      Ngân hàng
-                    </label>
-                    <p className="font-semibold">
-                      {detail?.bankName || "—"}
-                      {detail?.bankBin ? ` (BIN: ${detail.bankBin})` : ""}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">
-                      Số tài khoản
-                    </label>
-                    <p className="font-semibold">
-                      {detail?.bankAccountNumber || "—"}{" "}
-                      {detail?.bankAccountHolder
-                        ? `- ${detail.bankAccountHolder}`
-                        : ""}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">
-                      Thông tin xuất hóa đơn
-                    </label>
-                    <p>{detail?.invoiceInfo || "—"}</p>
-                  </div>
-                </CardContent>
-              </Card>
-
               {/* Status */}
               <Card className={cardBase}>
                 <CardHeader>
@@ -526,8 +535,120 @@ const VendorDetail = ({
                 </CardContent>
               </Card>
             </div>
+
+            {/* ===== Danh sách thực đơn (chỉ hiển thị nếu có) ===== */}
+            {groupedMenu.length > 0 && (
+              <Card className="border border-primary/20 bg-background">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <UtensilsCrossed className="w-5 h-5" />
+                    Danh sách thực đơn
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-8">
+                  {groupedMenu.map(([type, items]) => (
+                    <div key={type} className="space-y-4">
+                      {/* Header nhóm */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="secondary" className="text-sm">
+                            {type}
+                          </Badge>
+                          <span className="text-sm text-muted-foreground">
+                            {items.length} món
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Grid item cards */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {items.map((it) => (
+                          <div
+                            key={it.id}
+                            className="rounded-xl border bg-card overflow-hidden shadow-sm hover:shadow-md transition-shadow"
+                          >
+                            {/* Ảnh ở trên */}
+                            <div className="w-full h-40 bg-muted flex items-center justify-center overflow-hidden">
+                              {it.imageUrl ? (
+                                <img
+                                  src={buildMediaUrl(it.imageUrl)}
+                                  alt={it.name || "menu-item"}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="flex flex-col items-center text-muted-foreground">
+                                  <ImageIcon className="w-6 h-6 mb-2" />
+                                  <span className="text-xs">Chưa có hình</span>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Nội dung */}
+                            <div className="p-4 space-y-2">
+                              <div className="flex items-start justify-between gap-2">
+                                <h4 className="font-semibold line-clamp-2">
+                                  {it.name || "—"}
+                                </h4>
+                                {it.active ? (
+                                  <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white">
+                                    Hoạt động
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="secondary">Tạm tắt</Badge>
+                                )}
+                              </div>
+
+                              <Separator />
+
+                              <div className="text-sm grid grid-cols-1 gap-1.5">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-muted-foreground">
+                                    Giá bán
+                                  </span>
+                                  <span className="font-medium">
+                                    {priceVN(it.price)}
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-muted-foreground flex items-center gap-1">
+                                    <Timer className="w-4 h-4" />
+                                    Thời gian chế biến
+                                  </span>
+                                  <span className="font-medium">
+                                    {minutes(it.prepTime)}
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-muted-foreground flex items-center gap-1">
+                                    <Package className="w-4 h-4" />
+                                    Số lượng mỗi ngày
+                                  </span>
+                                  <span className="font-medium">
+                                    {qty(it.quantity)}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {it.description && (
+                                <>
+                                  <Separator className="my-2" />
+                                  <p className="text-sm text-muted-foreground line-clamp-3">
+                                    {it.description}
+                                  </p>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
           </div>
 
+          {/* Footer actions */}
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={onClose}>
               Đóng
