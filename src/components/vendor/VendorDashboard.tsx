@@ -1147,7 +1147,11 @@ const VendorDashboard = () => {
                 <RegistrationSection vendor={vendor} editable={isEditable} />
               </TabsContent>
               <TabsContent value="menu">
-                <SettingsMenu />
+                {vendor ? (
+                    <SettingsMenu vendorId={vendor.id} />
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Chưa tải được quán.</p>
+                  )}
               </TabsContent>
 
               <TabsContent value="debt">

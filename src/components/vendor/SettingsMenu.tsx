@@ -18,16 +18,21 @@ import {
   Package,
   Settings as SettingsIcon,
   Trash2,
-  Upload,
   Save,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import { api, ApiResponse } from "@/lib/api";
+
+type SettingsMenuProps = {
+  vendorId: string; 
+};
 
 type MenuItem = {
   id: string;
   name: string;
-  price: string; 
-  prepMinutes: string; 
+  price: string;
+  prepMinutes: string;
   image?: File | null;
   dailyQuantity: string;
   description?: string;
@@ -41,7 +46,7 @@ type Category = {
 
 const uid = () => crypto.randomUUID();
 
-export default function SettingsMenu() {
+export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
   const [categories, setCategories] = useState<Category[]>([
     {
       id: uid(),
@@ -86,10 +91,9 @@ export default function SettingsMenu() {
 
   const [addCatOpen, setAddCatOpen] = useState(false);
   const [newCatNames, setNewCatNames] = useState<string[]>([""]);
+  const [submitting, setSubmitting] = useState(false);
 
-  const canSubmit = useMemo(() => {
-    return categories.length > 0;
-  }, [categories]);
+  const canSubmit = useMemo(() => categories.length > 0, [categories]);
 
   const openAddCategory = () => {
     setNewCatNames([""]);
@@ -175,14 +179,106 @@ export default function SettingsMenu() {
   };
 
   const handleSave = async () => {
-    alert("Đã cập nhật menu (demo). Bạn nối API tại handleSave().");
+    if (!vendorId) {
+      toast.error("Thiếu VendorId. Vui lòng tải lại trang hoặc đăng nhập lại.");
+      return;
+    }
+
+    const forms: FormData[] = [];
+    const errors: string[] = [];
+
+    categories.forEach((cat) => {
+      cat.items.forEach((item, iIdx) => {
+        const path = `Danh mục "${cat.name}" › Món #${iIdx + 1}`;
+
+        if (!item.name?.trim()) errors.push(`${path}: thiếu Tên món`);
+
+        const price = unformatNumber(item.price);
+        if (!Number.isFinite(price))
+          errors.push(`${path}: Giá bán không hợp lệ`);
+
+        const qty = toInt(item.dailyQuantity);
+        if (!Number.isFinite(qty))
+          errors.push(`${path}: Số lượng mỗi ngày không hợp lệ`);
+
+        const prep = toInt(item.prepMinutes);
+        if (!Number.isFinite(prep))
+          errors.push(`${path}: Thời gian chế biến (phút) không hợp lệ`);
+
+        if (errors.length === 0) {
+          const body = {
+            vendorId,
+            name: item.name.trim(),
+            description: item.description?.trim() || null,
+            code: undefined,
+            price: Number(price.toFixed(2)),
+            quantity: qty,
+            prepTime: prep,
+            typeOfFood: cat.name,
+            status: true,
+          };
+          const fd = buildMenuItemForm(body, item.image);
+          forms.push(fd);
+        }
+      });
+    });
+
+    if (errors.length > 0) {
+      toast.error(
+        <div className="space-y-1">
+          <p>Không thể lưu do lỗi dữ liệu:</p>
+          <ul className="list-disc pl-5">
+            {errors.slice(0, 4).map((e, i) => (
+              <li key={i}>{e}</li>
+            ))}
+          </ul>
+          {errors.length > 4 && <p>…và {errors.length - 4} lỗi khác.</p>}
+        </div>
+      );
+      return;
+    }
+
+    if (forms.length === 0) {
+      toast.info("Không có món nào để lưu.");
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      const token = localStorage.getItem("accessToken") || "";
+      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+
+      const results = await Promise.allSettled(
+        forms.map((fd) =>
+          api.post<ApiResponse<any>>("/api/menuitem", fd, headers)
+        )
+      );
+
+      const ok = results.filter((r) => r.status === "fulfilled").length;
+      const fail = results.length - ok;
+
+      if (ok > 0 && fail === 0) {
+        toast.success(`Đã tạo ${ok} món thành công!`);
+      } else if (ok > 0 && fail > 0) {
+        toast.warning(
+          `Một phần thành công: ${ok} món tạo OK, ${fail} món lỗi.`
+        );
+      } else {
+        toast.error("Tạo menu thất bại. Vui lòng thử lại.");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Có lỗi khi gọi API. Vui lòng thử lại.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   function sanitizeNumeric(input: string) {
     let s = input.replace(/[^\d.]/g, "");
     const firstDot = s.indexOf(".");
     if (firstDot !== -1) {
-      s = s.slice(0, firstDot + 1) + s.slice(firstDot + 1).replace(/\./g, ""); 
+      s = s.slice(0, firstDot + 1) + s.slice(firstDot + 1).replace(/\./g, "");
     }
     const [intPartRaw, decRaw = ""] = s.split(".");
     const dec = decRaw.slice(0, 2);
@@ -194,6 +290,44 @@ export default function SettingsMenu() {
     return decRaw.length > 0 ? `${intPretty}.${dec}` : intPretty;
   }
 
+  function unformatNumber(n: string): number {
+    const s = (n || "").replace(/,/g, "").trim();
+    return s === "" ? NaN : Number(s);
+  }
+  function toInt(n: string): number {
+    const f = unformatNumber(n);
+    return Number.isFinite(f) ? Math.floor(f) : NaN;
+  }
+
+  function buildMenuItemForm(
+    body: {
+      vendorId: string;
+      name: string;
+      description: string | null;
+      code?: string | undefined;
+      price: number; 
+      quantity: number; 
+      prepTime: number; 
+      typeOfFood: string;
+      status: boolean;
+    },
+    image?: File | null
+  ) {
+    const fd = new FormData();
+    fd.append("VendorId", body.vendorId);
+    fd.append("Name", body.name);
+    if (body.description != null) fd.append("Description", body.description);
+    if (body.code != null) fd.append("Code", body.code);
+    fd.append("Price", body.price.toString());
+    fd.append("Quantity", body.quantity.toString());
+    fd.append("PrepTime", body.prepTime.toString());
+    fd.append("TypeOfFood", body.typeOfFood);
+    fd.append("Status", body.status ? "true" : "false");
+    if (image) {
+      fd.append("ImageFile", image, image.name);
+    }
+    return fd;
+  }
   return (
     <>
       <Card className="shadow-md">
@@ -220,7 +354,7 @@ export default function SettingsMenu() {
             </div>
           )}
 
-          {categories.map((cat, idx) => (
+          {categories.map((cat) => (
             <div
               key={cat.id}
               className={cn(
@@ -438,10 +572,10 @@ export default function SettingsMenu() {
               className="gap-2 shadow-sm"
               size="lg"
               onClick={handleSave}
-              disabled={!canSubmit}
+              disabled={!canSubmit || submitting}
             >
               <Save className="h-4 w-4" />
-              Cập nhật
+              {submitting ? "Đang lưu..." : "Cập nhật"}
             </Button>
           </div>
         </CardContent>
