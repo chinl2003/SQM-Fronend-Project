@@ -11,9 +11,9 @@ interface VendorCardProps {
   coverImage: string;
   rating: number;
   reviewCount: number;
-  eta: string;
+  eta?: string;         // cho phép optional
   queueSize: number;
-  distance: string;
+  distance?: string;     // cho phép optional
   isPreOrderAvailable?: boolean;
   cuisineType?: string;
   priceRange?: "€" | "€€" | "€€€";
@@ -30,9 +30,9 @@ export function VendorCard({
   coverImage,
   rating,
   reviewCount,
-  eta,
+  eta = "0",          // mặc định "0"
   queueSize,
-  distance,
+  distance = "0",     // mặc định "0"
   isPreOrderAvailable = false,
   cuisineType,
   priceRange = "€€",
@@ -42,6 +42,10 @@ export function VendorCard({
   onClick,
   className
 }: VendorCardProps) {
+  // Phòng khi truyền vào là chuỗi rỗng/space
+  const etaDisplay = (eta ?? "").toString().trim() || "0";
+  const distanceDisplay = (distance ?? "").toString().trim() || "0";
+
   return (
     <Card 
       className={cn(
@@ -71,12 +75,16 @@ export function VendorCard({
         </div>
 
         <div className="absolute top-3 right-3">
-          <div className={cn(
-            "flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium",
-            queueSize === 0 ? "bg-success/90 text-success-foreground" :
-            queueSize < 5 ? "bg-warning/90 text-warning-foreground" :
-            "bg-destructive/90 text-destructive-foreground"
-          )}>
+          <div
+            className={cn(
+              "flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium",
+              queueSize === 0
+                ? "bg-success/90 text-success-foreground"
+                : queueSize < 5
+                ? "bg-warning/90 text-warning-foreground"
+                : "bg-destructive/90 text-destructive-foreground"
+            )}
+          >
             <Users className="h-3 w-3" />
             <span>{queueSize}</span>
           </div>
@@ -84,7 +92,6 @@ export function VendorCard({
       </div>
 
       <CardContent className="p-4">
-
         <div className="flex items-start justify-between mb-2">
           <div className="flex-1">
             <h3 className="font-semibold text-card-foreground truncate">{name}</h3>
@@ -92,7 +99,6 @@ export function VendorCard({
               {cuisineType && (
                 <span className="text-sm text-muted-foreground">{cuisineType}</span>
               )}
-              <span className="text-sm text-muted-foreground">{priceRange}</span>
             </div>
           </div>
         </div>
@@ -100,7 +106,7 @@ export function VendorCard({
         <div className="flex items-center space-x-2 mb-3">
           <div className="flex items-center space-x-1">
             <Star className="h-4 w-4 fill-rating-gold text-rating-gold" />
-            <span className="text-sm font-medium">{rating.toFixed(1)}</span>
+            <span className="text-sm font-medium">{Number.isFinite(rating) ? rating.toFixed(1) : "0.0"}</span>
           </div>
           <span className="text-sm text-muted-foreground">({reviewCount} đánh giá)</span>
         </div>
@@ -108,11 +114,11 @@ export function VendorCard({
         <div className="grid grid-cols-2 gap-2 mb-4 text-sm">
           <div className="flex items-center space-x-1 text-muted-foreground">
             <Clock className="h-3 w-3" />
-            <span>{eta}</span>
+            <span>{etaDisplay} phút</span>
           </div>
           <div className="flex items-center space-x-1 text-muted-foreground">
             <MapPin className="h-3 w-3" />
-            <span>{distance}</span>
+            <span>{distanceDisplay} km</span>
           </div>
         </div>
 

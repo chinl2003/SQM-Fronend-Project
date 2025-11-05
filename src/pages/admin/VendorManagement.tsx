@@ -168,6 +168,7 @@ const VendorManagement = () => {
   const [approvingTarget, setApprovingTarget] = useState<{
     id: string;
     name?: string;
+    status: number; // status sẽ gửi lên API
   } | null>(null);
   const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
   const [activeTab, setActiveTab] = useState<
@@ -204,7 +205,7 @@ const VendorManagement = () => {
       setVendors(list);
       setPageNumber(typeof pn === "number" ? pn : page);
       setTotalCount(typeof total === "number" ? total : undefined);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
       toast.error(err?.message || "Không tải được danh sách vendor.");
       setVendors([]);
@@ -230,72 +231,51 @@ const VendorManagement = () => {
     );
   }, [vendors, searchTerm]);
 
-  const handleApprove = async (vendorId: string) => {
+  const handleApprove = async (vendorId: string, status: number) => {
     try {
       setApprovingId(vendorId);
 
       const token = localStorage.getItem("accessToken") || "";
       await api.post<ApiResponse<any>>(
         `/api/vendor/${vendorId}/status`,
-        { status: VENDOR_STATUS_ENUM.MenuPending },
+        { status },
         {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
           "Content-Type": "application/json",
         } as any
       );
 
-      toast.success(
-        "Đã duyệt hồ sơ thành công! Trạng thái chuyển sang 'Chờ cấp phép'."
-      );
-      // Cập nhật UI
+      if (status === VENDOR_STATUS_ENUM.MenuPending) {
+        toast.success("Đã duyệt hồ sơ! Trạng thái chuyển sang 'Chờ cấp phép'.");
+      } else if (status === VENDOR_STATUS_ENUM.Approved) {
+        toast.success("Đã phê duyệt hoạt động! Trạng thái chuyển sang 'Đang hoạt động'.");
+      } else {
+        toast.success("Cập nhật trạng thái thành công.");
+      }
+
       setVendors((prev) => prev.filter((v) => v.id !== vendorId));
       fetchVendorsByStatus(activeTab, pageNumber);
     } catch (e: any) {
       console.error(e);
-      toast.error(e?.message || "Duyệt thất bại");
+      toast.error(e?.message || "Cập nhật trạng thái thất bại");
     } finally {
       setApprovingId(null);
     }
   };
 
-  const renderLoadingCards = (count = 3) => (
-    <div className="space-y-4">
-      {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="border rounded-lg p-4">
-          <div className="animate-pulse grid lg:grid-cols-4 gap-4 items-center">
-            <div className="lg:col-span-2 flex items-start gap-3">
-              <div className="w-12 h-12 bg-muted rounded-lg" />
-              <div className="flex-1 space-y-2">
-                <div className="h-4 bg-muted rounded w-1/3" />
-                <div className="flex gap-4">
-                  <div className="h-3 bg-muted rounded w-24" />
-                  <div className="h-3 bg-muted rounded w-32" />
-                </div>
-                <div className="h-3 bg-muted rounded w-40" />
-              </div>
-            </div>
-            <div className="flex flex-col items-center gap-2">
-              <div className="h-6 bg-muted rounded w-24" />
-              <div className="h-3 bg-muted rounded w-16" />
-            </div>
-            <div className="flex gap-2 justify-end">
-              <div className="h-9 bg-muted rounded w-10" />
-              <div className="h-9 bg-muted rounded w-10" />
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-
-  const openApproveModal = (vendor: Vendor) => {
-    setApprovingTarget({ id: vendor.id, name: vendor.name });
+  // MỞ MODAL XÁC NHẬN – nhận status mong muốn
+  const openApproveModal = (vendor: Vendor, status: number) => {
+    setApprovingTarget({
+      id: vendor.id,
+      name: vendor.name,
+      status, // lưu status để xác nhận xong gọi API
+    });
     setShowApprovalModal(true);
   };
 
   const handleApprovalConfirm = async () => {
     if (!approvingTarget?.id) return;
-    await handleApprove(approvingTarget.id);
+    await handleApprove(approvingTarget.id, approvingTarget.status);
     setShowApprovalModal(false);
     setApprovingTarget(null);
   };
@@ -304,7 +284,7 @@ const VendorManagement = () => {
     try {
       toast.success("Đã từ chối quán!");
       fetchVendorsByStatus(activeTab, pageNumber);
-    } catch (e) {
+    } catch (e: any) {
       toast.error(e?.message || "Từ chối thất bại");
     }
   };
@@ -313,7 +293,7 @@ const VendorManagement = () => {
     try {
       toast.success("Đã tạm khóa quán!");
       fetchVendorsByStatus(activeTab, pageNumber);
-    } catch (e) {
+    } catch (e: any) {
       toast.error(e?.message || "Tạm khóa thất bại");
     }
   };
@@ -445,7 +425,8 @@ const VendorManagement = () => {
         <VendorDetail
           vendor={selectedVendor}
           onClose={() => setSelectedVendor(null)}
-          onApprove={(id) => handleApprove(id as unknown as string)}
+          // Trong dialog VendorDetail, nút Xét duyệt (hồ sơ) vẫn set sang MenuPending
+          onApprove={(id) => handleApprove(id as unknown as string, VENDOR_STATUS_ENUM.MenuPending)}
           onReject={(id) => handleReject(id as unknown as string)}
         />
       )}
@@ -535,9 +516,7 @@ const VendorManagement = () => {
                                   src={
                                     v.logoUrl.startsWith("http")
                                       ? v.logoUrl
-                                      : `${
-                                          import.meta.env.VITE_API_URL || ""
-                                        }/${v.logoUrl}`
+                                      : `${import.meta.env.VITE_API_URL || ""}/${v.logoUrl}`
                                   }
                                   alt={v.name}
                                   className="object-cover w-full h-full rounded-xl"
@@ -602,7 +581,7 @@ const VendorManagement = () => {
                           <Button
                             size="sm"
                             className="rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white"
-                            onClick={() => openApproveModal(v)} // ← mở modal
+                            onClick={() => openApproveModal(v, VENDOR_STATUS_ENUM.MenuPending)}
                             disabled={approvingId === v.id}
                             title="Duyệt"
                           >
@@ -705,7 +684,10 @@ const VendorManagement = () => {
                         >
                           <Eye className="w-4 h-4" />
                         </Button>
-                        <Button size="sm" onClick={() => handleApprove(v.id)}>
+                        <Button
+                          size="sm"
+                          onClick={() => openApproveModal(v, VENDOR_STATUS_ENUM.Approved)}
+                        >
                           <CheckCircle className="w-4 h-4 mr-1" />
                           Phê duyệt hoạt động
                         </Button>
@@ -865,7 +847,10 @@ const VendorManagement = () => {
                         >
                           <Eye className="w-4 h-4" />
                         </Button>
-                        <Button size="sm" onClick={() => handleApprove(v.id)}>
+                        <Button
+                          size="sm"
+                          onClick={() => openApproveModal(v, VENDOR_STATUS_ENUM.Approved)}
+                        >
                           <CheckCircle className="w-4 h-4" />
                         </Button>
                         <Button
@@ -890,16 +875,14 @@ const VendorManagement = () => {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Modal xác nhận duyệt dùng chung */}
       <Dialog open={showApprovalModal} onOpenChange={setShowApprovalModal}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Xác nhận Xét duyệt</DialogTitle>
             <DialogDescription>
-              Bạn có chắc chắn muốn xét duyệt quán "{approvingTarget?.name}"
-              không?
-              <br />
-              Sau khi xét duyệt, quán này sẽ được yêu cầu cập nhật menu để hoạt
-              động.
+              Bạn có chắc chắn muốn {approvingTarget?.status === VENDOR_STATUS_ENUM.Approved ? "phê duyệt hoạt động" : "xét duyệt hồ sơ"} quán "{approvingTarget?.name}" không?
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
