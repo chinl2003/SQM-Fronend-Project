@@ -90,6 +90,7 @@ const Auth = () => {
       localStorage.setItem("fullName", response.data.fullName);
       localStorage.setItem("userId", response.data.userId);
       localStorage.setItem("role", response.data.role);
+      localStorage.setItem("roles", JSON.stringify(response.data.roles));
 
       toast.success("Đăng nhập thành công!");
       const role = response.data.role?.toLowerCase();

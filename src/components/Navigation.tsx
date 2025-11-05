@@ -14,7 +14,7 @@ import {
   Clock,
   ShoppingBag,
   Heart,
-  MessageCircle,
+  Store,
   LogOut,
   Home
 } from "lucide-react";
@@ -26,6 +26,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { NotificationDialog } from "./NotificationDialog";
 import { ProfileDialog } from "./ProfileDialog";
+import { NoStoreDialog } from "./customer/NoStoreDialog";
+import { VendorRegisterDialog } from "./customer/VendorRegisterDialog";
 
 interface NavigationProps {
   userType?: "customer" | "guest" | "vendor" | "admin";
@@ -39,12 +41,28 @@ export function Navigation({ userType = "guest", queueCount = 0 }: NavigationPro
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [fullName, setFullName] = useState<string | null>(localStorage.getItem("fullName"));
   const [userId, setUserId] = useState<string | null>(localStorage.getItem("userId"));
+  const [roles, setRoles] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem("roles");
+      return raw ? (JSON.parse(raw) as string[]) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [isNoStoreModalOpen, setIsNoStoreModalOpen] = useState(false);
+  const [isVendorRegisterOpen, setIsVendorRegisterOpen] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
     const handleStorageChange = () => {
       setFullName(localStorage.getItem("fullName"));
       setUserId(localStorage.getItem("userId"));
+      try {
+        const raw = localStorage.getItem("roles");
+        setRoles(raw ? (JSON.parse(raw) as string[]) : []);
+      } catch {
+        setRoles([]);
+      }
     };
     window.addEventListener("storage", handleStorageChange);
     return () => window.removeEventListener("storage", handleStorageChange);
@@ -56,6 +74,15 @@ export function Navigation({ userType = "guest", queueCount = 0 }: NavigationPro
       navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
       setSearchQuery("");
     }
+  };
+
+  const handleOpenStore = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (roles.length === 1 && roles[0] === "Customer") {
+      setIsNoStoreModalOpen(true);
+      return;
+    }
+    navigate("/vendor");
   };
 
   const handleLogout = () => {
@@ -174,10 +201,10 @@ export function Navigation({ userType = "guest", queueCount = 0 }: NavigationPro
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem>
-                    <Link to="/support" className="flex items-center w-full">
-                      <MessageCircle className="h-4 w-4 mr-2" />
-                      Hỗ trợ
-                    </Link>
+                    <button type="button" onClick={handleOpenStore} className="flex items-center w-full">
+                      <Store className="h-4 w-4 mr-2" />
+                      Cửa hàng của bạn
+                    </button>
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     className="text-destructive flex items-center"
@@ -250,12 +277,6 @@ export function Navigation({ userType = "guest", queueCount = 0 }: NavigationPro
                     Lịch sử đơn hàng
                   </Button>
                 </Link>
-                <Link to="/support" onClick={() => setIsMobileMenuOpen(false)}>
-                  <Button variant="ghost" className="w-full justify-start">
-                    <MessageCircle className="h-4 w-4 mr-2" />
-                    Hỗ trợ
-                  </Button>
-                </Link>
               </div>
             )}
           </div>
@@ -271,6 +292,20 @@ export function Navigation({ userType = "guest", queueCount = 0 }: NavigationPro
         isOpen={isProfileOpen}
         onClose={() => setIsProfileOpen(false)}
         userId={userId!} 
+      />
+
+      <NoStoreDialog
+        isOpen={isNoStoreModalOpen}
+        onClose={() => setIsNoStoreModalOpen(false)}
+        onRegisterClick={() => {
+          setIsNoStoreModalOpen(false);
+          setIsVendorRegisterOpen(true);
+        }}
+      />
+
+      <VendorRegisterDialog
+        isOpen={isVendorRegisterOpen}
+        onClose={() => setIsVendorRegisterOpen(false)}
       />
     </nav>
   );
