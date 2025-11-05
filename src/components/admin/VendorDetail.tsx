@@ -1,101 +1,196 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog, DialogContent, DialogDescription,
+  DialogFooter, DialogHeader, DialogTitle
+} from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
-import { 
-  ShoppingBag, MapPin, Clock, Phone, Mail, FileText, 
-  CreditCard, CheckCircle, XCircle, AlertTriangle,
+import {
+  ShoppingBag, MapPin, Clock, Phone, Mail, FileText,
+  CreditCard, CheckCircle, XCircle,
   DollarSign, Calendar, Menu as MenuIcon, ImageIcon
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { api, ApiResponse } from "@/lib/api";
+
+// ---- Types ----
+type VendorDetailModel = {
+  id: string;
+  name: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  openingHours?: string;
+  businessTypeId?: string;
+  status?: number | string;
+  createdTime?: string;
+  logoUrl?: string;
+  // legal files
+  businessLicenseUrl?: string;
+  foodSafetyCertUrl?: string;
+  personalIdentityNumber?: string;
+  personalIdentityFront?: string;
+  personalIdentityBack?: string;
+  // finance
+  bankBin?: string;
+  bankName?: string;
+  bankAccountNumber?: string;
+  bankAccountHolder?: string;
+  invoiceInfo?: string | null;
+  paymentMethod?: number;
+  // others
+  averageRating?: number;
+};
 
 interface VendorDetailProps {
-  vendor: any;
+  vendor: { id: string; name?: string } | null;
   onClose: () => void;
-  onApprove: (vendorId: number) => void;
-  onReject: (vendorId: number) => void;
+  onApprove: (vendorId: string) => void;
+  onReject: (vendorId: string) => void;
 }
 
+// ---- Helpers ----
+const STATUS_NUM_TO_TEXT: Record<number,
+  "rejected" | "indebt" | "draft" | "approved" |
+  "pendingreview" | "menupending" | "suspended" | "closurerequested"
+> = {
+  0: "draft",
+  1: "pendingreview",
+  2: "approved",
+  3: "rejected",
+  4: "menupending",
+  5: "indebt",
+  6: "closurerequested",
+  7: "suspended",
+};
+
+function normalizeStatus(s?: number | string) {
+  if (typeof s === "number") return STATUS_NUM_TO_TEXT[s] ?? "";
+  if (typeof s === "string") return s.toLowerCase();
+  return "";
+}
+
+const fmtDate = (iso?: string) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) {
+    const m = iso.slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+    return iso;
+  }
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  return `${dd}-${mm}-${yyyy}`;
+};
+
+function buildMediaUrl(path?: string) {
+  if (!path) return "";
+  if (path.startsWith("http")) return path;
+  const base = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
+  return `${base}/${path.replace(/^\/+/, "")}`;
+}
+
+// VN labels + colored badge
+function statusLabelVi(s?: string) {
+  switch (s) {
+    case "draft": return "Bản nháp";
+    case "pendingreview": return "Chờ duyệt";
+    case "approved": return "Đã duyệt";
+    case "rejected": return "Đã từ chối";
+    case "menupending": return "Chờ cấp phép";
+    case "indebt": return "Đang nợ";
+    case "closurerequested": return "Yêu cầu đóng";
+    case "suspended": return "Tạm khóa";
+    default: return "—";
+  }
+}
+function StatusBadge({ status }: { status?: string }) {
+  const s = status;
+  if (s === "approved")
+    return <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white">Đã duyệt</Badge>;
+  if (s === "pendingreview")
+    return <Badge className="bg-amber-500 hover:bg-amber-500 text-white">Chờ duyệt</Badge>;
+  if (s === "rejected")
+    return <Badge className="bg-rose-600 hover:bg-rose-600 text-white">Đã từ chối</Badge>;
+  if (s === "menupending")
+    return <Badge className="bg-sky-600 hover:bg-sky-600 text-white">Chờ cấp phép</Badge>;
+  if (s === "indebt")
+    return <Badge className="bg-orange-600 hover:bg-orange-600 text-white">Đang nợ</Badge>;
+  if (s === "closurerequested")
+    return <Badge className="bg-orange-500 hover:bg-orange-500 text-white">Yêu cầu đóng</Badge>;
+  if (s === "suspended")
+    return <Badge className="bg-zinc-600 hover:bg-zinc-600 text-white">Tạm khóa</Badge>;
+  return <Badge variant="secondary">—</Badge>;
+}
+
+const cardBase =
+  "border border-primary/25 bg-primary/5 " +
+  "transition-shadow duration-200 transform-gpu [will-change:transform] " +
+  "hover:shadow-lg hover:ring-1 hover:ring-primary/20";
+
 const VendorDetail = ({ vendor, onClose, onApprove, onReject }: VendorDetailProps) => {
+  const [loading, setLoading] = useState(false);
+  const [detail, setDetail] = useState<VendorDetailModel | null>(null);
   const [showApprovalModal, setShowApprovalModal] = useState(false);
-  
-  const MONTHLY_FEE = 500000; // 500,000 VND
-  const SLOT_FEE = 500000;    // 500,000 VND (same as monthly fee)
-  
-  const vendorData = {
-    // Basic Info
-    basicInfo: {
-      brandName: vendor.name,
-      address: vendor.location,
-      businessType: vendor.type,
-      openingHours: "06:00 - 22:00",
-      phone: "+84 901 234 567",
-      email: "info@phohanoi.com",
-      logo: "/placeholder-logo.jpg"
-    },
-    // Legal Info
-    legalInfo: {
-      businessLicense: "GPKDoi230001",
-      foodSafetyLicense: "FS2024001",
-      ownerIdCard: "079123456789",
-      licenseImages: [
-        "/license1.jpg", "/license2.jpg", "/id-card.jpg"
-      ]
-    },
-    // Financial Info
-    financialInfo: {
-      bankAccount: "1234567890 - Vietcombank",
-      ewallet: "0901234567 - MoMo",
-      invoiceInfo: "Công ty TNHH Phở Hà Nội",
-      taxCode: "0123456789"
-    },
-    // Payment Status
-    paymentStatus: {
-      slotFeePaid: vendor.status === "approved",
-      slotFeeAmount: SLOT_FEE,
-      monthlyFeeStatus: vendor.status === "approved" ? "paid" : "pending",
-      monthlyFeeAmount: MONTHLY_FEE,
-      nextPaymentDate: "2024-02-01",
-      outstandingAmount: vendor.status === "suspended" ? 250000 : 0
-    },
-    // Menu (if available)
-    menu: vendor.status === "menu_pending" ? [
-      { name: "Phở Bò Tái", price: "55,000đ", prepTime: "8 phút", capacity: 20 },
-      { name: "Phở Gà", price: "50,000đ", prepTime: "6 phút", capacity: 25 },
-      { name: "Bún Bò Huế", price: "60,000đ", prepTime: "10 phút", capacity: 15 }
-    ] : [],
-    // Terms accepted
-    termsAccepted: {
-      tosAccepted: true,
-      antiGamingCommitment: true,
-      dataAnalyticsConsent: true,
-      acceptedDate: "2024-01-15"
+
+  // ---- Fetch detail by id ----
+  useEffect(() => {
+    let mounted = true;
+    async function fetchDetail() {
+      if (!vendor?.id) return;
+      try {
+        setLoading(true);
+        const token = localStorage.getItem("accessToken") || "";
+        const res = await api.get<ApiResponse<VendorDetailModel>>(
+          `/api/vendor/${vendor.id}`,
+          token ? { Authorization: `Bearer ${token}` } : undefined
+        );
+        const payload = (res?.data as any) ?? res;
+        const data: VendorDetailModel =
+          (payload?.data as VendorDetailModel) ?? (payload as VendorDetailModel);
+        if (mounted) setDetail(data);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        if (mounted) setLoading(false);
+      }
     }
-  };
+    fetchDetail();
+    return () => { mounted = false; };
+  }, [vendor?.id]);
+
+  const statusText = normalizeStatus(detail?.status);
+  const isPending = statusText === "pendingreview";
+  const isApproved = statusText === "approved";
+  const isMenuPending = statusText === "menupending";
+
+  // demo fee
+  const MONTHLY_FEE = 500000;
+  const SLOT_FEE = 500000;
+
+  const paymentStatusBadge = useMemo(() => {
+    if (isApproved) {
+      return (
+        <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white">
+          <CheckCircle className="w-3 h-3 mr-1" />
+          Đã thanh toán
+        </Badge>
+      );
+    }
+    return (
+      <Badge className="bg-amber-500 hover:bg-amber-500 text-white">
+        <Clock className="w-3 h-3 mr-1" />
+        Chờ thanh toán
+      </Badge>
+    );
+  }, [isApproved]);
 
   const handleApprovalConfirm = () => {
-    onApprove(vendor.id);
+    if (!detail?.id) return;
+    onApprove(detail.id);
     setShowApprovalModal(false);
-  };
-
-  const getPaymentStatusBadge = () => {
-    if (vendorData.paymentStatus.slotFeePaid && vendorData.paymentStatus.monthlyFeeStatus === "paid") {
-      return <Badge variant="default" className="flex items-center gap-1">
-        <CheckCircle className="w-3 h-3" />
-        Đã thanh toán
-      </Badge>;
-    } else if (vendorData.paymentStatus.outstandingAmount > 0) {
-      return <Badge variant="destructive" className="flex items-center gap-1">
-        <AlertTriangle className="w-3 h-3" />
-        Nợ {vendorData.paymentStatus.outstandingAmount.toLocaleString('vi-VN')}đ
-      </Badge>;
-    } else {
-      return <Badge variant="secondary" className="flex items-center gap-1">
-        <Clock className="w-3 h-3" />
-        Chờ thanh toán
-      </Badge>;
-    }
   };
 
   return (
@@ -104,26 +199,36 @@ const VendorDetail = ({ vendor, onClose, onApprove, onReject }: VendorDetailProp
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-                <ShoppingBag className="w-5 h-5 text-primary" />
+              <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center overflow-hidden">
+                {detail?.logoUrl ? (
+                  <img
+                    src={buildMediaUrl(detail.logoUrl)}
+                    alt={detail?.name || "logo"}
+                    className="w-full h-full object-cover rounded-lg"
+                  />
+                ) : (
+                  <ShoppingBag className="w-5 h-5 text-primary" />
+                )}
               </div>
-              Chi tiết Vendor - {vendorData.basicInfo.brandName}
+              {loading ? "Đang tải..." : `${detail?.name ?? vendor?.name ?? ""}`}
             </DialogTitle>
             <DialogDescription>
-              Thông tin đăng ký và trạng thái thanh toán của vendor
+              Thông tin đăng ký và trạng thái thanh toán của quán
             </DialogDescription>
           </DialogHeader>
 
+          {/* ==== BODY ==== */}
           <div className="grid gap-6">
-            {/* Payment Status Overview */}
-            <Card className="border-primary/20">
+            <Card className="border border-amber-300 bg-amber-50 
+                transition-shadow duration-200 transform-gpu [will-change:transform]
+                hover:shadow-lg hover:ring-1 hover:ring-amber-300/60">
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   <span className="flex items-center gap-2">
                     <DollarSign className="w-5 h-5" />
                     Trạng thái Thanh toán
                   </span>
-                  {getPaymentStatusBadge()}
+                  {paymentStatusBadge}
                 </CardTitle>
               </CardHeader>
               <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -131,19 +236,15 @@ const VendorDetail = ({ vendor, onClose, onApprove, onReject }: VendorDetailProp
                   <div className="flex justify-between">
                     <span>Phí thuê slot:</span>
                     <span className="font-semibold">
-                      {vendorData.paymentStatus.slotFeeAmount.toLocaleString('vi-VN')}đ
-                      {vendorData.paymentStatus.slotFeePaid && 
-                        <CheckCircle className="w-4 h-4 text-success inline ml-2" />
-                      }
+                      {SLOT_FEE.toLocaleString("vi-VN")}đ
+                      {isApproved && <CheckCircle className="w-4 h-4 text-success inline ml-2" />}
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span>Phí sàn tháng này:</span>
                     <span className="font-semibold">
-                      {vendorData.paymentStatus.monthlyFeeAmount.toLocaleString('vi-VN')}đ
-                      {vendorData.paymentStatus.monthlyFeeStatus === "paid" && 
-                        <CheckCircle className="w-4 h-4 text-success inline ml-2" />
-                      }
+                      {MONTHLY_FEE.toLocaleString("vi-VN")}đ
+                      {isApproved && <CheckCircle className="w-4 h-4 text-success inline ml-2" />}
                     </span>
                   </div>
                 </div>
@@ -152,24 +253,16 @@ const VendorDetail = ({ vendor, onClose, onApprove, onReject }: VendorDetailProp
                     <span>Ngày thanh toán tiếp theo:</span>
                     <span className="font-semibold flex items-center gap-1">
                       <Calendar className="w-4 h-4" />
-                      {vendorData.paymentStatus.nextPaymentDate}
+                      {fmtDate(detail?.createdTime)}
                     </span>
                   </div>
-                  {vendorData.paymentStatus.outstandingAmount > 0 && (
-                    <div className="flex justify-between text-destructive">
-                      <span>Số tiền nợ:</span>
-                      <span className="font-semibold">
-                        {vendorData.paymentStatus.outstandingAmount.toLocaleString('vi-VN')}đ
-                      </span>
-                    </div>
-                  )}
                 </div>
               </CardContent>
             </Card>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Basic Information */}
-              <Card>
+              <Card className={cardBase}>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <ShoppingBag className="w-5 h-5" />
@@ -178,44 +271,48 @@ const VendorDetail = ({ vendor, onClose, onApprove, onReject }: VendorDetailProp
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div>
-                    <label className="text-sm font-medium text-muted-foreground">Tên thương hiệu</label>
-                    <p className="font-semibold">{vendorData.basicInfo.brandName}</p>
+                    <label className="text-sm font-medium text-muted-foreground">
+                      Tên thương hiệu
+                    </label>
+                    <p className="font-semibold">{detail?.name}</p>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-muted-foreground">Địa chỉ hoạt động</label>
+                    <label className="text-sm font-medium text-muted-foreground">
+                      Địa chỉ hoạt động
+                    </label>
                     <p className="flex items-center gap-1">
                       <MapPin className="w-4 h-4 text-muted-foreground" />
-                      {vendorData.basicInfo.address}
+                      {detail?.address || "—"}
                     </p>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="text-sm font-medium text-muted-foreground">Loại hình</label>
-                      <p>{vendorData.basicInfo.businessType}</p>
+                      <p>{detail?.businessTypeId || "—"}</p>
                     </div>
                     <div>
                       <label className="text-sm font-medium text-muted-foreground">Giờ hoạt động</label>
                       <p className="flex items-center gap-1">
                         <Clock className="w-4 h-4 text-muted-foreground" />
-                        {vendorData.basicInfo.openingHours}
+                        {detail?.openingHours || "—"}
                       </p>
                     </div>
                   </div>
                   <div className="grid grid-cols-1 gap-2">
                     <div className="flex items-center gap-2">
                       <Phone className="w-4 h-4 text-muted-foreground" />
-                      <span>{vendorData.basicInfo.phone}</span>
+                      <span>{detail?.phone || "—"}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Mail className="w-4 h-4 text-muted-foreground" />
-                      <span>{vendorData.basicInfo.email}</span>
+                      <span>{detail?.email || "—"}</span>
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
               {/* Legal Information */}
-              <Card>
+              <Card className={cardBase}>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <FileText className="w-5 h-5" />
@@ -224,32 +321,84 @@ const VendorDetail = ({ vendor, onClose, onApprove, onReject }: VendorDetailProp
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div>
-                    <label className="text-sm font-medium text-muted-foreground">Giấy phép kinh doanh</label>
-                    <p className="font-semibold">{vendorData.legalInfo.businessLicense}</p>
+                    <label className="text-sm font-medium text-muted-foreground">Số giấy tờ chủ quán</label>
+                    <p className="font-semibold">{detail?.personalIdentityNumber || "—"}</p>
                   </div>
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">Chứng nhận VSATTP</label>
-                    <p className="font-semibold">{vendorData.legalInfo.foodSafetyLicense}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">CMND/CCCD chủ quán</label>
-                    <p className="font-semibold">{vendorData.legalInfo.ownerIdCard}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground mb-2 block">Hình ảnh giấy tờ</label>
-                    <div className="flex gap-2">
-                      {vendorData.legalInfo.licenseImages.map((img, index) => (
-                        <div key={index} className="w-16 h-12 bg-muted rounded flex items-center justify-center">
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground mb-2 block">
+                        GPKD
+                      </label>
+                      <div className="w-full h-28 bg-muted rounded flex items-center justify-center overflow-hidden">
+                        {detail?.businessLicenseUrl ? (
+                          <img
+                            src={buildMediaUrl(detail.businessLicenseUrl)}
+                            alt="business-license"
+                            className="object-cover w-full h-full"
+                          />
+                        ) : (
                           <ImageIcon className="w-6 h-6 text-muted-foreground" />
-                        </div>
-                      ))}
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground mb-2 block">
+                        VSATTP
+                      </label>
+                      <div className="w-full h-28 bg-muted rounded flex items-center justify-center overflow-hidden">
+                        {detail?.foodSafetyCertUrl ? (
+                          <img
+                            src={buildMediaUrl(detail.foodSafetyCertUrl)}
+                            alt="food-safety"
+                            className="object-cover w-full h-full"
+                          />
+                        ) : (
+                          <ImageIcon className="w-6 h-6 text-muted-foreground" />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground mb-2 block">
+                        CCCD (mặt trước)
+                      </label>
+                      <div className="w-full h-28 bg-muted rounded flex items-center justify-center overflow-hidden">
+                        {detail?.personalIdentityFront ? (
+                          <img
+                            src={buildMediaUrl(detail.personalIdentityFront)}
+                            alt="id-front"
+                            className="object-cover w-full h-full"
+                          />
+                        ) : (
+                          <ImageIcon className="w-6 h-6 text-muted-foreground" />
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground mb-2 block">
+                        CCCD (mặt sau)
+                      </label>
+                      <div className="w-full h-28 bg-muted rounded flex items-center justify-center overflow-hidden">
+                        {detail?.personalIdentityBack ? (
+                          <img
+                            src={buildMediaUrl(detail.personalIdentityBack)}
+                            alt="id-back"
+                            className="object-cover w-full h-full"
+                          />
+                        ) : (
+                          <ImageIcon className="w-6 h-6 text-muted-foreground" />
+                        )}
+                      </div>
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
               {/* Financial Information */}
-              <Card>
+              <Card className={cardBase}>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <CreditCard className="w-5 h-5" />
@@ -258,104 +407,57 @@ const VendorDetail = ({ vendor, onClose, onApprove, onReject }: VendorDetailProp
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div>
-                    <label className="text-sm font-medium text-muted-foreground">Tài khoản ngân hàng</label>
-                    <p className="font-semibold">{vendorData.financialInfo.bankAccount}</p>
+                    <label className="text-sm font-medium text-muted-foreground">Ngân hàng</label>
+                    <p className="font-semibold">
+                      {detail?.bankName || "—"}
+                      {detail?.bankBin ? ` (BIN: ${detail.bankBin})` : ""}
+                    </p>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-muted-foreground">Ví điện tử</label>
-                    <p className="font-semibold">{vendorData.financialInfo.ewallet}</p>
+                    <label className="text-sm font-medium text-muted-foreground">Số tài khoản</label>
+                    <p className="font-semibold">
+                      {detail?.bankAccountNumber || "—"} {detail?.bankAccountHolder ? `- ${detail.bankAccountHolder}` : ""}
+                    </p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-muted-foreground">Thông tin xuất hóa đơn</label>
-                    <p>{vendorData.financialInfo.invoiceInfo}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">Mã số thuế</label>
-                    <p>{vendorData.financialInfo.taxCode}</p>
+                    <p>{detail?.invoiceInfo || "—"}</p>
                   </div>
                 </CardContent>
               </Card>
 
-              {/* Terms & Commitments */}
-              <Card>
+              {/* Terms & Commitments / Status */}
+              <Card className={cardBase}>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <CheckCircle className="w-5 h-5" />
-                    Điều khoản & Cam kết
+                    Trạng thái hồ sơ
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <span>Chấp nhận Terms of Service</span>
-                    {vendorData.termsAccepted.tosAccepted ? (
-                      <CheckCircle className="w-5 h-5 text-success" />
-                    ) : (
-                      <XCircle className="w-5 h-5 text-destructive" />
-                    )}
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Cam kết không gian lận</span>
-                    {vendorData.termsAccepted.antiGamingCommitment ? (
-                      <CheckCircle className="w-5 h-5 text-success" />
-                    ) : (
-                      <XCircle className="w-5 h-5 text-destructive" />
-                    )}
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Đồng ý cung cấp analytics</span>
-                    {vendorData.termsAccepted.dataAnalyticsConsent ? (
-                      <CheckCircle className="w-5 h-5 text-success" />
-                    ) : (
-                      <XCircle className="w-5 h-5 text-destructive" />
-                    )}
+                    <span>Trạng thái</span>
+                    <StatusBadge status={statusText} />
                   </div>
                   <Separator />
                   <div className="text-sm text-muted-foreground">
-                    Ngày chấp nhận: {vendorData.termsAccepted.acceptedDate}
+                    Ngày tạo: {fmtDate(detail?.createdTime)}
                   </div>
                 </CardContent>
               </Card>
             </div>
-
-            {/* Menu Section (if available) */}
-            {vendorData.menu.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <MenuIcon className="w-5 h-5" />
-                    Thông tin Menu
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid gap-4">
-                    {vendorData.menu.map((item, index) => (
-                      <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
-                        <div>
-                          <h4 className="font-semibold">{item.name}</h4>
-                          <p className="text-sm text-muted-foreground">
-                            Thời gian chế biến: {item.prepTime} | Capacity: {item.capacity} suất
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-semibold text-primary">{item.price}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
           </div>
 
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={onClose}>
               Đóng
             </Button>
-            {vendor.status === "pending" && (
+
+            {isPending && detail?.id && (
               <>
-                <Button 
-                  variant="destructive" 
-                  onClick={() => onReject(vendor.id)}
+                <Button
+                  variant="destructive"
+                  onClick={() => onReject(detail.id)}
                 >
                   <XCircle className="w-4 h-4 mr-2" />
                   Từ chối
@@ -366,13 +468,15 @@ const VendorDetail = ({ vendor, onClose, onApprove, onReject }: VendorDetailProp
                 </Button>
               </>
             )}
-            {vendor.status === "approved" && (
+
+            {isApproved && (
               <Button>
                 <MenuIcon className="w-4 h-4 mr-2" />
                 Yêu cầu cập nhật Menu
               </Button>
             )}
-            {vendor.status === "menu_pending" && (
+
+            {isMenuPending && (
               <Button>
                 <CheckCircle className="w-4 h-4 mr-2" />
                 Phê duyệt hoạt động
@@ -388,9 +492,9 @@ const VendorDetail = ({ vendor, onClose, onApprove, onReject }: VendorDetailProp
           <DialogHeader>
             <DialogTitle>Xác nhận Xét duyệt</DialogTitle>
             <DialogDescription>
-              Bạn có chắc chắn muốn xét duyệt vendor "{vendorData.basicInfo.brandName}" không?
+              Bạn có chắc chắn muốn xét duyệt quán "{detail?.name}" không?
               <br />
-              Sau khi xét duyệt, vendor sẽ được yêu cầu cập nhật menu để hoạt động.
+              Sau khi xét duyệt, quán này sẽ được yêu cầu cập nhật menu để hoạt động.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -398,7 +502,7 @@ const VendorDetail = ({ vendor, onClose, onApprove, onReject }: VendorDetailProp
               Hủy
             </Button>
             <Button onClick={handleApprovalConfirm}>
-              Xác nhận Duyệt
+              Xác nhận
             </Button>
           </DialogFooter>
         </DialogContent>
