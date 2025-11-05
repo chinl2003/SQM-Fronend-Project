@@ -22,7 +22,7 @@ const AdminLayout = ({ children, title }: AdminLayoutProps) => {
 
   const navigation = [
     { name: "Bảng điều khiển", href: "/admin/dashboard", icon: LayoutDashboard },
-    { name: "Quản lý nhà cung cấp", href: "/admin/vendors", icon: ShoppingBag },
+    { name: "Quản lý quán", href: "/admin/vendor-management", icon: ShoppingBag },
     { name: "Quản lý người dùng", href: "/admin/users", icon: Users },
     { name: "Giám sát hàng chờ", href: "/admin/queues", icon: MessageSquare },
     { name: "Đánh giá", href: "/admin/reviews", icon: MessageSquare },
