@@ -17,6 +17,7 @@ import Auth from "./pages/Auth";
 import VendorDashboard from "./components/vendor/VendorDashboard";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import VendorManagement from "./pages/admin/VendorManagement";
+import ActiveQueue from "./pages/customer/ActiveQueue";
 // import Profile from "./pages/Profile";
 
 const queryClient = new QueryClient();
@@ -29,7 +30,7 @@ const App = () => (
         position="top-right"
         richColors={false}
         toastOptions={{
-          duration: 3000, 
+          duration: 3000,
           classNames: {
             success: "bg-green-500 text-white border-none",
             error: "bg-red-500 text-white border-none",
@@ -43,8 +44,12 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
+          <Route path="/customer/active-queue" element={<ActiveQueue />} />
           <Route path="/admin" element={<AdminDashboard />} />
-          <Route path="/admin/vendor-management" element={<VendorManagement />} />
+          <Route
+            path="/admin/vendor-management"
+            element={<VendorManagement />}
+          />
           <Route path="/vendor" element={<VendorDashboard />} />
           {/* <Route
             path="/admin"

@@ -4,19 +4,19 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { 
-  Search, 
-  MapPin, 
-  Bell, 
-  User, 
-  Menu, 
+import {
+  Search,
+  MapPin,
+  Bell,
+  User,
+  Menu,
   X,
   Clock,
   ShoppingBag,
   Heart,
   Store,
   LogOut,
-  Home
+  Home,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -34,13 +34,20 @@ interface NavigationProps {
   queueCount?: number;
 }
 
-export function Navigation({ userType = "guest", queueCount = 0 }: NavigationProps) {
+export function Navigation({
+  userType = "guest",
+  queueCount = 0,
+}: NavigationProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [fullName, setFullName] = useState<string | null>(localStorage.getItem("fullName"));
-  const [userId, setUserId] = useState<string | null>(localStorage.getItem("userId"));
+  const [fullName, setFullName] = useState<string | null>(
+    localStorage.getItem("fullName")
+  );
+  const [userId, setUserId] = useState<string | null>(
+    localStorage.getItem("userId")
+  );
   const [roles, setRoles] = useState<string[]>(() => {
     try {
       const raw = localStorage.getItem("roles");
@@ -88,7 +95,7 @@ export function Navigation({ userType = "guest", queueCount = 0 }: NavigationPro
   const handleLogout = () => {
     localStorage.clear();
     setFullName(null);
-    navigate("/auth"); 
+    navigate("/auth");
   };
 
   return (
@@ -100,11 +107,13 @@ export function Navigation({ userType = "guest", queueCount = 0 }: NavigationPro
             <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
               <Clock className="h-5 w-5 text-primary-foreground" />
             </div>
-            <span className="text-xl font-bold text-foreground">Smart Queue</span>
+            <span className="text-xl font-bold text-foreground">
+              Smart Queue
+            </span>
           </Link>
 
           {/* Search */}
-          {(userType === 'customer' || userType === 'guest') && (
+          {(userType === "customer" || userType === "guest") && (
             <div className="hidden md:flex flex-1 max-w-md mx-8">
               <form onSubmit={handleSearch} className="relative w-full">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
@@ -114,7 +123,11 @@ export function Navigation({ userType = "guest", queueCount = 0 }: NavigationPro
                   placeholder="Tìm nhà hàng, món ăn..."
                   className="pl-10 bg-muted/50 border-0 focus:bg-card"
                 />
-                <Button type="submit" size="sm" className="absolute right-1 top-1/2 transform -translate-y-1/2 h-8">
+                <Button
+                  type="submit"
+                  size="sm"
+                  className="absolute right-1 top-1/2 transform -translate-y-1/2 h-8"
+                >
                   Tìm
                 </Button>
               </form>
@@ -136,7 +149,7 @@ export function Navigation({ userType = "guest", queueCount = 0 }: NavigationPro
                     <Heart className="h-4 w-4" />
                   </Button>
                 </Link>
-                <Link to="/active-queue">
+                <Link to="/customer/active-queue">
                   <Button variant="ghost" size="sm" className="relative">
                     <ShoppingBag className="h-4 w-4" />
                     {queueCount > 0 && (
@@ -149,9 +162,9 @@ export function Navigation({ userType = "guest", queueCount = 0 }: NavigationPro
               </>
             )}
 
-            <Button 
-              variant="ghost" 
-              size="sm" 
+            <Button
+              variant="ghost"
+              size="sm"
               className="relative"
               onClick={() => setIsNotificationOpen(true)}
             >
@@ -164,12 +177,20 @@ export function Navigation({ userType = "guest", queueCount = 0 }: NavigationPro
             {/* User Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="flex items-center space-x-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="flex items-center space-x-1"
+                >
                   <User className="h-4 w-4" />
                   {fullName ? (
-                    <span className="text-sm font-medium">Xin chào, {fullName}</span>
+                    <span className="text-sm font-medium">
+                      Xin chào, {fullName}
+                    </span>
                   ) : (
-                    <span className="text-sm font-medium">Bạn chưa đăng nhập</span>
+                    <span className="text-sm font-medium">
+                      Bạn chưa đăng nhập
+                    </span>
                   )}
                 </Button>
               </DropdownMenuTrigger>
@@ -195,13 +216,20 @@ export function Navigation({ userType = "guest", queueCount = 0 }: NavigationPro
                   </DropdownMenuItem>
 
                   <DropdownMenuItem>
-                    <Link to="/order-history" className="flex items-center w-full">
+                    <Link
+                      to="/order-history"
+                      className="flex items-center w-full"
+                    >
                       <Clock className="h-4 w-4 mr-2" />
                       Đơn hàng của tôi
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem>
-                    <button type="button" onClick={handleOpenStore} className="flex items-center w-full">
+                    <button
+                      type="button"
+                      onClick={handleOpenStore}
+                      className="flex items-center w-full"
+                    >
                       <Store className="h-4 w-4 mr-2" />
                       Cửa hàng của bạn
                     </button>
@@ -227,13 +255,17 @@ export function Navigation({ userType = "guest", queueCount = 0 }: NavigationPro
             </DropdownMenu>
 
             {/* Mobile menu button */}
-            <Button 
-              variant="ghost" 
-              size="sm" 
+            <Button
+              variant="ghost"
+              size="sm"
               className="md:hidden"
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             >
-              {isMobileMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+              {isMobileMenuOpen ? (
+                <X className="h-4 w-4" />
+              ) : (
+                <Menu className="h-4 w-4" />
+              )}
             </Button>
           </div>
         </div>
@@ -241,7 +273,7 @@ export function Navigation({ userType = "guest", queueCount = 0 }: NavigationPro
         {/* Mobile menu */}
         {isMobileMenuOpen && (
           <div className="md:hidden py-4 border-t space-y-4">
-            {(userType === 'customer' || userType === 'guest') && (
+            {(userType === "customer" || userType === "guest") && (
               <form onSubmit={handleSearch} className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                 <Input
@@ -256,8 +288,8 @@ export function Navigation({ userType = "guest", queueCount = 0 }: NavigationPro
               <MapPin className="h-4 w-4 text-muted-foreground" />
               <span className="text-foreground">Cập nhật vị trí</span>
             </div>
-            
-            {(userType === 'customer' || userType === 'guest') && (
+
+            {(userType === "customer" || userType === "guest") && (
               <div className="flex flex-col space-y-2">
                 <Link to="/" onClick={() => setIsMobileMenuOpen(false)}>
                   <Button variant="ghost" className="w-full justify-start">
@@ -265,13 +297,19 @@ export function Navigation({ userType = "guest", queueCount = 0 }: NavigationPro
                     Trang chủ
                   </Button>
                 </Link>
-                <Link to="/active-queue" onClick={() => setIsMobileMenuOpen(false)}>
+                <Link
+                  to="/active-queue"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
                   <Button variant="ghost" className="w-full justify-start">
                     <Clock className="h-4 w-4 mr-2" />
                     Xếp hàng hiện tại
                   </Button>
                 </Link>
-                <Link to="/order-history" onClick={() => setIsMobileMenuOpen(false)}>
+                <Link
+                  to="/order-history"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
                   <Button variant="ghost" className="w-full justify-start">
                     <Heart className="h-4 w-4 mr-2" />
                     Lịch sử đơn hàng
@@ -291,7 +329,7 @@ export function Navigation({ userType = "guest", queueCount = 0 }: NavigationPro
       <ProfileDialog
         isOpen={isProfileOpen}
         onClose={() => setIsProfileOpen(false)}
-        userId={userId!} 
+        userId={userId!}
       />
 
       <NoStoreDialog
