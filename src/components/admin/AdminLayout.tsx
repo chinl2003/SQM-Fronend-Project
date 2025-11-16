@@ -24,7 +24,7 @@ const AdminLayout = ({ children, title }: AdminLayoutProps) => {
     { name: "Bảng điều khiển", href: "/admin/dashboard", icon: LayoutDashboard },
     { name: "Quản lý quán", href: "/admin/vendor-management", icon: ShoppingBag },
     { name: "Quản lý người dùng", href: "/admin/users", icon: Users },
-    { name: "Giám sát hàng chờ", href: "/admin/queues", icon: MessageSquare },
+    { name: "Giám sát hàng chờ", href: "/admin/queue-management", icon: MessageSquare },
     { name: "Đánh giá", href: "/admin/reviews", icon: MessageSquare },
     { name: "Thanh toán", href: "/admin/payments", icon: DollarSign },
     { name: "Phân tích", href: "/admin/analytics", icon: BarChart3 },
