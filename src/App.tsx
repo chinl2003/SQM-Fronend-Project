@@ -17,7 +17,13 @@ import Auth from "./pages/Auth";
 import VendorDashboard from "./components/vendor/VendorDashboard";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import VendorManagement from "./pages/admin/VendorManagement";
+import UserManagement from "./pages/admin/UserManagement";
 import ActiveQueue from "./pages/customer/ActiveQueue";
+import QueueMonitoring from "./pages/admin/QueueMonitoring";
+import ReviewModeration from "./pages/admin/ReviewModeration";
+import Analytics from "./pages/admin/Analytics";
+import Notifications from "./pages/admin/Notifications";
+import SystemSettings from "./pages/admin/SystemSettings";
 // import Profile from "./pages/Profile";
 
 const queryClient = new QueryClient();
@@ -50,7 +56,19 @@ const App = () => (
             path="/admin/vendor-management"
             element={<VendorManagement />}
           />
+          <Route path="/admin/settings" element={<SystemSettings />} />
+          <Route path="/admin/notifications" element={<Notifications />} />
+          <Route path="/admin/analytics" element={<Analytics />} />
+
+          <Route path="/admin/queue-management" element={<QueueMonitoring />} />
+          <Route path="/admin/reviews" element={<ReviewModeration />} />
+
+          <Route path="/admin/payments" element={<AdminDashboard />} />
           <Route path="/vendor" element={<VendorDashboard />} />
+          <Route
+            path="/admin/user-management"
+            element={<UserManagement />}
+          />
           {/* <Route
             path="/admin"
             element={
