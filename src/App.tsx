@@ -18,6 +18,7 @@ import VendorDashboard from "./components/vendor/VendorDashboard";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import VendorManagement from "./pages/admin/VendorManagement";
 import ActiveQueue from "./pages/customer/ActiveQueue";
+import Analytics from "./pages/admin/Analytics";
 // import Profile from "./pages/Profile";
 
 const queryClient = new QueryClient();
@@ -50,6 +51,8 @@ const App = () => (
             path="/admin/vendor-management"
             element={<VendorManagement />}
           />
+          <Route path="/admin/analytics" element={<Analytics />} />
+
           <Route path="/vendor" element={<VendorDashboard />} />
           {/* <Route
             path="/admin"
