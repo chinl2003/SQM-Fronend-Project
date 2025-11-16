@@ -17,6 +17,7 @@ import Auth from "./pages/Auth";
 import VendorDashboard from "./components/vendor/VendorDashboard";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import VendorManagement from "./pages/admin/VendorManagement";
+import UserManagement from "./pages/admin/UserManagement";
 import ActiveQueue from "./pages/customer/ActiveQueue";
 // import Profile from "./pages/Profile";
 
@@ -51,6 +52,10 @@ const App = () => (
             element={<VendorManagement />}
           />
           <Route path="/vendor" element={<VendorDashboard />} />
+          <Route
+            path="/admin/users"
+            element={<UserManagement />}
+          />
           {/* <Route
             path="/admin"
             element={
