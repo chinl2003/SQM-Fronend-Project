@@ -123,7 +123,6 @@ export default function Index() {
   };
 
   const handleFilterChange = (filters: any) => {
-    console.log("Bộ lọc thay đổi:", filters);
   };
 
   return (
@@ -158,7 +157,7 @@ export default function Index() {
         </div>
       </section>
 
-      <div className="container mx-auto px-4 py-6 space-y-8">
+      <div className="w-full px-4 md:px-6 py-6 space-y-8">
         {/* Map */}
         <section>
           <GoogleMap
@@ -174,20 +173,18 @@ export default function Index() {
             <Utensils className="mr-2 h-5 w-5" />
             Duyệt theo danh mục
           </h2>
-          <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+          <div className="grid [grid-template-columns:repeat(auto-fill,minmax(180px,1fr))] gap-4 sm:gap-5">
             {categories.map((category) => (
               <Card
                 key={category.name}
-                className={`cursor-pointer transition-all hover:shadow-md ${
-                  selectedCategory === category.name ? "ring-2 ring-primary" : ""
-                }`}
+                className={`h-full w-full cursor-pointer transition-all hover:shadow-md ${selectedCategory === category.name ? "ring-2 ring-primary" : ""}`}
                 onClick={() =>
                   setSelectedCategory(
                     selectedCategory === category.name ? null : category.name
                   )
                 }
               >
-                <CardContent className="p-4 text-center">
+                <CardContent className="p-4 text-center h-full flex flex-col items-center justify-center">
                   <div className="text-2xl mb-2">{category.icon}</div>
                   <div className="text-sm font-medium">{category.name}</div>
                   <div className="text-xs text-muted-foreground">
@@ -226,7 +223,7 @@ export default function Index() {
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-6">
               {vendorCards.map((vendor) => (
                 <VendorCard
                   key={vendor.id}
