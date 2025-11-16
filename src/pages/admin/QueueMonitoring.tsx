@@ -1,0 +1,231 @@
+import AdminLayout from "@/components/admin/AdminLayout";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { 
+  Clock, Users, AlertCircle, X, 
+  Eye, MapPin, ShoppingBag
+} from "lucide-react";
+
+const QueueMonitoring = () => {
+  const activeQueues = [
+    {
+      id: 1,
+      vendorName: "Phở Hà Nội",
+      location: "Quận 1, TP.HCM",
+      customersInQueue: 12,
+      avgWaitTime: "15 phút",
+      status: "normal",
+      complaints: 0,
+      lastUpdate: "2 phút trước"
+    },
+    {
+      id: 2,
+      vendorName: "Coffee House",
+      location: "Quận 3, TP.HCM",
+      customersInQueue: 8,
+      avgWaitTime: "8 phút",
+      status: "normal",
+      complaints: 1,
+      lastUpdate: "1 phút trước"
+    },
+    {
+      id: 3,
+      vendorName: "Bánh Mì Express",
+      location: "Quận 7, TP.HCM",
+      customersInQueue: 25,
+      avgWaitTime: "35 phút",
+      status: "overloaded",
+      complaints: 3,
+      lastUpdate: "30 giây trước"
+    }
+  ];
+
+  const complaints = [
+    {
+      id: 1,
+      customerName: "Nguyễn A",
+      vendorName: "Bánh Mì Express",
+      issue: "Chờ lâu nhưng không có thông báo",
+      priority: "cao",
+      time: "5 phút trước"
+    },
+    {
+      id: 2,
+      customerName: "Trần B",
+      vendorName: "Coffee House",
+      issue: "Đơn hàng bị bỏ qua",
+      priority: "trung bình",
+      time: "10 phút trước"
+    }
+  ];
+
+  const handleForceClose = (queueId: number) => {
+    console.log("Buộc đóng hàng đợi:", queueId);
+  };
+
+  const handleViewDetails = (queueId: number) => {
+    console.log("Xem chi tiết hàng đợi:", queueId);
+  };
+
+  return (
+    <AdminLayout title="Giám sát hàng đợi">
+      <div className="space-y-6">
+        {/* Thống kê tổng quan */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-center">
+                <div className="text-3xl font-bold text-primary">45</div>
+                <p className="text-muted-foreground">Hàng đợi đang hoạt động</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-center">
+                <div className="text-3xl font-bold text-warning">234</div>
+                <p className="text-muted-foreground">Khách đang chờ</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-center">
+                <div className="text-3xl font-bold text-destructive">4</div>
+                <p className="text-muted-foreground">Phàn nàn đang xử lý</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Hàng đợi hiện tại</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {activeQueues.map((queue) => (
+                <div key={queue.id} className="border rounded-lg p-4">
+                  <div className="grid lg:grid-cols-5 gap-4 items-center">
+                    <div className="lg:col-span-2">
+                      <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                          <ShoppingBag className="w-5 h-5 text-primary" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold">{queue.vendorName}</h3>
+                          <p className="text-sm text-muted-foreground flex items-center gap-1">
+                            <MapPin className="w-3 h-3" />
+                            {queue.location}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Cập nhật {queue.lastUpdate}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="text-center">
+                      <div className="text-2xl font-bold">{queue.customersInQueue}</div>
+                      <p className="text-xs text-muted-foreground flex items-center justify-center gap-1">
+                        <Users className="w-3 h-3" />
+                        Khách đang chờ
+                      </p>
+                    </div>
+
+                    <div className="text-center">
+                      <div className="text-2xl font-bold">{queue.avgWaitTime}</div>
+                      <p className="text-xs text-muted-foreground flex items-center justify-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        Thời gian trung bình
+                      </p>
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center justify-between">
+                        <Badge 
+                          variant={
+                            queue.status === "normal" ? "default" : 
+                            queue.status === "overloaded" ? "destructive" : "secondary"
+                          }
+                        >
+                          {queue.status === "normal" ? "Bình thường" : "Quá tải"}
+                        </Badge>
+                        {queue.complaints > 0 && (
+                          <Badge variant="outline" className="text-xs">
+                            <AlertCircle className="w-3 h-3 mr-1" />
+                            {queue.complaints}
+                          </Badge>
+                        )}
+                      </div>
+                      
+                      <div className="flex gap-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleViewDetails(queue.id)}
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleForceClose(queue.id)}
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Danh sách khiếu nại */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Phàn nàn gần đây</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {complaints.map((complaint) => (
+                <div key={complaint.id} className="border rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h4 className="font-medium">{complaint.customerName}</h4>
+                        <span className="text-sm text-muted-foreground">tại</span>
+                        <span className="font-medium text-sm">{complaint.vendorName}</span>
+                        <Badge 
+                          variant={complaint.priority === "cao" ? "destructive" : "secondary"}
+                          className="text-xs"
+                        >
+                          {complaint.priority === "cao" ? "Cao" : "Trung bình"}
+                        </Badge>
+                      </div>
+                      <p className="text-muted-foreground">{complaint.issue}</p>
+                      <p className="text-xs text-muted-foreground mt-1">{complaint.time}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline">
+                        Phân công
+                      </Button>
+                      <Button size="sm">
+                        Xử lý
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </AdminLayout>
+  );
+};
+
+export default QueueMonitoring;
