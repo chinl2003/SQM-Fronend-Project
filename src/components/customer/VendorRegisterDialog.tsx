@@ -318,9 +318,7 @@ export function VendorRegisterDialog({
         !brandName ||
         !businessTypeId ||
         !address ||
-        !openingHours ||
-        !phone ||
-        !email
+        !openingHours
       ) {
         toast.error("Vui lòng điền đầy đủ thông tin cơ bản.");
         return;
@@ -336,10 +334,7 @@ export function VendorRegisterDialog({
         toast.error("Vui lòng cung cấp đầy đủ giấy tờ pháp lý và CCCD.");
         return;
       }
-      if (!selectedBankBin || !bankAccount || !accountHolder) {
-        toast.error("Vui lòng chọn ngân hàng và nhập thông tin tài khoản.");
-        return;
-      }
+
       if (!acceptTerms || !commitNoFraud || !commitAnalytics) {
         toast.error("Bạn cần đồng ý điều khoản và các cam kết.");
         return;
@@ -363,13 +358,21 @@ export function VendorRegisterDialog({
       fd.append("PersonalIdentityFront", cccdFrontFile!);
       fd.append("PersonalIdentityBack", cccdBackFile!);
 
-      fd.append("BankBin", selectedBankBin);
-      fd.append(
-        "BankName",
-        selectedBank?.shortName || selectedBank?.name || ""
-      );
-      fd.append("BankAccountNumber", bankAccount);
-      fd.append("BankAccountHolder", accountHolder);
+      if (selectedBankBin) {
+        fd.append("BankBin", selectedBankBin);
+        fd.append(
+          "BankName",
+          selectedBank?.shortName || selectedBank?.name || ""
+        );
+      }
+
+      if (bankAccount) {
+        fd.append("BankAccountNumber", bankAccount);
+      }
+
+      if (accountHolder) {
+        fd.append("BankAccountHolder", accountHolder);
+      }
       fd.append("InvoiceInfo", invoiceInfo ?? "");
 
       fd.append("PaymentMethod", String(paymentMethodEnum));
@@ -524,14 +527,15 @@ export function VendorRegisterDialog({
                       <Label htmlFor="logo">
                         Hình ảnh/Logo quán <Req />
                       </Label>
-                      <div className="flex items-center gap-2">
+                      <div className="relative">
                         <Input
                           id="logo"
                           type="file"
                           accept="image/*"
                           required
+                          className="cursor-pointer file:hidden pr-10"
                         />
-                        <Camera className="h-4 w-4 text-muted-foreground" />
+                        <Camera className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                       </div>
                     </div>
                   </div>
@@ -550,14 +554,15 @@ export function VendorRegisterDialog({
                     <Label htmlFor="businessLicense">
                       Giấy phép kinh doanh <Req />
                     </Label>
-                    <div className="flex items-center gap-2">
+                    <div className="relative">
                       <Input
                         id="businessLicense"
                         type="file"
                         accept="image/*"
                         required
+                        className="cursor-pointer file:hidden pr-10"
                       />
-                      <Upload className="h-4 w-4 text-muted-foreground" />
+                      <Upload className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     </div>
                   </div>
 
@@ -565,14 +570,15 @@ export function VendorRegisterDialog({
                     <Label htmlFor="foodSafety">
                       Giấy chứng nhận vệ sinh an toàn thực phẩm <Req />
                     </Label>
-                    <div className="flex items-center gap-2">
+                    <div className="relative">
                       <Input
                         id="foodSafety"
                         type="file"
                         accept="image/*"
                         required
+                        className="cursor-pointer file:hidden pr-10"
                       />
-                      <Upload className="h-4 w-4 text-muted-foreground" />
+                      <Upload className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     </div>
                   </div>
 
@@ -591,28 +597,31 @@ export function VendorRegisterDialog({
                       <Label htmlFor="idFront">
                         Ảnh CCCD mặt trước <Req />
                       </Label>
-                      <div className="flex items-center gap-2">
+                      <div className="relative">
                         <Input
                           id="idFront"
                           type="file"
                           accept="image/*"
                           required
+                          className="cursor-pointer file:hidden pr-10"
                         />
-                        <Upload className="h-4 w-4 text-muted-foreground" />
+                        <Upload className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                       </div>
                     </div>
+
                     <div className="space-y-2 md:col-span-1">
                       <Label htmlFor="idBack">
                         Ảnh CCCD mặt sau <Req />
                       </Label>
-                      <div className="flex items-center gap-2">
+                      <div className="relative">
                         <Input
                           id="idBack"
                           type="file"
                           accept="image/*"
                           required
+                          className="cursor-pointer file:hidden pr-10"
                         />
-                        <Upload className="h-4 w-4 text-muted-foreground" />
+                        <Upload className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                       </div>
                     </div>
                   </div>
@@ -623,13 +632,13 @@ export function VendorRegisterDialog({
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-primary">
                     <DollarSign className="h-5 w-5" />
-                    Thông tin tài chính / thanh toán <Req />
+                    Thông tin tài khoản ngân hàng
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="bankName">
-                      Tên ngân hàng <Req />
+                      Tên ngân hàng
                     </Label>
                     <Select
                       value={selectedBankBin}
@@ -690,13 +699,12 @@ export function VendorRegisterDialog({
 
                   <div className="space-y-2">
                     <Label htmlFor="bankAccount">
-                      Tài khoản ngân hàng / ví điện tử <Req />
+                      Số tài khoản
                     </Label>
                     <div className="flex gap-2">
                       <Input
                         id="bankAccount"
                         placeholder="Nhập số tài khoản"
-                        required
                         value={bankAccount}
                         onChange={(e) => setBankAccount(e.target.value)}
                       />
@@ -727,12 +735,11 @@ export function VendorRegisterDialog({
 
                   <div className="space-y-2">
                     <Label htmlFor="accountHolder">
-                      Tên chủ tài khoản <Req />
+                      Tên chủ tài khoản
                     </Label>
                     <Input
                       id="accountHolder"
                       placeholder="Tên chủ tài khoản"
-                      required
                       value={accountHolder}
                       onChange={(e) => setAccountHolder(e.target.value)}
                     />
@@ -820,21 +827,6 @@ export function VendorRegisterDialog({
                       <br />• Yêu cầu đóng shop: Phải tạo yêu cầu trước 1 tháng
                     </AlertDescription>
                   </Alert>
-
-                  <div className="space-y-2">
-                    <Label>Phương thức thanh toán</Label>
-                    <Select
-                      value={paymentMethod}
-                      onValueChange={(v) => setPaymentMethod(v as "vnpay")}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Chọn phương thức thanh toán" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="vnpay">VNPay</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
 
                   <Button
                     className="w-full"
