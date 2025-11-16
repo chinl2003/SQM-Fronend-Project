@@ -33,7 +33,7 @@ import { NotificationDialog } from "./NotificationDialog";
 import { ProfileDialog } from "./ProfileDialog";
 import { NoStoreDialog } from "./customer/NoStoreDialog";
 import { VendorRegisterDialog } from "./customer/VendorRegisterDialog";
-
+import { api } from "@/lib/api";
 interface NavigationProps {
   userType?: "customer" | "guest" | "vendor" | "admin";
   queueCount?: number;
@@ -49,6 +49,16 @@ export interface AppNotification {
   time: string;
   read: boolean;
 }
+
+type NotificationApiItem = {
+  id: number;
+  title: string;
+  body?: string;
+  message?: string;
+  type?: string;
+  isRead: boolean;
+  createdAt: string;
+};
 
 export function Navigation({
   userType = "guest",
@@ -108,7 +118,7 @@ export function Navigation({
         accessTokenFactory: () => token,
       })
       .withAutomaticReconnect()
-      .configureLogging(LogLevel.None) 
+      .configureLogging(LogLevel.None)
       .build();
 
     newConnection.on("ReceiveNotification", (msg) => {
@@ -134,6 +144,54 @@ export function Navigation({
 
     return () => {
       newConnection.stop();
+    };
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId) {
+      setNotifications([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const token =
+          localStorage.getItem("accessToken") ||
+          localStorage.getItem("token") ||
+          "";
+
+        const headers: Record<string, string> = {};
+        if (token) headers.Authorization = `Bearer ${token}`;
+
+        const res = await api.get<NotificationApiItem[]>(
+          "/api/notifications",
+          headers
+        );
+
+        if (cancelled || !res) return;
+
+        const mapped: AppNotification[] = res.map((n) => ({
+          id: String(n.id),
+          title: n.title,
+          message: n.body ?? n.message ?? "",
+          type: n.type === "warning" ? "warning" : "info",
+          time: new Date(n.createdAt).toLocaleTimeString("vi-VN", {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+          read: n.isRead,
+        }));
+
+        setNotifications(mapped);
+      } catch {
+        
+      }
+    })();
+
+    return () => {
+      cancelled = true;
     };
   }, [userId]);
 
@@ -166,8 +224,20 @@ export function Navigation({
     setIsNotificationOpen(true);
   };
 
-  const markAllNotificationsRead = () => {
+  const markAllNotificationsRead = async () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+
+    try {
+      const token =
+        localStorage.getItem("accessToken") ||
+        localStorage.getItem("token") ||
+        "";
+
+      const headers: Record<string, string> = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      await api.post<void>("/api/notifications/mark-all-read", {}, headers);
+    } catch {}
   };
 
   return (
