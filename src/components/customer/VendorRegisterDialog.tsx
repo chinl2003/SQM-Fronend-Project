@@ -1,16 +1,34 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
-  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Store, Camera, Upload, Shield, FileText, DollarSign, AlertTriangle } from "lucide-react";
+import {
+  Store,
+  Camera,
+  Upload,
+  Shield,
+  FileText,
+  DollarSign,
+  AlertTriangle,
+} from "lucide-react";
 import { toast } from "sonner";
 import { api, ApiResponse, VendorRegisterResponse } from "@/lib/api";
 
@@ -27,11 +45,11 @@ const sectionFx =
 
 type VietQRBank = {
   id: number;
-  name: string;      
-  code: string;      
-  bin: string;       
-  shortName: string;  
-  logo: string;      
+  name: string;
+  code: string;
+  bin: string;
+  shortName: string;
+  logo: string;
   lookupSupported?: boolean;
 };
 type VietQRBanksResponse = {
@@ -40,7 +58,18 @@ type VietQRBanksResponse = {
   data: VietQRBank[];
 };
 
-export function VendorRegisterDialog({ isOpen, onClose }: VendorRegisterDialogProps) {
+type BusinessTypeItem = {
+  id: string;
+  name: string;
+};
+
+type BusinessTypeApiResponse = ApiResponse<BusinessTypeItem[]>;
+type BusinessTypeCreateResponse = ApiResponse<BusinessTypeItem>;
+
+export function VendorRegisterDialog({
+  isOpen,
+  onClose,
+}: VendorRegisterDialogProps) {
   const [banks, setBanks] = useState<VietQRBank[]>([]);
   const [banksLoading, setBanksLoading] = useState(false);
   const [banksError, setBanksError] = useState<string | null>(null);
@@ -49,9 +78,23 @@ export function VendorRegisterDialog({ isOpen, onClose }: VendorRegisterDialogPr
   const [bankAccount, setBankAccount] = useState<string>("");
   const [accountHolder, setAccountHolder] = useState<string>("");
 
+  const [businessTypes, setBusinessTypes] = useState<BusinessTypeItem[]>([]);
+  const [businessTypesLoading, setBusinessTypesLoading] = useState(false);
+  const [businessTypesError, setBusinessTypesError] = useState<string | null>(
+    null
+  );
+  const [businessTypeSearch, setBusinessTypeSearch] = useState<string>("");
   const [businessTypeId, setBusinessTypeId] = useState<string>("");
-const [paymentMethod, setPaymentMethod] = useState<"vnpay">("vnpay");
-const [submitting, setSubmitting] = useState(false);
+  const filteredBusinessTypes = useMemo(() => {
+    const keyword = businessTypeSearch.trim().toLowerCase();
+    if (!keyword) return businessTypes;
+    return businessTypes.filter((bt) =>
+      bt.name.toLowerCase().includes(keyword)
+    );
+  }, [businessTypes, businessTypeSearch]);
+
+  const [paymentMethod, setPaymentMethod] = useState<"vnpay">("vnpay");
+  const [submitting, setSubmitting] = useState(false);
   const selectedBank = useMemo(
     () => banks.find((b) => b.bin === selectedBankBin),
     [banks, selectedBankBin]
@@ -82,6 +125,51 @@ const [submitting, setSubmitting] = useState(false);
     };
   }, [isOpen]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        setBusinessTypesLoading(true);
+        setBusinessTypesError(null);
+
+        const token = localStorage.getItem("accessToken") || "";
+        const headers: Record<string, string> = {};
+        if (token) headers.Authorization = `Bearer ${token}`;
+
+        const res = await api.get<BusinessTypeApiResponse>(
+          "/api/BusinessType",
+          headers
+        );
+
+        if (cancelled) return;
+
+        if (!res || !res.code?.toLowerCase().includes("success")) {
+          throw new Error(
+            res?.message || "Không lấy được danh sách loại hình kinh doanh"
+          );
+        }
+
+        setBusinessTypes(res.data ?? []);
+      } catch (err: any) {
+        if (cancelled) return;
+        console.error(err);
+        setBusinessTypesError(
+          err?.message || "Không tải được loại hình kinh doanh."
+        );
+        toast.error("Không tải được loại hình kinh doanh.");
+      } finally {
+        if (!cancelled) setBusinessTypesLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
+
   async function lookupAccountName() {
     try {
       if (!selectedBankBin) {
@@ -92,10 +180,14 @@ const [submitting, setSubmitting] = useState(false);
         toast.message("Nhập số tài khoản trước khi tra cứu");
         return;
       }
-      const clientId = import.meta.env.VITE_VIETQR_CLIENT_ID as string | undefined;
+      const clientId = import.meta.env.VITE_VIETQR_CLIENT_ID as
+        | string
+        | undefined;
       const apiKey = import.meta.env.VITE_VIETQR_API_KEY as string | undefined;
       if (!clientId || !apiKey) {
-        toast.warning("Thiếu API key VietQR. Vui lòng cấu hình biến môi trường.");
+        toast.warning(
+          "Thiếu API key VietQR. Vui lòng cấu hình biến môi trường."
+        );
         return;
       }
 
@@ -129,104 +221,199 @@ const [submitting, setSubmitting] = useState(false);
     }
   }
 
-  async function handleSubmit() {
-  try {
-    setSubmitting(true);
+  async function handleBusinessTypeEnter() {
+    const value = businessTypeSearch.trim();
+    if (!value) return;
 
-    const brandName = (document.getElementById("brandName") as HTMLInputElement)?.value?.trim();
-    const address = (document.getElementById("address") as HTMLInputElement)?.value?.trim();
-    const openingHours = (document.getElementById("openingHours") as HTMLInputElement)?.value?.trim();
-    const phone = (document.getElementById("phone") as HTMLInputElement)?.value?.trim();
-    const email = (document.getElementById("email") as HTMLInputElement)?.value?.trim();
-    const invoiceInfo = (document.getElementById("invoiceInfo") as HTMLTextAreaElement)?.value ?? "";
-    const cccdNumber = (document.getElementById("idNumber") as HTMLInputElement)?.value?.trim();
+    const existing = businessTypes.find(
+      (bt) => bt.name.trim().toLowerCase() === value.toLowerCase()
+    );
 
-    const logoFile = (document.getElementById("logo") as HTMLInputElement)?.files?.[0];
-    const businessLicenseFile = (document.getElementById("businessLicense") as HTMLInputElement)?.files?.[0];
-    const foodSafetyFile = (document.getElementById("foodSafety") as HTMLInputElement)?.files?.[0];
-    const cccdFrontFile = (document.getElementById("idFront") as HTMLInputElement)?.files?.[0];
-    const cccdBackFile = (document.getElementById("idBack") as HTMLInputElement)?.files?.[0];
-
-    const acceptTerms = (document.getElementById("terms") as HTMLInputElement)?.checked;
-    const commitNoFraud = (document.getElementById("commitment1") as HTMLInputElement)?.checked;
-    const commitAnalytics = (document.getElementById("commitment2") as HTMLInputElement)?.checked;
-
-    if (!brandName || !businessTypeId || !address || !openingHours || !phone || !email) {
-      toast.error("Vui lòng điền đầy đủ thông tin cơ bản.");
-      return;
-    }
-    if (!logoFile || !businessLicenseFile || !foodSafetyFile || !cccdFrontFile || !cccdBackFile || !cccdNumber) {
-      toast.error("Vui lòng cung cấp đầy đủ giấy tờ pháp lý và CCCD.");
-      return;
-    }
-    if (!selectedBankBin || !bankAccount || !accountHolder) {
-      toast.error("Vui lòng chọn ngân hàng và nhập thông tin tài khoản.");
-      return;
-    }
-    if (!acceptTerms || !commitNoFraud || !commitAnalytics) {
-      toast.error("Bạn cần đồng ý điều khoản và các cam kết.");
+    if (existing) {
+      setBusinessTypeId(existing.id);
+      toast.message(`Đã chọn loại hình "${existing.name}"`);
       return;
     }
 
-    const paymentMethodEnum = 1;
+    try {
+      const token = localStorage.getItem("accessToken") || "";
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (token) headers.Authorization = `Bearer ${token}`;
 
-    const fd = new FormData();
-    fd.append("Name", brandName);
-    fd.append("BusinessTypeId", businessTypeId);
-    fd.append("Address", address);
-    fd.append("OpeningHours", openingHours);
-    fd.append("Phone", phone);
-    fd.append("Email", email);
+      const res = await api.post<BusinessTypeCreateResponse>(
+        "/api/BusinessType",
+        { name: value },
+        headers
+      );
 
-    fd.append("Logo", logoFile);
-    fd.append("BusinessLicense", businessLicenseFile);
-    fd.append("FoodSafetyCert", foodSafetyFile);
+      if (!res || !res.code?.toLowerCase().includes("success") || !res.data) {
+        throw new Error(
+          res?.message || "Không tạo được loại hình kinh doanh mới."
+        );
+      }
 
-    fd.append("PersonalIdentityNumber", cccdNumber!);
-    fd.append("PersonalIdentityFront", cccdFrontFile!);
-    fd.append("PersonalIdentityBack", cccdBackFile!);
-
-    fd.append("BankBin", selectedBankBin);
-    fd.append("BankName", selectedBank?.shortName || selectedBank?.name || "");
-    fd.append("BankAccountNumber", bankAccount);
-    fd.append("BankAccountHolder", accountHolder);
-    fd.append("InvoiceInfo", invoiceInfo ?? "");
-
-    fd.append("PaymentMethod", String(paymentMethodEnum));
-    fd.append("AcceptTerms", String(acceptTerms));
-    fd.append("CommitNoFraud", String(commitNoFraud));
-    fd.append("CommitAnalytics", String(commitAnalytics));
-
-    const token = localStorage.getItem("accessToken") || "";
-    const userId = localStorage.getItem("userId") || "";
-
-    const headers: Record<string, string> = {};
-    if (token) headers.Authorization = `Bearer ${token}`;
-    if (userId) headers["X-User-Id"] = userId;
-
-    const res = await api.post<ApiResponse<VendorRegisterResponse>>("/api/vendor/register", fd, headers);
-
-    if (!res?.code?.toLowerCase().includes("success")) {
-      throw new Error(res?.message || "Đăng kí hồ sơ thất bại! Vui lòng liên hệ hỗ trợ.");
+      const newItem = res.data;
+      setBusinessTypes((prev) => [...prev, newItem]);
+      setBusinessTypeId(newItem.id);
+      // toast.success(`Đã tạo loại hình "${newItem.name}"`);
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err?.message || "Có lỗi khi tạo loại hình kinh doanh mới.");
     }
-
-    toast.success("Đăng kí hồ sơ thành công! Vui lòng chờ xét duyệt.");
-    onClose?.();
-  } catch (e) {
-    console.error(e);
-    toast.error(e?.message || "Có lỗi khi gửi hồ sơ đăng ký.");
-  } finally {
-    setSubmitting(false);
   }
-}
 
+  async function handleSubmit() {
+    try {
+      setSubmitting(true);
+
+      const brandName = (
+        document.getElementById("brandName") as HTMLInputElement
+      )?.value?.trim();
+      const address = (
+        document.getElementById("address") as HTMLInputElement
+      )?.value?.trim();
+      const openingHours = (
+        document.getElementById("openingHours") as HTMLInputElement
+      )?.value?.trim();
+      const phone = (
+        document.getElementById("phone") as HTMLInputElement
+      )?.value?.trim();
+      const email = (
+        document.getElementById("email") as HTMLInputElement
+      )?.value?.trim();
+      const invoiceInfo =
+        (document.getElementById("invoiceInfo") as HTMLTextAreaElement)
+          ?.value ?? "";
+      const cccdNumber = (
+        document.getElementById("idNumber") as HTMLInputElement
+      )?.value?.trim();
+
+      const logoFile = (document.getElementById("logo") as HTMLInputElement)
+        ?.files?.[0];
+      const businessLicenseFile = (
+        document.getElementById("businessLicense") as HTMLInputElement
+      )?.files?.[0];
+      const foodSafetyFile = (
+        document.getElementById("foodSafety") as HTMLInputElement
+      )?.files?.[0];
+      const cccdFrontFile = (
+        document.getElementById("idFront") as HTMLInputElement
+      )?.files?.[0];
+      const cccdBackFile = (
+        document.getElementById("idBack") as HTMLInputElement
+      )?.files?.[0];
+
+      const acceptTerms = (document.getElementById("terms") as HTMLInputElement)
+        ?.checked;
+      const commitNoFraud = (
+        document.getElementById("commitment1") as HTMLInputElement
+      )?.checked;
+      const commitAnalytics = (
+        document.getElementById("commitment2") as HTMLInputElement
+      )?.checked;
+
+      if (
+        !brandName ||
+        !businessTypeId ||
+        !address ||
+        !openingHours ||
+        !phone ||
+        !email
+      ) {
+        toast.error("Vui lòng điền đầy đủ thông tin cơ bản.");
+        return;
+      }
+      if (
+        !logoFile ||
+        !businessLicenseFile ||
+        !foodSafetyFile ||
+        !cccdFrontFile ||
+        !cccdBackFile ||
+        !cccdNumber
+      ) {
+        toast.error("Vui lòng cung cấp đầy đủ giấy tờ pháp lý và CCCD.");
+        return;
+      }
+      if (!selectedBankBin || !bankAccount || !accountHolder) {
+        toast.error("Vui lòng chọn ngân hàng và nhập thông tin tài khoản.");
+        return;
+      }
+      if (!acceptTerms || !commitNoFraud || !commitAnalytics) {
+        toast.error("Bạn cần đồng ý điều khoản và các cam kết.");
+        return;
+      }
+
+      const paymentMethodEnum = 1;
+
+      const fd = new FormData();
+      fd.append("Name", brandName);
+      fd.append("BusinessTypeId", businessTypeId);
+      fd.append("Address", address);
+      fd.append("OpeningHours", openingHours);
+      fd.append("Phone", phone);
+      fd.append("Email", email);
+
+      fd.append("Logo", logoFile);
+      fd.append("BusinessLicense", businessLicenseFile);
+      fd.append("FoodSafetyCert", foodSafetyFile);
+
+      fd.append("PersonalIdentityNumber", cccdNumber!);
+      fd.append("PersonalIdentityFront", cccdFrontFile!);
+      fd.append("PersonalIdentityBack", cccdBackFile!);
+
+      fd.append("BankBin", selectedBankBin);
+      fd.append(
+        "BankName",
+        selectedBank?.shortName || selectedBank?.name || ""
+      );
+      fd.append("BankAccountNumber", bankAccount);
+      fd.append("BankAccountHolder", accountHolder);
+      fd.append("InvoiceInfo", invoiceInfo ?? "");
+
+      fd.append("PaymentMethod", String(paymentMethodEnum));
+      fd.append("AcceptTerms", String(acceptTerms));
+      fd.append("CommitNoFraud", String(commitNoFraud));
+      fd.append("CommitAnalytics", String(commitAnalytics));
+
+      const token = localStorage.getItem("accessToken") || "";
+      const userId = localStorage.getItem("userId") || "";
+
+      const headers: Record<string, string> = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
+      if (userId) headers["X-User-Id"] = userId;
+
+      const res = await api.post<ApiResponse<VendorRegisterResponse>>(
+        "/api/vendor/register",
+        fd,
+        headers
+      );
+
+      if (!res?.code?.toLowerCase().includes("success")) {
+        throw new Error(
+          res?.message || "Đăng kí hồ sơ thất bại! Vui lòng liên hệ hỗ trợ."
+        );
+      }
+
+      toast.success("Đăng kí hồ sơ thành công! Vui lòng chờ xét duyệt.");
+      onClose?.();
+    } catch (e) {
+      console.error(e);
+      toast.error(e?.message || "Có lỗi khi gửi hồ sơ đăng ký.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto p-0">
         <DialogHeader className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b px-6 py-4">
           <DialogTitle>Đăng ký cửa hàng</DialogTitle>
-          <DialogDescription>Điền thông tin bên dưới để tạo cửa hàng của bạn.</DialogDescription>
+          <DialogDescription>
+            Điền thông tin bên dưới để tạo cửa hàng của bạn.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="px-6 py-5 space-y-6">
@@ -242,51 +429,108 @@ const [submitting, setSubmitting] = useState(false);
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="brandName">Tên quán / thương hiệu <Req /></Label>
-                      <Input id="brandName" placeholder="Nhập tên quán" required />
+                      <Label htmlFor="brandName">
+                        Tên quán / thương hiệu <Req />
+                      </Label>
+                      <Input
+                        id="brandName"
+                        placeholder="Nhập tên quán"
+                        required
+                      />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="businessType">Loại hình kinh doanh <Req /></Label>
-                      <Select value={businessTypeId} onValueChange={setBusinessTypeId}>
+                      <Label htmlFor="businessType">
+                        Loại hình kinh doanh <Req />
+                      </Label>
+                      <Select
+                        value={businessTypeId}
+                        onValueChange={(val) => setBusinessTypeId(val)}
+                        disabled={businessTypesLoading}
+                      >
                         <SelectTrigger>
-                          <SelectValue placeholder="Chọn loại hình" />
+                          <SelectValue
+                            placeholder={
+                              businessTypesLoading
+                                ? "Đang tải loại hình..."
+                                : "Chọn hoặc nhập loại hình"
+                            }
+                          />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="street-food">Street Food</SelectItem>
-                          <SelectItem value="drinks">Đồ uống</SelectItem>
-                          <SelectItem value="bakery">Bánh</SelectItem>
-                          <SelectItem value="fast-food">Fast Food</SelectItem>
-                          <SelectItem value="others">Khác</SelectItem>
+                          <div className="p-2">
+                            <Input
+                              id="businessType"
+                              placeholder="Gõ để tìm hoặc thêm mới rồi Enter"
+                              value={businessTypeSearch}
+                              onChange={(e) =>
+                                setBusinessTypeSearch(e.target.value)
+                              }
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  handleBusinessTypeEnter();
+                                }
+                              }}
+                            />
+                          </div>
+
+                          {businessTypesError && (
+                            <div className="px-3 py-2 text-xs text-red-600">
+                              {businessTypesError}
+                            </div>
+                          )}
+
+                          {filteredBusinessTypes.length === 0 &&
+                            !businessTypesError && (
+                              <div className="px-3 py-2 text-xs text-muted-foreground">
+                                Không tìm thấy loại hình phù hợp. Nhấn Enter để
+                                thêm mới.
+                              </div>
+                            )}
+
+                          {filteredBusinessTypes.map((bt) => (
+                            <SelectItem key={bt.id} value={bt.id}>
+                              {bt.name}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="address">Địa chỉ hoạt động <Req /></Label>
-                    <Input id="address" placeholder="Nhập địa chỉ chi tiết" required />
+                    <Label htmlFor="address">
+                      Địa chỉ hoạt động <Req />
+                    </Label>
+                    <Input
+                      id="address"
+                      placeholder="Nhập địa chỉ chi tiết"
+                      required
+                    />
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="openingHours">Giờ hoạt động <Req /></Label>
-                      <Input id="openingHours" placeholder="VD: 08:00 - 22:00" required />
+                      <Label htmlFor="openingHours">
+                        Giờ hoạt động <Req />
+                      </Label>
+                      <Input
+                        id="openingHours"
+                        placeholder="VD: 08:00 - 22:00"
+                        required
+                      />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="phone">Số điện thoại <Req /></Label>
-                      <Input id="phone" placeholder="Nhập số điện thoại" required />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="email">Email liên hệ <Req /></Label>
-                      <Input id="email" type="email" placeholder="Nhập email" required />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="logo">Hình ảnh/Logo quán <Req /></Label>
+                      <Label htmlFor="logo">
+                        Hình ảnh/Logo quán <Req />
+                      </Label>
                       <div className="flex items-center gap-2">
-                        <Input id="logo" type="file" accept="image/*" required />
+                        <Input
+                          id="logo"
+                          type="file"
+                          accept="image/*"
+                          required
+                        />
                         <Camera className="h-4 w-4 text-muted-foreground" />
                       </div>
                     </div>
@@ -303,37 +547,71 @@ const [submitting, setSubmitting] = useState(false);
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="businessLicense">Giấy phép kinh doanh <Req /></Label>
+                    <Label htmlFor="businessLicense">
+                      Giấy phép kinh doanh <Req />
+                    </Label>
                     <div className="flex items-center gap-2">
-                      <Input id="businessLicense" type="file" accept="image/*" required />
+                      <Input
+                        id="businessLicense"
+                        type="file"
+                        accept="image/*"
+                        required
+                      />
                       <Upload className="h-4 w-4 text-muted-foreground" />
                     </div>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="foodSafety">Giấy chứng nhận vệ sinh an toàn thực phẩm <Req /></Label>
+                    <Label htmlFor="foodSafety">
+                      Giấy chứng nhận vệ sinh an toàn thực phẩm <Req />
+                    </Label>
                     <div className="flex items-center gap-2">
-                      <Input id="foodSafety" type="file" accept="image/*" required />
+                      <Input
+                        id="foodSafety"
+                        type="file"
+                        accept="image/*"
+                        required
+                      />
                       <Upload className="h-4 w-4 text-muted-foreground" />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-2 md:col-span-1">
-                      <Label htmlFor="idNumber">Mã số CCCD <Req /></Label>
-                      <Input id="idNumber" placeholder="Nhập mã số CCCD" required />
+                      <Label htmlFor="idNumber">
+                        Mã số CCCD <Req />
+                      </Label>
+                      <Input
+                        id="idNumber"
+                        placeholder="Nhập mã số CCCD"
+                        required
+                      />
                     </div>
                     <div className="space-y-2 md:col-span-1">
-                      <Label htmlFor="idFront">Ảnh CCCD mặt trước <Req /></Label>
+                      <Label htmlFor="idFront">
+                        Ảnh CCCD mặt trước <Req />
+                      </Label>
                       <div className="flex items-center gap-2">
-                        <Input id="idFront" type="file" accept="image/*" required />
+                        <Input
+                          id="idFront"
+                          type="file"
+                          accept="image/*"
+                          required
+                        />
                         <Upload className="h-4 w-4 text-muted-foreground" />
                       </div>
                     </div>
                     <div className="space-y-2 md:col-span-1">
-                      <Label htmlFor="idBack">Ảnh CCCD mặt sau <Req /></Label>
+                      <Label htmlFor="idBack">
+                        Ảnh CCCD mặt sau <Req />
+                      </Label>
                       <div className="flex items-center gap-2">
-                        <Input id="idBack" type="file" accept="image/*" required />
+                        <Input
+                          id="idBack"
+                          type="file"
+                          accept="image/*"
+                          required
+                        />
                         <Upload className="h-4 w-4 text-muted-foreground" />
                       </div>
                     </div>
@@ -350,7 +628,9 @@ const [submitting, setSubmitting] = useState(false);
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="bankName">Tên ngân hàng <Req /></Label>
+                    <Label htmlFor="bankName">
+                      Tên ngân hàng <Req />
+                    </Label>
                     <Select
                       value={selectedBankBin}
                       onValueChange={setSelectedBankBin}
@@ -361,14 +641,18 @@ const [submitting, setSubmitting] = useState(false);
                           placeholder={
                             banksLoading
                               ? "Đang tải danh sách ngân hàng..."
-                              : (banksError ? "Không tải được danh sách. Thử lại." : "Chọn ngân hàng")
+                              : banksError
+                              ? "Không tải được danh sách. Thử lại."
+                              : "Chọn ngân hàng"
                           }
                         />
                       </SelectTrigger>
                       <SelectContent className="max-h-80">
                         {banks.length === 0 ? (
                           <div className="px-3 py-2 text-sm text-muted-foreground">
-                            {banksError ? banksError : "Không có dữ liệu ngân hàng"}
+                            {banksError
+                              ? banksError
+                              : "Không có dữ liệu ngân hàng"}
                           </div>
                         ) : (
                           banks.map((b) => (
@@ -380,10 +664,14 @@ const [submitting, setSubmitting] = useState(false);
                                   className="h-4 w-4 rounded-sm object-contain"
                                   loading="lazy"
                                   onError={(e) => {
-                                    (e.currentTarget as HTMLImageElement).style.visibility = "hidden";
+                                    (
+                                      e.currentTarget as HTMLImageElement
+                                    ).style.visibility = "hidden";
                                   }}
                                 />
-                                <span className="truncate">{b.shortName || b.name}</span>
+                                <span className="truncate">
+                                  {b.shortName || b.name}
+                                </span>
                               </span>
                             </SelectItem>
                           ))
@@ -393,13 +681,17 @@ const [submitting, setSubmitting] = useState(false);
                     {selectedBank && (
                       <p className="text-xs text-muted-foreground">
                         Mã BIN: {selectedBank.bin}
-                        {selectedBank.lookupSupported ? " • Hỗ trợ tra cứu chủ TK" : ""}
+                        {selectedBank.lookupSupported
+                          ? " • Hỗ trợ tra cứu chủ TK"
+                          : ""}
                       </p>
                     )}
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="bankAccount">Tài khoản ngân hàng / ví điện tử <Req /></Label>
+                    <Label htmlFor="bankAccount">
+                      Tài khoản ngân hàng / ví điện tử <Req />
+                    </Label>
                     <div className="flex gap-2">
                       <Input
                         id="bankAccount"
@@ -412,7 +704,11 @@ const [submitting, setSubmitting] = useState(false);
                         type="button"
                         variant="secondary"
                         onClick={lookupAccountName}
-                        disabled={!selectedBankBin || !bankAccount || !selectedBank?.lookupSupported}
+                        disabled={
+                          !selectedBankBin ||
+                          !bankAccount ||
+                          !selectedBank?.lookupSupported
+                        }
                         title={
                           !selectedBank?.lookupSupported
                             ? "Ngân hàng này không hỗ trợ tra cứu chủ TK"
@@ -423,12 +719,16 @@ const [submitting, setSubmitting] = useState(false);
                       </Button>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Chọn ngân hàng và nhập số tài khoản, sau đó bấm <em>Tra cứu</em> để điền tên chủ tài khoản (nếu được hỗ trợ).
+                      Chọn ngân hàng và nhập số tài khoản, sau đó bấm{" "}
+                      <em>Tra cứu</em> để điền tên chủ tài khoản (nếu được hỗ
+                      trợ).
                     </p>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="accountHolder">Tên chủ tài khoản <Req /></Label>
+                    <Label htmlFor="accountHolder">
+                      Tên chủ tài khoản <Req />
+                    </Label>
                     <Input
                       id="accountHolder"
                       placeholder="Tên chủ tài khoản"
@@ -440,7 +740,10 @@ const [submitting, setSubmitting] = useState(false);
 
                   <div className="space-y-2">
                     <Label htmlFor="invoiceInfo">Thông tin xuất hóa đơn</Label>
-                    <Textarea id="invoiceInfo" placeholder="Nhập thông tin xuất hóa đơn (nếu có)" />
+                    <Textarea
+                      id="invoiceInfo"
+                      placeholder="Nhập thông tin xuất hóa đơn (nếu có)"
+                    />
                   </div>
                 </CardContent>
               </Card>
@@ -455,15 +758,22 @@ const [submitting, setSubmitting] = useState(false);
                 <CardContent className="space-y-4">
                   <div className="flex items-center space-x-2">
                     <input type="checkbox" id="terms" required />
-                    <Label htmlFor="terms">Tôi chấp nhận Terms of Service & Policy <Req /></Label>
+                    <Label htmlFor="terms">
+                      Tôi chấp nhận Terms of Service & Policy <Req />
+                    </Label>
                   </div>
                   <div className="flex items-center space-x-2">
                     <input type="checkbox" id="commitment1" required />
-                    <Label htmlFor="commitment1">Cam kết không gian lận hàng chờ, không ghost order <Req /></Label>
+                    <Label htmlFor="commitment1">
+                      Cam kết không gian lận hàng chờ, không ghost order <Req />
+                    </Label>
                   </div>
                   <div className="flex items-center space-x-2">
                     <input type="checkbox" id="commitment2" required />
-                    <Label htmlFor="commitment2">Đồng ý cung cấp dữ liệu vận hành cho mục đích analytics <Req /></Label>
+                    <Label htmlFor="commitment2">
+                      Đồng ý cung cấp dữ liệu vận hành cho mục đích analytics{" "}
+                      <Req />
+                    </Label>
                   </div>
                 </CardContent>
               </Card>
@@ -478,29 +788,45 @@ const [submitting, setSubmitting] = useState(false);
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <Label className="text-sm font-medium">Phí đăng ký lần đầu:</Label>
-                      <p className="text-lg font-bold text-green-600">500,000 VND</p>
+                      <Label className="text-sm font-medium">
+                        Phí đăng ký lần đầu:
+                      </Label>
+                      <p className="text-lg font-bold text-green-600">
+                        500,000 VND
+                      </p>
                     </div>
                     <div>
-                      <Label className="text-sm font-medium">Phí hàng tháng:</Label>
-                      <p className="text-lg font-bold text-blue-600">200,000 VND/tháng</p>
+                      <Label className="text-sm font-medium">
+                        Phí hàng tháng:
+                      </Label>
+                      <p className="text-lg font-bold text-blue-600">
+                        200,000 VND/tháng
+                      </p>
                     </div>
                   </div>
 
                   <Alert>
                     <AlertTriangle className="h-4 w-4" />
                     <AlertDescription className="text-sm">
-                      <strong>Quy định thanh toán:</strong><br />
-                      • Thời hạn: Trước ngày 30 mỗi tháng<br />
-                      • Chậm thanh toán: Shop bị khóa và không hoàn lại phí thuê slot<br />
-                      • Phí phạt mở lại: 50% phí thuê slot + số tiền nợ tháng trước<br />
-                      • Yêu cầu đóng shop: Phải tạo yêu cầu trước 1 tháng
+                      <strong>Quy định thanh toán:</strong>
+                      <br />
+                      • Thời hạn: Trước ngày 30 mỗi tháng
+                      <br />
+                      • Chậm thanh toán: Shop bị khóa và không hoàn lại phí thuê
+                      slot
+                      <br />
+                      • Phí phạt mở lại: 50% phí thuê slot + số tiền nợ tháng
+                      trước
+                      <br />• Yêu cầu đóng shop: Phải tạo yêu cầu trước 1 tháng
                     </AlertDescription>
                   </Alert>
 
                   <div className="space-y-2">
                     <Label>Phương thức thanh toán</Label>
-                    <Select value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as "vnpay")}>
+                    <Select
+                      value={paymentMethod}
+                      onValueChange={(v) => setPaymentMethod(v as "vnpay")}
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="Chọn phương thức thanh toán" />
                       </SelectTrigger>
@@ -510,10 +836,15 @@ const [submitting, setSubmitting] = useState(false);
                     </Select>
                   </div>
 
-                  <Button className="w-full" onClick={handleSubmit} disabled={submitting}>
-                    {submitting ? "Đang gửi..." : "Thanh toán và gửi yêu cầu đăng ký"}
-                </Button>
-
+                  <Button
+                    className="w-full"
+                    onClick={handleSubmit}
+                    disabled={submitting}
+                  >
+                    {submitting
+                      ? "Đang gửi..."
+                      : "Thanh toán và gửi yêu cầu đăng ký"}
+                  </Button>
                 </CardContent>
               </Card>
             </TabsContent>

@@ -81,7 +81,6 @@ const Auth = () => {
         password: loginPassword,
         rememberLogin: true,
       });
-      console.log("Login response:", response);
       if (!response?.code?.toLowerCase().includes("success") || !response?.data?.accessToken) {
         throw new Error(response?.message || "Đăng nhập thất bại");
       }
