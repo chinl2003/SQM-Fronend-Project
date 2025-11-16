@@ -31,6 +31,17 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { api, ApiResponse, VendorRegisterResponse } from "@/lib/api";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog";
+import { useNavigate } from "react-router-dom";
 
 type VendorRegisterDialogProps = {
   isOpen: boolean;
@@ -63,6 +74,12 @@ type BusinessTypeItem = {
   name: string;
 };
 
+type WalletBalanceResponse = {
+  ownerStatus: string;
+  ownerId: string;
+  balance: number;
+};
+
 type BusinessTypeApiResponse = ApiResponse<BusinessTypeItem[]>;
 type BusinessTypeCreateResponse = ApiResponse<BusinessTypeItem>;
 
@@ -70,6 +87,7 @@ export function VendorRegisterDialog({
   isOpen,
   onClose,
 }: VendorRegisterDialogProps) {
+  const navigate = useNavigate();
   const [banks, setBanks] = useState<VietQRBank[]>([]);
   const [banksLoading, setBanksLoading] = useState(false);
   const [banksError, setBanksError] = useState<string | null>(null);
@@ -95,6 +113,15 @@ export function VendorRegisterDialog({
 
   const [paymentMethod, setPaymentMethod] = useState<"vnpay">("vnpay");
   const [submitting, setSubmitting] = useState(false);
+
+  const REGISTER_FEE = 500_000;
+  const [checkingBalance, setCheckingBalance] = useState(false);
+  const [walletBalance, setWalletBalance] = useState<number | null>(null);
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [hasEnoughBalance, setHasEnoughBalance] = useState<boolean | null>(
+    null
+  );
+
   const selectedBank = useMemo(
     () => banks.find((b) => b.bin === selectedBankBin),
     [banks, selectedBankBin]
@@ -264,6 +291,105 @@ export function VendorRegisterDialog({
     }
   }
 
+  async function handleCheckBalanceAndOpenDialog() {
+    try {
+      setCheckingBalance(true);
+
+      const brandName = (
+        document.getElementById("brandName") as HTMLInputElement
+      )?.value?.trim();
+      const address = (
+        document.getElementById("address") as HTMLInputElement
+      )?.value?.trim();
+      const openingHours = (
+        document.getElementById("openingHours") as HTMLInputElement
+      )?.value?.trim();
+
+      const logoFile = (document.getElementById("logo") as HTMLInputElement)
+        ?.files?.[0];
+      const businessLicenseFile = (
+        document.getElementById("businessLicense") as HTMLInputElement
+      )?.files?.[0];
+      const foodSafetyFile = (
+        document.getElementById("foodSafety") as HTMLInputElement
+      )?.files?.[0];
+      const cccdFrontFile = (
+        document.getElementById("idFront") as HTMLInputElement
+      )?.files?.[0];
+      const cccdBackFile = (
+        document.getElementById("idBack") as HTMLInputElement
+      )?.files?.[0];
+      const cccdNumber = (
+        document.getElementById("idNumber") as HTMLInputElement
+      )?.value?.trim();
+
+      const acceptTerms = (document.getElementById("terms") as HTMLInputElement)
+        ?.checked;
+      const commitNoFraud = (
+        document.getElementById("commitment1") as HTMLInputElement
+      )?.checked;
+      const commitAnalytics = (
+        document.getElementById("commitment2") as HTMLInputElement
+      )?.checked;
+
+      // validate form như cũ
+      if (!brandName || !businessTypeId || !address || !openingHours) {
+        toast.error("Vui lòng điền đầy đủ thông tin cơ bản.");
+        return;
+      }
+      if (
+        !logoFile ||
+        !businessLicenseFile ||
+        !foodSafetyFile ||
+        !cccdFrontFile ||
+        !cccdBackFile ||
+        !cccdNumber
+      ) {
+        toast.error("Vui lòng cung cấp đầy đủ giấy tờ pháp lý và CCCD.");
+        return;
+      }
+      if (!acceptTerms || !commitNoFraud || !commitAnalytics) {
+        toast.error("Bạn cần đồng ý điều khoản và các cam kết.");
+        return;
+      }
+
+      const token = localStorage.getItem("accessToken") || "";
+      const userId = localStorage.getItem("userId") || "";
+
+      if (!userId) {
+        toast.error(
+          "Không tìm thấy thông tin tài khoản. Vui lòng đăng nhập lại."
+        );
+        return;
+      }
+
+      const headers: Record<string, string> = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      const res = await api.get<WalletBalanceResponse>(
+        `/api/wallet/balance?ownerStatus=Customer&ownerId=${encodeURIComponent(
+          userId
+        )}`,
+        headers
+      );
+
+      if (!res) {
+        throw new Error("Không kiểm tra được số dư ví. Vui lòng thử lại.");
+      }
+
+      const balance = Number(res.balance) || 0;
+
+      setWalletBalance(balance);
+      setHasEnoughBalance(balance >= REGISTER_FEE);
+      setShowPaymentDialog(true);
+    } catch (err) {
+      console.error(err);
+      toast.error(err?.message || "Có lỗi khi kiểm tra số dư ví.");
+    } finally {
+      setCheckingBalance(false);
+    }
+  }
+
   async function handleSubmit() {
     try {
       setSubmitting(true);
@@ -314,12 +440,7 @@ export function VendorRegisterDialog({
         document.getElementById("commitment2") as HTMLInputElement
       )?.checked;
 
-      if (
-        !brandName ||
-        !businessTypeId ||
-        !address ||
-        !openingHours
-      ) {
+      if (!brandName || !businessTypeId || !address || !openingHours) {
         toast.error("Vui lòng điền đầy đủ thông tin cơ bản.");
         return;
       }
@@ -637,9 +758,7 @@ export function VendorRegisterDialog({
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="bankName">
-                      Tên ngân hàng
-                    </Label>
+                    <Label htmlFor="bankName">Tên ngân hàng</Label>
                     <Select
                       value={selectedBankBin}
                       onValueChange={setSelectedBankBin}
@@ -698,9 +817,7 @@ export function VendorRegisterDialog({
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="bankAccount">
-                      Số tài khoản
-                    </Label>
+                    <Label htmlFor="bankAccount">Số tài khoản</Label>
                     <div className="flex gap-2">
                       <Input
                         id="bankAccount"
@@ -734,9 +851,7 @@ export function VendorRegisterDialog({
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="accountHolder">
-                      Tên chủ tài khoản
-                    </Label>
+                    <Label htmlFor="accountHolder">Tên chủ tài khoản</Label>
                     <Input
                       id="accountHolder"
                       placeholder="Tên chủ tài khoản"
@@ -830,11 +945,11 @@ export function VendorRegisterDialog({
 
                   <Button
                     className="w-full"
-                    onClick={handleSubmit}
-                    disabled={submitting}
+                    onClick={handleCheckBalanceAndOpenDialog}
+                    disabled={submitting || checkingBalance}
                   >
-                    {submitting
-                      ? "Đang gửi..."
+                    {submitting || checkingBalance
+                      ? "Đang xử lý..."
                       : "Thanh toán và gửi yêu cầu đăng ký"}
                   </Button>
                 </CardContent>
@@ -843,6 +958,99 @@ export function VendorRegisterDialog({
           </Tabs>
         </div>
       </DialogContent>
+      <AlertDialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {hasEnoughBalance ? "Xác nhận thanh toán" : "Số dư không đủ"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {hasEnoughBalance ? (
+                <div className="space-y-3 mt-2">
+                  <p>Vui lòng kiểm tra lại thông tin trước khi thanh toán:</p>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <span className="text-muted-foreground">Phí đăng ký:</span>
+                    <span className="font-semibold text-emerald-600 text-right">
+                      {REGISTER_FEE.toLocaleString("vi-VN")} VND
+                    </span>
+
+                    <span className="text-muted-foreground">
+                      Số dư hiện tại:
+                    </span>
+                    <span className="font-semibold text-blue-600 text-right">
+                      {(walletBalance ?? 0).toLocaleString("vi-VN")} VND
+                    </span>
+
+                    <span className="text-muted-foreground">
+                      Số dư còn lại:
+                    </span>
+                    <span className="font-semibold text-right">
+                      {((walletBalance ?? 0) - REGISTER_FEE).toLocaleString(
+                        "vi-VN"
+                      )}{" "}
+                      VND
+                    </span>
+                  </div>
+                  <p className="text-xs text-amber-600 mt-2">
+                    Sau khi xác nhận, hệ thống sẽ trừ số tiền trên khỏi ví của
+                    bạn và gửi hồ sơ đăng ký quán để xét duyệt.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3 mt-2">
+                  <p>Số dư ví của bạn hiện tại không đủ để thanh toán.</p>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <span className="text-muted-foreground">
+                      Phí đăng ký cần thanh toán:
+                    </span>
+                    <span className="font-semibold text-emerald-700 text-right">
+                      {REGISTER_FEE.toLocaleString("vi-VN")} VND
+                    </span>
+
+                    <span className="text-muted-foreground">
+                      Số dư hiện tại:
+                    </span>
+                    <span className="font-extrabold text-red-600 text-right">
+                      {(walletBalance ?? 0).toLocaleString("vi-VN")} VND
+                    </span>
+                  </div>
+                  <p className="text-xs text-red-600 mt-2">
+                    Vui lòng nạp thêm tiền vào ví trước khi đăng ký quán.
+                  </p>
+                </div>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <AlertDialogFooter>
+            {hasEnoughBalance ? (
+              <>
+                <AlertDialogCancel>Hủy</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={async () => {
+                    setShowPaymentDialog(false);
+                    await handleSubmit();
+                  }}
+                >
+                  Xác nhận thanh toán
+                </AlertDialogAction>
+              </>
+            ) : (
+              <>
+                <AlertDialogCancel>Hủy</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    setShowPaymentDialog(false);
+                    navigate("/wallet/topup");
+                  }}
+                >
+                  Nạp tiền
+                </AlertDialogAction>
+              </>
+            )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }
