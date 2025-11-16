@@ -53,7 +53,7 @@ const App = () => (
           />
           <Route path="/vendor" element={<VendorDashboard />} />
           <Route
-            path="/admin/users"
+            path="/admin/user-management"
             element={<UserManagement />}
           />
           {/* <Route
