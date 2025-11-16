@@ -36,10 +36,11 @@ type VendorDetailModel = {
   id: string;
   name?: string;
   address?: string;
-  phone?: string;
-  email?: string;
+  ownerPhone?: string;
+  ownerEmail?: string;
   openingHours?: string;
   businessTypeId?: string;
+  businessTypeName?: string;
   status?: number | string;
   createdTime?: string;
   logoUrl?: string;
@@ -400,7 +401,7 @@ const VendorDetail = ({
                       <label className="text-sm font-medium text-muted-foreground">
                         Loại hình
                       </label>
-                      <p>{detail?.businessTypeId || "—"}</p>
+                      <p>{detail?.businessTypeName || "—"}</p>
                     </div>
                     <div>
                       <label className="text-sm font-medium text-muted-foreground">
@@ -415,11 +416,11 @@ const VendorDetail = ({
                   <div className="grid grid-cols-1 gap-2">
                     <div className="flex items-center gap-2">
                       <Phone className="w-4 h-4 text-muted-foreground" />
-                      <span>{detail?.phone || "—"}</span>
+                      <span>{detail?.ownerPhone || "—"}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Mail className="w-4 h-4 text-muted-foreground" />
-                      <span>{detail?.email || "—"}</span>
+                      <span>{detail?.ownerEmail || "—"}</span>
                     </div>
                   </div>
                 </CardContent>
@@ -436,7 +437,7 @@ const VendorDetail = ({
                 <CardContent className="space-y-4">
                   <div>
                     <label className="text-sm font-medium text-muted-foreground">
-                      Số giấy tờ chủ quán
+                      CCCD
                     </label>
                     <p className="font-semibold">
                       {detail?.personalIdentityNumber || "—"}
