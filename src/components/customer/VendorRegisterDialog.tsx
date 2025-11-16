@@ -975,7 +975,7 @@ export function VendorRegisterDialog({
                     </AlertDescription>
                   </Alert>
 
-                  <Button
+                  {/* <Button
                     className="w-full"
                     onClick={handleCheckBalanceAndOpenDialog}
                     disabled={submitting || checkingBalance}
@@ -983,8 +983,8 @@ export function VendorRegisterDialog({
                     {submitting || checkingBalance
                       ? "Đang xử lý..."
                       : "Thanh toán và gửi yêu cầu đăng ký"}
-                  </Button>
-                  {/* <Button
+                  </Button> */}
+                  <Button
                     className="w-full"
                     onClick={handleSubmit}
                     disabled={submitting}
@@ -992,7 +992,7 @@ export function VendorRegisterDialog({
                     {submitting
                       ? "Đang gửi..."
                       : "Thanh toán và gửi yêu cầu đăng ký"}
-                  </Button> */}
+                  </Button>
                 </CardContent>
               </Card>
             </TabsContent>

@@ -1,4 +1,9 @@
 import { useState, useEffect } from "react";
+import {
+  HubConnectionBuilder,
+  LogLevel,
+  HubConnection,
+} from "@microsoft/signalr";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +39,17 @@ interface NavigationProps {
   queueCount?: number;
 }
 
+type NotificationKind = "info" | "warning";
+
+export interface AppNotification {
+  id: string;
+  title: string;
+  message: string;
+  type: NotificationKind;
+  time: string;
+  read: boolean;
+}
+
 export function Navigation({
   userType = "guest",
   queueCount = 0,
@@ -58,6 +74,10 @@ export function Navigation({
   });
   const [isNoStoreModalOpen, setIsNoStoreModalOpen] = useState(false);
   const [isVendorRegisterOpen, setIsVendorRegisterOpen] = useState(false);
+
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [connection, setConnection] = useState<HubConnection | null>(null);
+
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -74,6 +94,48 @@ export function Navigation({
     window.addEventListener("storage", handleStorageChange);
     return () => window.removeEventListener("storage", handleStorageChange);
   }, []);
+
+  useEffect(() => {
+    if (!userId) return;
+    const apiBaseUrl = import.meta.env.VITE_API_URL;
+    const token =
+      localStorage.getItem("accessToken") ||
+      localStorage.getItem("token") ||
+      "";
+
+    const newConnection = new HubConnectionBuilder()
+      .withUrl(`${apiBaseUrl}/hubs/notifications`, {
+        accessTokenFactory: () => token,
+      })
+      .withAutomaticReconnect()
+      .configureLogging(LogLevel.None) 
+      .build();
+
+    newConnection.on("ReceiveNotification", (msg) => {
+      const now = new Date();
+      const n: AppNotification = {
+        id: crypto.randomUUID(),
+        title: msg.title ?? "Thông báo",
+        message: msg.body ?? "",
+        type: msg.type === "warning" ? "warning" : "info",
+        time: now.toLocaleTimeString("vi-VN", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        read: false,
+      };
+
+      setNotifications((prev) => [n, ...prev]);
+    });
+
+    newConnection.start().catch(() => {});
+
+    setConnection(newConnection);
+
+    return () => {
+      newConnection.stop();
+    };
+  }, [userId]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,6 +158,16 @@ export function Navigation({
     localStorage.clear();
     setFullName(null);
     navigate("/auth");
+  };
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
+
+  const handleOpenNotification = () => {
+    setIsNotificationOpen(true);
+  };
+
+  const markAllNotificationsRead = () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
   };
 
   return (
@@ -165,13 +237,17 @@ export function Navigation({
             <Button
               variant="ghost"
               size="sm"
-              className="relative"
-              onClick={() => setIsNotificationOpen(true)}
+              className={`relative ${
+                unreadCount > 0 ? "text-amber-500 animate-pulse" : ""
+              }`}
+              onClick={handleOpenNotification}
             >
               <Bell className="h-4 w-4" />
-              <Badge className="absolute -top-2 -right-2 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs">
-                2
-              </Badge>
+              {unreadCount > 0 && (
+                <Badge className="absolute -top-2 -right-2 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </Badge>
+              )}
             </Button>
 
             {/* User Dropdown */}
@@ -323,7 +399,11 @@ export function Navigation({
 
       <NotificationDialog
         isOpen={isNotificationOpen}
-        onClose={() => setIsNotificationOpen(false)}
+        onClose={() => {
+          setIsNotificationOpen(false);
+        }}
+        notifications={notifications}
+        onMarkAllRead={markAllNotificationsRead}
       />
 
       <ProfileDialog
