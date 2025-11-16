@@ -54,6 +54,10 @@ const sectionFx =
   "transition-shadow transition-colors motion-safe:duration-300 motion-safe:ease-out " +
   "hover:shadow-lg hover:border-primary/30 focus-within:shadow-lg focus-within:border-primary/40";
 
+type VnPayCreateUrlResponse = {
+  paymentUrl: string;
+};
+
 type VietQRBank = {
   id: number;
   name: string;
@@ -197,6 +201,34 @@ export function VendorRegisterDialog({
     };
   }, [isOpen]);
 
+  async function handleTopupViaVnPay() {
+  try {
+    const amountNeeded = Math.max(REGISTER_FEE - (walletBalance ?? 0), 0);
+
+    if (amountNeeded <= 0) {
+      toast.message("Số dư đã đủ hoặc không xác định số tiền cần nạp.");
+      return;
+    }
+
+    const token = localStorage.getItem("accessToken") || "";
+    const headers: Record<string, string> = {};
+    if (token) headers.Authorization = `Bearer ${token}`;
+
+    const res = await api.get<VnPayCreateUrlResponse>(
+      `/api/wallet/topup/vnpay-url?amount=${amountNeeded}`,
+      headers
+    );
+    console.log("VNPay URL response:", res);
+    if (!res || !res.paymentUrl) {
+      throw new Error("Không lấy được link thanh toán VNPay.");
+    }
+
+    window.location.href = res.paymentUrl;
+  } catch (err) {
+    console.error(err);
+    toast.error(err?.message || "Có lỗi khi tạo giao dịch VNPay.");
+  }
+}
   async function lookupAccountName() {
     try {
       if (!selectedBankBin) {
@@ -943,13 +975,22 @@ export function VendorRegisterDialog({
                     </AlertDescription>
                   </Alert>
 
-                  <Button
+                  {/* <Button
                     className="w-full"
                     onClick={handleCheckBalanceAndOpenDialog}
                     disabled={submitting || checkingBalance}
                   >
                     {submitting || checkingBalance
                       ? "Đang xử lý..."
+                      : "Thanh toán và gửi yêu cầu đăng ký"}
+                  </Button> */}
+                  <Button
+                    className="w-full"
+                    onClick={handleSubmit}
+                    disabled={submitting}
+                  >
+                    {submitting
+                      ? "Đang gửi..."
                       : "Thanh toán và gửi yêu cầu đăng ký"}
                   </Button>
                 </CardContent>
@@ -1039,9 +1080,9 @@ export function VendorRegisterDialog({
               <>
                 <AlertDialogCancel>Hủy</AlertDialogCancel>
                 <AlertDialogAction
-                  onClick={() => {
+                  onClick={async () => {
                     setShowPaymentDialog(false);
-                    navigate("/wallet/topup");
+                    await handleTopupViaVnPay();
                   }}
                 >
                   Nạp tiền
