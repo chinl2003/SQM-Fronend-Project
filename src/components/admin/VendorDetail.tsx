@@ -212,7 +212,6 @@ const VendorDetail = ({
   const [showApprovalModal, setShowApprovalModal] = useState(false);
   const [approving, setApproving] = useState(false);
 
-  // ---- Fetch vendor + menu by id (API mới) ----
   useEffect(() => {
     let mounted = true;
     async function fetchDetail() {

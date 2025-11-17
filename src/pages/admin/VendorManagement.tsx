@@ -53,6 +53,7 @@ type Vendor = {
   monthlyFeeStatus?: "paid" | "pending" | "overdue";
   outstandingAmount?: number;
   logoUrl?: string;
+  isCreated?: boolean;
 };
 
 type PaginatedList<T> = {
@@ -126,6 +127,13 @@ const fmtDate = (iso?: string) => {
   const yyyy = d.getFullYear();
   return `${dd}-${mm}-${yyyy}`;
 };
+
+function buildMediaUrl(path?: string) {
+  if (!path) return "";
+  if (path.startsWith("http")) return path;
+  const base = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
+  return `${base}/${path.replace(/^\/+/, "")}`;
+}
 
 function normalizeStatus(s: Vendor["status"]): string {
   if (typeof s === "number") return STATUS_NUM_TO_TEXT[s] ?? "";
@@ -309,7 +317,7 @@ const VendorManagement = () => {
     if (s === "menupending" || s === "menu_pending")
       return (
         <Badge variant="outline" className="border-warning text-warning">
-          Chờ menu
+          Chờ cập nhật menu
         </Badge>
       );
     if (s === "closurerequested" || s === "closure_requested")
@@ -636,8 +644,20 @@ const VendorManagement = () => {
                     <div className="grid lg:grid-cols-4 gap-4 items-center">
                       <div className="lg:col-span-2">
                         <div className="flex items-start gap-3">
-                          <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
-                            <Menu className="w-6 h-6 text-primary" />
+                          <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center overflow-hidden">
+                            {v.logoUrl ? (
+                              <img
+                                src={
+                                  v.logoUrl.startsWith("http")
+                                    ? v.logoUrl
+                                    : `${import.meta.env.VITE_API_URL || ""}/${v.logoUrl}`
+                                }
+                                alt={v.name}
+                                className="w-full h-full object-cover rounded-lg"
+                              />
+                            ) : (
+                              <Menu className="w-6 h-6 text-primary" />
+                            )}
                           </div>
                           <div className="flex-1">
                             <h3 className="font-semibold text-lg">{v.name}</h3>
@@ -660,20 +680,29 @@ const VendorManagement = () => {
                               )}
                             </div>
                             <div className="flex items-center gap-2 mt-1">
-                              {getPaymentStatusIcon(v)}
-                              <span className="text-sm text-success font-medium">
-                                Menu đã cập nhật
-                              </span>
+                              {v.isCreated ? (
+                                <>
+                                  <CheckCircle className="w-4 h-4 text-emerald-600" />
+                                  <span className="text-sm text-emerald-600 font-medium">
+                                    Quán đã cập nhật thực đơn
+                                  </span>
+                                </>
+                              ) : (
+                                <>
+                                  <AlertTriangle className="w-4 h-4 text-amber-500" />
+                                  <span className="text-sm text-amber-600 font-medium">
+                                    Quán chưa cập nhật thực đơn
+                                  </span>
+                                </>
+                              )}
                             </div>
+
                           </div>
                         </div>
                       </div>
 
                       <div className="text-center">
                         {getStatusBadge(v)}
-                        <p className="text-sm text-muted-foreground mt-1">
-                          Sẵn sàng hoạt động
-                        </p>
                       </div>
 
                       <div className="flex gap-2 justify-end">
@@ -686,7 +715,14 @@ const VendorManagement = () => {
                         </Button>
                         <Button
                           size="sm"
-                          onClick={() => openApproveModal(v, VENDOR_STATUS_ENUM.Approved)}
+                          onClick={() =>
+                            v.isCreated && openApproveModal(v, VENDOR_STATUS_ENUM.Approved)
+                          }
+                          disabled={!v.isCreated || approvingId === v.id}
+                          className="
+                            disabled:cursor-not-allowed 
+                            disabled:pointer-events-auto
+                          "
                         >
                           <CheckCircle className="w-4 h-4 mr-1" />
                           Phê duyệt hoạt động
