@@ -185,9 +185,7 @@ export function Navigation({
         }));
 
         setNotifications(mapped);
-      } catch {
-        
-      }
+      } catch {}
     })();
 
     return () => {
@@ -360,7 +358,12 @@ export function Navigation({
                       Hồ sơ của bạn
                     </button>
                   </DropdownMenuItem>
-
+                  <DropdownMenuItem>
+                    <Link to="/customer/wallet" className="flex items-center w-full">
+                      <ShoppingBag className="h-4 w-4 mr-2" />
+                      Ví của tôi
+                    </Link>
+                  </DropdownMenuItem>
                   <DropdownMenuItem>
                     <Link
                       to="/order-history"

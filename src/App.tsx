@@ -24,6 +24,7 @@ import ReviewModeration from "./pages/admin/ReviewModeration";
 import Analytics from "./pages/admin/Analytics";
 import Notifications from "./pages/admin/Notifications";
 import SystemSettings from "./pages/admin/SystemSettings";
+import Wallet from "./pages/customer/Wallet";
 // import Profile from "./pages/Profile";
 
 const queryClient = new QueryClient();
@@ -51,6 +52,7 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/customer/active-queue" element={<ActiveQueue />} />
+          <Route path="/customer/wallet" element={<Wallet />} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route
             path="/admin/vendor-management"
