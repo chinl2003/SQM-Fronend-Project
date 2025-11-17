@@ -1,29 +1,36 @@
-import { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Navigation } from "@/components/Navigation";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { 
-  Wallet as WalletIcon, 
-  Plus, 
-  ArrowUpRight, 
+import {
+  Wallet as WalletIcon,
+  Plus,
+  ArrowUpRight,
   ArrowDownLeft,
   Clock,
   TrendingUp,
-  CreditCard
+  CreditCard,
 } from "lucide-react";
 
-// ➕ Thêm Dialog & Input
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { api, ApiResponse } from "@/lib/api";
+import { toast } from "sonner";
 
 interface Transaction {
   id: string;
@@ -35,6 +42,17 @@ interface Transaction {
   paymentMethod: string;
 }
 
+type PaymentResponse = {
+  paymentUrl: string;
+  transactionId: string;
+  amount: number;
+};
+
+type PaymentResponseApi = ApiResponse<PaymentResponse>;
+
+type PaymentResult = { code: string; amount?: number };
+type PaymentResultApi = ApiResponse<PaymentResult>;
+
 const mockTransactions: Transaction[] = [
   {
     id: "1",
@@ -43,7 +61,7 @@ const mockTransactions: Transaction[] = [
     description: "Nạp tiền qua VNPay",
     date: "2024-01-15 14:30",
     status: "completed",
-    paymentMethod: "VNPay"
+    paymentMethod: "VNPay",
   },
   {
     id: "2",
@@ -52,7 +70,7 @@ const mockTransactions: Transaction[] = [
     description: "Thanh toán đơn hàng #12345",
     date: "2024-01-14 10:15",
     status: "completed",
-    paymentMethod: "Ví Smart Queue"
+    paymentMethod: "Ví Smart Queue",
   },
   {
     id: "3",
@@ -61,7 +79,7 @@ const mockTransactions: Transaction[] = [
     description: "Nạp tiền qua VNPay",
     date: "2024-01-13 09:20",
     status: "completed",
-    paymentMethod: "VNPay"
+    paymentMethod: "VNPay",
   },
   {
     id: "4",
@@ -70,7 +88,7 @@ const mockTransactions: Transaction[] = [
     description: "Thanh toán đơn hàng #12344",
     date: "2024-01-12 16:45",
     status: "completed",
-    paymentMethod: "Ví Smart Queue"
+    paymentMethod: "Ví Smart Queue",
   },
   {
     id: "5",
@@ -79,17 +97,19 @@ const mockTransactions: Transaction[] = [
     description: "Hoàn tiền đơn hàng #12343",
     date: "2024-01-11 11:30",
     status: "completed",
-    paymentMethod: "Ví Smart Queue"
-  }
+    paymentMethod: "Ví Smart Queue",
+  },
 ];
 
 export default function Wallet() {
   const [balance] = useState(1150000);
   const [transactions] = useState(mockTransactions);
 
-  // 🔹 State cho modal nạp tiền & số tiền nhập
   const [isTopupOpen, setIsTopupOpen] = useState(false);
   const [topupAmount, setTopupAmount] = useState("");
+
+  const location = useLocation();
+  const navigate = useNavigate();
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("vi-VN", {
@@ -98,11 +118,10 @@ export default function Wallet() {
     }).format(amount);
   };
 
-  // 🔹 Format input: chỉ cho số, tự thêm dấu phẩy mỗi 3 số
-  const handleTopupAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleTopupAmountChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const value = e.target.value;
-
-    // Bỏ hết dấu phẩy và ký tự không phải số
     const numeric = value.replace(/,/g, "").replace(/\D/g, "");
 
     if (!numeric) {
@@ -110,7 +129,6 @@ export default function Wallet() {
       return;
     }
 
-    // Thêm dấu phẩy mỗi 3 số
     const formatted = numeric.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
     setTopupAmount(formatted);
   };
@@ -144,37 +162,131 @@ export default function Wallet() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "completed":
-        return <Badge className="bg-success text-success-foreground">Thành công</Badge>;
+        return (
+          <Badge className="bg-success text-success-foreground">
+            Thành công
+          </Badge>
+        );
       case "pending":
-        return <Badge className="bg-warning text-warning-foreground">Đang xử lý</Badge>;
+        return (
+          <Badge className="bg-warning text-warning-foreground">
+            Đang xử lý
+          </Badge>
+        );
       case "failed":
         return <Badge variant="destructive">Thất bại</Badge>;
       default:
         return <Badge variant="secondary">Không xác định</Badge>;
     }
   };
+  const handleConfirmTopup = async () => {
+    try {
+      const numeric = Number(topupAmount.replace(/,/g, ""));
+      if (!numeric || numeric <= 0) {
+        toast.error("Số tiền nạp không hợp lệ");
+        return;
+      }
 
-  // (Tuỳ bạn) handler xác nhận nạp tiền
-  const handleConfirmTopup = () => {
-    // Chuyển topupAmount (string có dấu phẩy) về số:
-    const numeric = Number(topupAmount.replace(/,/g, ""));
-    console.log("Nạp số tiền:", numeric, "VND");
-    // TODO: call API nạp tiền ở đây
+      const token = localStorage.getItem("accessToken") || "";
+      const headers: Record<string, string> = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
 
-    // Đóng modal sau khi xác nhận
-    setIsTopupOpen(false);
-    setTopupAmount("");
+      const res = await api.post<PaymentResponseApi>(
+        "/api/VNPay/create-payment",
+        { amount: numeric }, 
+        headers
+      );
+
+      const payload = (res?.data as any) ?? res;
+      const payment: PaymentResponse =
+        (payload?.data as PaymentResponse) ?? (payload as PaymentResponse);
+
+      if (!payment?.paymentUrl || !payment?.transactionId) {
+        throw new Error("Không lấy được link thanh toán VNPay.");
+      }
+
+      localStorage.setItem("lastVnPayTransactionId", payment.transactionId);
+
+      window.location.href = payment.paymentUrl;
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err?.message || "Có lỗi khi tạo giao dịch VNPay.");
+    }
   };
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const vnpResponseCode = params.get("vnp_ResponseCode");
+    const vnpTransStatus = params.get("vnp_TransactionStatus");
+
+    if (!vnpResponseCode || !vnpTransStatus) return;
+
+    const transactionId = localStorage.getItem("lastVnPayTransactionId");
+    if (!transactionId) {
+      console.warn("Không tìm thấy lastVnPayTransactionId trong localStorage");
+      return;
+    }
+
+    const isSuccess =
+      vnpResponseCode === "00" && vnpTransStatus === "00";
+
+    const validatePayment = async () => {
+      try {
+        const token = localStorage.getItem("accessToken") || "";
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+        if (token) headers.Authorization = `Bearer ${token}`;
+
+        const body = { transactionId }; 
+
+        const res = await api.post<PaymentResultApi>(
+          "/api/VNPay/validate",
+          body,
+          headers
+        );
+
+        const payload = (res?.data as any) ?? res;
+        const result: PaymentResult =
+          (payload?.data as PaymentResult) ?? (payload as PaymentResult);
+
+        if (isSuccess) {
+          toast.success(
+            `Nạp tiền thành công${
+              result.amount != null
+                ? `: ${result.amount.toLocaleString("vi-VN")} VND`
+                : ""
+            }`
+          );
+        } else {
+          toast.error("Thanh toán VNPay thất bại hoặc bị hủy.");
+        }
+
+        localStorage.removeItem("lastVnPayTransactionId");
+
+        navigate("/customer/wallet", { replace: true });
+      } catch (err: any) {
+        console.error(err);
+        toast.error(err?.message || "Có lỗi khi xác nhận thanh toán VNPay.");
+      }
+    };
+
+    validatePayment();
+  }, [location.search, navigate]);
 
   return (
     <div className="min-h-screen bg-background">
       <Navigation userType="customer" queueCount={0} />
-      
+
       <div className="container mx-auto px-4 py-8 max-w-6xl">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground mb-2">Ví của tôi</h1>
-          <p className="text-muted-foreground">Quản lý số dư và theo dõi lịch sử giao dịch</p>
+          <h1 className="text-3xl font-bold text-foreground mb-2">
+            Ví của tôi
+          </h1>
+          <p className="text-muted-foreground">
+            Quản lý số dư và theo dõi lịch sử giao dịch
+          </p>
         </div>
 
         {/* Balance Card */}
@@ -192,11 +304,12 @@ export default function Wallet() {
                   </p>
                   <div className="flex items-center gap-2 text-primary-foreground/80">
                     <TrendingUp className="h-4 w-4" />
-                    <span className="text-sm">+{formatCurrency(500000)} trong tháng này</span>
+                    <span className="text-sm">
+                      +{formatCurrency(500000)} trong tháng này
+                    </span>
                   </div>
                 </div>
 
-                {/* 🔹 Nút Nạp tiền mở modal */}
                 <Dialog open={isTopupOpen} onOpenChange={setIsTopupOpen}>
                   <Button
                     className="bg-primary-foreground text-primary hover:bg-primary-foreground/90"
@@ -227,16 +340,25 @@ export default function Wallet() {
                       </div>
                       {topupAmount && (
                         <p className="text-xs text-muted-foreground">
-                          Bạn đang nạp: <span className="font-semibold">{topupAmount} VND</span>
+                          Bạn đang nạp:{" "}
+                          <span className="font-semibold">
+                            {topupAmount} VND
+                          </span>
                         </p>
                       )}
                     </div>
 
                     <DialogFooter>
-                      <Button variant="outline" onClick={() => setIsTopupOpen(false)}>
+                      <Button
+                        variant="outline"
+                        onClick={() => setIsTopupOpen(false)}
+                      >
                         Hủy
                       </Button>
-                      <Button onClick={handleConfirmTopup} disabled={!topupAmount}>
+                      <Button
+                        onClick={handleConfirmTopup}
+                        disabled={!topupAmount}
+                      >
                         Nạp tiền
                       </Button>
                     </DialogFooter>
@@ -256,8 +378,12 @@ export default function Wallet() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground mb-1">Tổng nạp</p>
-                  <p className="text-2xl font-bold text-success">{formatCurrency(1500000)}</p>
+                  <p className="text-sm text-muted-foreground mb-1">
+                    Tổng nạp
+                  </p>
+                  <p className="text-2xl font-bold text-success">
+                    {formatCurrency(1500000)}
+                  </p>
                 </div>
                 <div className="p-3 bg-success/10 rounded-lg">
                   <ArrowDownLeft className="h-6 w-6 text-success" />
@@ -270,8 +396,12 @@ export default function Wallet() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground mb-1">Tổng chi tiêu</p>
-                  <p className="text-2xl font-bold text-destructive">{formatCurrency(350000)}</p>
+                  <p className="text-sm text-muted-foreground mb-1">
+                    Tổng chi tiêu
+                  </p>
+                  <p className="text-2xl font-bold text-destructive">
+                    {formatCurrency(350000)}
+                  </p>
                 </div>
                 <div className="p-3 bg-destructive/10 rounded-lg">
                   <ArrowUpRight className="h-6 w-6 text-destructive" />
@@ -284,8 +414,12 @@ export default function Wallet() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground mb-1">Giao dịch</p>
-                  <p className="text-2xl font-bold text-foreground">{transactions.length}</p>
+                  <p className="text-sm text-muted-foreground mb-1">
+                    Giao dịch
+                  </p>
+                  <p className="text-2xl font-bold text-foreground">
+                    {transactions.length}
+                  </p>
                 </div>
                 <div className="p-3 bg-primary/10 rounded-lg">
                   <Clock className="h-6 w-6 text-primary" />
@@ -299,7 +433,9 @@ export default function Wallet() {
         <Card>
           <CardHeader>
             <CardTitle className="text-2xl">Lịch sử giao dịch</CardTitle>
-            <CardDescription>Tất cả các giao dịch qua VNPay và thanh toán</CardDescription>
+            <CardDescription>
+              Tất cả các giao dịch qua VNPay và thanh toán
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
@@ -327,7 +463,11 @@ export default function Wallet() {
                       </div>
                     </div>
                     <div className="text-right ml-4">
-                      <p className={`text-xl font-bold ${getTransactionColor(transaction.type)}`}>
+                      <p
+                        className={`text-xl font-bold ${getTransactionColor(
+                          transaction.type
+                        )}`}
+                      >
                         {transaction.amount > 0 ? "+" : ""}
                         {formatCurrency(transaction.amount)}
                       </p>

@@ -202,33 +202,37 @@ export function VendorRegisterDialog({
   }, [isOpen]);
 
   async function handleTopupViaVnPay() {
-  try {
-    const amountNeeded = Math.max(REGISTER_FEE - (walletBalance ?? 0), 0);
+    try {
+      const amountNeeded = Math.max(REGISTER_FEE - (walletBalance ?? 0), 0);
 
-    if (amountNeeded <= 0) {
-      toast.message("Số dư đã đủ hoặc không xác định số tiền cần nạp.");
-      return;
+      if (amountNeeded <= 0) {
+        toast.message("Số dư đã đủ hoặc không xác định số tiền cần nạp.");
+        return;
+      }
+
+      const token = localStorage.getItem("accessToken") || "";
+      const headers: Record<string, string> = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      const res = await api.post<VnPayCreateUrlResponse >(
+        "/api/VNPay/create-payment",
+        { amount: amountNeeded }, 
+        headers
+      );
+
+      console.log("VNPay URL response:", res);
+
+      const paymentUrl = res.paymentUrl;
+      if (!paymentUrl) {
+        throw new Error("Không lấy được link thanh toán VNPay.");
+      }
+
+      window.location.href = paymentUrl;
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err?.message || "Có lỗi khi tạo giao dịch VNPay.");
     }
-
-    const token = localStorage.getItem("accessToken") || "";
-    const headers: Record<string, string> = {};
-    if (token) headers.Authorization = `Bearer ${token}`;
-
-    const res = await api.get<VnPayCreateUrlResponse>(
-      `/api/wallet/topup/vnpay-url?amount=${amountNeeded}`,
-      headers
-    );
-    console.log("VNPay URL response:", res);
-    if (!res || !res.paymentUrl) {
-      throw new Error("Không lấy được link thanh toán VNPay.");
-    }
-
-    window.location.href = res.paymentUrl;
-  } catch (err) {
-    console.error(err);
-    toast.error(err?.message || "Có lỗi khi tạo giao dịch VNPay.");
   }
-}
   async function lookupAccountName() {
     try {
       if (!selectedBankBin) {
@@ -854,7 +858,7 @@ export function VendorRegisterDialog({
                     </AlertDescription>
                   </Alert>
 
-                  {/* <Button
+                  <Button
                     className="w-full"
                     onClick={handleCheckBalanceAndOpenDialog}
                     disabled={submitting || checkingBalance}
@@ -862,8 +866,8 @@ export function VendorRegisterDialog({
                     {submitting || checkingBalance
                       ? "Đang xử lý..."
                       : "Thanh toán và gửi yêu cầu đăng ký"}
-                  </Button> */}
-                  <Button
+                  </Button>
+                  {/* <Button
                     className="w-full"
                     onClick={handleSubmit}
                     disabled={submitting}
@@ -871,7 +875,7 @@ export function VendorRegisterDialog({
                     {submitting
                       ? "Đang gửi..."
                       : "Thanh toán và gửi yêu cầu đăng ký"}
-                  </Button>
+                  </Button> */}
                 </CardContent>
               </Card>
             </TabsContent>
