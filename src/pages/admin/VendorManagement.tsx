@@ -317,7 +317,7 @@ const VendorManagement = () => {
     if (s === "menupending" || s === "menu_pending")
       return (
         <Badge variant="outline" className="border-warning text-warning">
-          Chờ cập nhật menu
+          Chờ phê duyệt
         </Badge>
       );
     if (s === "closurerequested" || s === "closure_requested")

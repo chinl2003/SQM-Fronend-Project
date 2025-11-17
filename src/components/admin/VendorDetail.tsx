@@ -128,9 +128,15 @@ const fmtDate = (iso?: string) => {
 
 function buildMediaUrl(path?: string | null) {
   if (!path) return "";
-  if (path.startsWith("http")) return path;
+
+  if (/^https?:\/\//i.test(path)) return path;
+
+  if (path.startsWith("s3-api.")) {
+    return `https://${path.replace(/^\/+/, "")}`;
+  }
+
   const base = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
-  return `${base}/${(path || "").replace(/^\/+/, "")}`;
+  return `${base}/${path.replace(/^\/+/, "")}`;
 }
 
 function priceVN(n?: number | null) {
