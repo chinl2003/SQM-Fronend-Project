@@ -14,6 +14,17 @@ import {
   CreditCard
 } from "lucide-react";
 
+// ➕ Thêm Dialog & Input
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+
 interface Transaction {
   id: string;
   type: "deposit" | "payment" | "refund";
@@ -76,11 +87,32 @@ export default function Wallet() {
   const [balance] = useState(1150000);
   const [transactions] = useState(mockTransactions);
 
+  // 🔹 State cho modal nạp tiền & số tiền nhập
+  const [isTopupOpen, setIsTopupOpen] = useState(false);
+  const [topupAmount, setTopupAmount] = useState("");
+
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('vi-VN', {
-      style: 'currency',
-      currency: 'VND'
+    return new Intl.NumberFormat("vi-VN", {
+      style: "currency",
+      currency: "VND",
     }).format(amount);
+  };
+
+  // 🔹 Format input: chỉ cho số, tự thêm dấu phẩy mỗi 3 số
+  const handleTopupAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+
+    // Bỏ hết dấu phẩy và ký tự không phải số
+    const numeric = value.replace(/,/g, "").replace(/\D/g, "");
+
+    if (!numeric) {
+      setTopupAmount("");
+      return;
+    }
+
+    // Thêm dấu phẩy mỗi 3 số
+    const formatted = numeric.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    setTopupAmount(formatted);
   };
 
   const getTransactionIcon = (type: string) => {
@@ -122,6 +154,18 @@ export default function Wallet() {
     }
   };
 
+  // (Tuỳ bạn) handler xác nhận nạp tiền
+  const handleConfirmTopup = () => {
+    // Chuyển topupAmount (string có dấu phẩy) về số:
+    const numeric = Number(topupAmount.replace(/,/g, ""));
+    console.log("Nạp số tiền:", numeric, "VND");
+    // TODO: call API nạp tiền ở đây
+
+    // Đóng modal sau khi xác nhận
+    setIsTopupOpen(false);
+    setTopupAmount("");
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Navigation userType="customer" queueCount={0} />
@@ -151,13 +195,53 @@ export default function Wallet() {
                     <span className="text-sm">+{formatCurrency(500000)} trong tháng này</span>
                   </div>
                 </div>
-                <Button 
-                  className="bg-primary-foreground text-primary hover:bg-primary-foreground/90"
-                  size="lg"
-                >
-                  <Plus className="h-5 w-5 mr-2" />
-                  Nạp tiền
-                </Button>
+
+                {/* 🔹 Nút Nạp tiền mở modal */}
+                <Dialog open={isTopupOpen} onOpenChange={setIsTopupOpen}>
+                  <Button
+                    className="bg-primary-foreground text-primary hover:bg-primary-foreground/90"
+                    size="lg"
+                    onClick={() => setIsTopupOpen(true)}
+                  >
+                    <Plus className="h-5 w-5 mr-2" />
+                    Nạp tiền
+                  </Button>
+
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Nạp tiền vào ví</DialogTitle>
+                    </DialogHeader>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-foreground">
+                        Số tiền
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          placeholder="Vui lòng nhập số tiền cần nạp vào ví"
+                          inputMode="numeric"
+                          value={topupAmount}
+                          onChange={handleTopupAmountChange}
+                          className="text-left text-lg"
+                        />
+                      </div>
+                      {topupAmount && (
+                        <p className="text-xs text-muted-foreground">
+                          Bạn đang nạp: <span className="font-semibold">{topupAmount} VND</span>
+                        </p>
+                      )}
+                    </div>
+
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setIsTopupOpen(false)}>
+                        Hủy
+                      </Button>
+                      <Button onClick={handleConfirmTopup} disabled={!topupAmount}>
+                        Nạp tiền
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
               </div>
               <div className="p-4 bg-primary-foreground/10 rounded-2xl backdrop-blur-sm">
                 <CreditCard className="h-12 w-12 text-primary-foreground" />
@@ -244,7 +328,8 @@ export default function Wallet() {
                     </div>
                     <div className="text-right ml-4">
                       <p className={`text-xl font-bold ${getTransactionColor(transaction.type)}`}>
-                        {transaction.amount > 0 ? '+' : ''}{formatCurrency(transaction.amount)}
+                        {transaction.amount > 0 ? "+" : ""}
+                        {formatCurrency(transaction.amount)}
                       </p>
                     </div>
                   </div>
