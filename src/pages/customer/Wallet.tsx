@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Navigation } from "@/components/Navigation";
 import {
@@ -32,6 +32,55 @@ import { Input } from "@/components/ui/input";
 import { api, ApiResponse } from "@/lib/api";
 import { toast } from "sonner";
 
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
+
+type WalletTransactionStatus = 0 | 1 | 2 | 3 | 4;
+type WalletTransactionType =
+  | 0
+  | 1
+  | 2
+  | 3
+  | 4
+  | 5
+  | 6
+  | 7
+  | 8;
+
+type TransactionResponseDto = {
+  id?: string | null;
+  amount: number;
+  date: string;
+  type?: WalletTransactionType | null;
+  status?: WalletTransactionStatus | null;
+  externalTransactionId?: string | null;
+  bankCode?: string | null;
+  bankReference?: string | null;
+  paymentMethod?: string | null;
+  paymentContent?: string | null;
+  responseCode?: string | null;
+  secureHash?: string | null;
+  message?: string | null;
+  walletBalance: number;
+};
+
+type WalletHistoryPageDto = {
+  data: TransactionResponseDto[];
+  totalRecords: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
+};
+
+type WalletHistoryApiResponse = ApiResponse<WalletHistoryPageDto>;
+
 interface Transaction {
   id: string;
   type: "deposit" | "payment" | "refund";
@@ -47,66 +96,66 @@ type PaymentResponse = {
   transactionId: string;
   amount: number;
 };
-
 type PaymentResponseApi = ApiResponse<PaymentResponse>;
 
 type PaymentResult = { code: string; amount?: number };
 type PaymentResultApi = ApiResponse<PaymentResult>;
 
-const mockTransactions: Transaction[] = [
-  {
-    id: "1",
-    type: "deposit",
-    amount: 500000,
-    description: "Nạp tiền qua VNPay",
-    date: "2024-01-15 14:30",
-    status: "completed",
-    paymentMethod: "VNPay",
-  },
-  {
-    id: "2",
-    type: "payment",
-    amount: -150000,
-    description: "Thanh toán đơn hàng #12345",
-    date: "2024-01-14 10:15",
-    status: "completed",
-    paymentMethod: "Ví Smart Queue",
-  },
-  {
-    id: "3",
-    type: "deposit",
-    amount: 1000000,
-    description: "Nạp tiền qua VNPay",
-    date: "2024-01-13 09:20",
-    status: "completed",
-    paymentMethod: "VNPay",
-  },
-  {
-    id: "4",
-    type: "payment",
-    amount: -200000,
-    description: "Thanh toán đơn hàng #12344",
-    date: "2024-01-12 16:45",
-    status: "completed",
-    paymentMethod: "Ví Smart Queue",
-  },
-  {
-    id: "5",
-    type: "refund",
-    amount: 150000,
-    description: "Hoàn tiền đơn hàng #12343",
-    date: "2024-01-11 11:30",
-    status: "completed",
-    paymentMethod: "Ví Smart Queue",
-  },
-];
+function mapType(t?: WalletTransactionType | null): Transaction["type"] {
+  switch (t) {
+    case 0:
+      return "deposit";
+    case 2:
+      return "refund";
+    case 1:
+    case 3:
+    case 4:
+    case 5:
+    case 6:
+    case 7:
+    case 8:
+    default:
+      return "payment";
+  }
+}
+
+function mapStatus(s?: WalletTransactionStatus | null): Transaction["status"] {
+  switch (s) {
+    case 2:
+      return "completed";
+    case 3:
+    case 4:
+      return "failed";
+    case 0:
+    case 1:
+    default:
+      return "pending";
+  }
+}
+
+const STATUS_FILTER_LABEL: Record<string, string> = {
+  all: "Tất cả trạng thái",
+  "0": "Chờ xử lý",
+  "1": "Đang xử lý",
+  "2": "Thành công",
+  "3": "Thất bại",
+  "4": "Đã hủy",
+};
 
 export default function Wallet() {
-  const [balance] = useState(1150000);
-  const [transactions] = useState(mockTransactions);
+  const [balance, setBalance] = useState<number>(0);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
   const [isTopupOpen, setIsTopupOpen] = useState(false);
   const [topupAmount, setTopupAmount] = useState("");
+
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize] = useState<number>(10);
+  const [totalPages, setTotalPages] = useState<number>(1);
+  const [totalRecords, setTotalRecords] = useState<number>(0);
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -118,7 +167,9 @@ export default function Wallet() {
     }).format(amount);
   };
 
-  const handleTopupAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleTopupAmountChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const value = e.target.value;
     const numeric = value.replace(/,/g, "").replace(/\D/g, "");
 
@@ -157,7 +208,7 @@ export default function Wallet() {
     }
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: Transaction["status"]) => {
     switch (status) {
       case "completed":
         return (
@@ -177,6 +228,7 @@ export default function Wallet() {
         return <Badge variant="secondary">Không xác định</Badge>;
     }
   };
+
   const handleConfirmTopup = async () => {
     try {
       const numeric = Number(topupAmount.replace(/,/g, ""));
@@ -204,7 +256,6 @@ export default function Wallet() {
       }
 
       localStorage.setItem("lastVnPayTransactionId", payment.transactionId);
-
       window.location.href = payment.paymentUrl;
     } catch (err: any) {
       console.error(err);
@@ -236,13 +287,16 @@ export default function Wallet() {
         if (storedTransactionId) {
           allParams.TransactionId = storedTransactionId;
         }
+
         const res = await api.post<PaymentResultApi>(
           "/api/VNPay/validate",
           allParams,
           headers
         );
 
-        const result: PaymentResult = res.data ?? res;
+        const payload = (res?.data as any) ?? res;
+        const result: PaymentResult =
+          (payload?.data as PaymentResult) ?? (payload as PaymentResult);
 
         if (allParams["vnp_ResponseCode"] === "00") {
           toast.success(
@@ -265,22 +319,120 @@ export default function Wallet() {
     validatePayment();
   }, [location.search, navigate]);
 
+  useEffect(() => {
+    const fetchHistory = async () => {
+      try {
+        setLoadingHistory(true);
+
+        const token = localStorage.getItem("accessToken") || "";
+        const headers: Record<string, string> = {};
+        if (token) headers.Authorization = `Bearer ${token}`;
+
+        const params = new URLSearchParams({
+          pageNumber: currentPage.toString(),
+          pageSize: pageSize.toString(),
+        });
+        if (statusFilter !== "all") {
+          params.append("status", statusFilter);
+        }
+
+        const res = await api.get<WalletHistoryApiResponse>(
+          `/api/wallet/history?${params.toString()}`,
+          headers
+        );
+
+        const page = res.data;
+        const items: TransactionResponseDto[] = page?.data ?? [];
+
+        setTotalRecords(page?.totalRecords ?? 0);
+        setTotalPages(page?.totalPages ?? 1);
+
+        if (items.length > 0) {
+          setBalance(items[0].walletBalance);
+        } else {
+          setBalance(0);
+        }
+
+        const mapped: Transaction[] = items.map((tr) => ({
+          id: tr.id ?? "",
+          amount: tr.amount,
+          date: new Date(tr.date).toLocaleString("vi-VN"),
+          type: mapType(tr.type ?? undefined),
+          status: mapStatus(tr.status ?? undefined),
+          paymentMethod: tr.paymentMethod || "VNPay",
+          description:
+            tr.message ||
+            (tr.type === 0 ? "Nạp tiền vào ví" : "Giao dịch ví"),
+        }));
+
+        setTransactions(mapped);
+      } catch (err: any) {
+        console.error(err);
+        toast.error(err?.message || "Không tải được lịch sử ví.");
+      } finally {
+        setLoadingHistory(false);
+      }
+    };
+
+    fetchHistory();
+  }, [statusFilter, currentPage, pageSize]);
+
+  const totalDeposit = useMemo(
+    () =>
+      transactions
+        .filter((t) => t.type === "deposit" && t.amount > 0)
+        .reduce((sum, t) => sum + t.amount, 0),
+    [transactions]
+  );
+
+  const totalSpending = useMemo(
+    () =>
+      transactions
+        .filter((t) => t.type === "payment" && t.amount < 0)
+        .reduce((sum, t) => sum + t.amount, 0),
+    [transactions]
+  );
+
   return (
     <div className="min-h-screen bg-background">
       <Navigation userType="customer" queueCount={0} />
 
-      <div className="container mx-auto px-4 py-8 max-w-6xl">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground mb-2">
-            Ví của tôi
-          </h1>
-          <p className="text-muted-foreground">
-            Quản lý số dư và theo dõi lịch sử giao dịch
-          </p>
+      <div className="w-full px-4 py-8">
+        <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground mb-2">
+              Ví của tôi
+            </h1>
+            <p className="text-muted-foreground">
+              Quản lý số dư và theo dõi lịch sử giao dịch
+            </p>
+          </div>
+
+          <div className="w-full md:w-64">
+            <Select
+              value={statusFilter}
+              onValueChange={(val) => {
+                setStatusFilter(val);
+                setCurrentPage(1);
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Lọc theo trạng thái" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">
+                  {STATUS_FILTER_LABEL["all"]}
+                </SelectItem>
+                <SelectItem value="0">{STATUS_FILTER_LABEL["0"]}</SelectItem>
+                <SelectItem value="1">{STATUS_FILTER_LABEL["1"]}</SelectItem>
+                <SelectItem value="2">{STATUS_FILTER_LABEL["2"]}</SelectItem>
+                <SelectItem value="3">{STATUS_FILTER_LABEL["3"]}</SelectItem>
+                <SelectItem value="4">{STATUS_FILTER_LABEL["4"]}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
-        {/* Balance Card */}
         <Card className="mb-8 bg-gradient-to-br from-primary via-primary-light to-primary-dark border-0 shadow-lg">
           <CardContent className="p-8">
             <div className="flex items-start justify-between">
@@ -296,7 +448,7 @@ export default function Wallet() {
                   <div className="flex items-center gap-2 text-primary-foreground/80">
                     <TrendingUp className="h-4 w-4" />
                     <span className="text-sm">
-                      +{formatCurrency(500000)} trong tháng này
+                      +{formatCurrency(totalDeposit)} tổng nạp
                     </span>
                   </div>
                 </div>
@@ -363,15 +515,16 @@ export default function Wallet() {
           </CardContent>
         </Card>
 
-        {/* Quick Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground mb-1">Tổng nạp</p>
+                  <p className="text-sm text-muted-foreground mb-1">
+                    Tổng nạp
+                  </p>
                   <p className="text-2xl font-bold text-success">
-                    {formatCurrency(1500000)}
+                    {formatCurrency(totalDeposit)}
                   </p>
                 </div>
                 <div className="p-3 bg-success/10 rounded-lg">
@@ -389,7 +542,7 @@ export default function Wallet() {
                     Tổng chi tiêu
                   </p>
                   <p className="text-2xl font-bold text-destructive">
-                    {formatCurrency(350000)}
+                    {formatCurrency(Math.abs(totalSpending))}
                   </p>
                 </div>
                 <div className="p-3 bg-destructive/10 rounded-lg">
@@ -418,7 +571,6 @@ export default function Wallet() {
           </Card>
         </div>
 
-        {/* Transaction History */}
         <Card>
           <CardHeader>
             <CardTitle className="text-2xl">Lịch sử giao dịch</CardTitle>
@@ -427,45 +579,88 @@ export default function Wallet() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {transactions.map((transaction, index) => (
-                <div key={transaction.id}>
-                  <div className="flex items-center justify-between py-4">
-                    <div className="flex items-start gap-4 flex-1">
-                      <div className="p-3 bg-muted rounded-lg">
-                        {getTransactionIcon(transaction.type)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-foreground mb-1">
-                          {transaction.description}
-                        </p>
-                        <div className="flex items-center gap-3 text-sm text-muted-foreground flex-wrap">
-                          <span className="flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            {transaction.date}
-                          </span>
-                          <span>•</span>
-                          <span>{transaction.paymentMethod}</span>
-                          <span>•</span>
-                          {getStatusBadge(transaction.status)}
+            {loadingHistory ? (
+              <p className="text-sm text-muted-foreground">
+                Đang tải lịch sử giao dịch...
+              </p>
+            ) : transactions.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Chưa có giao dịch nào.
+              </p>
+            ) : (
+              <>
+                <div className="space-y-4">
+                  {transactions.map((transaction, index) => (
+                    <div key={transaction.id}>
+                      <div className="flex items-center justify-between py-4">
+                        <div className="flex items-start gap-4 flex-1">
+                          <div className="p-3 bg-muted rounded-lg">
+                            {getTransactionIcon(transaction.type)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-foreground mb-1">
+                              {transaction.description}
+                            </p>
+                            <div className="flex items-center gap-3 text-sm text-muted-foreground flex-wrap">
+                              <span className="flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                {transaction.date}
+                              </span>
+                              <span>•</span>
+                              <span>{transaction.paymentMethod}</span>
+                              <span>•</span>
+                              {getStatusBadge(transaction.status)}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right ml-4">
+                          <p
+                            className={`text-xl font-bold ${getTransactionColor(
+                              transaction.type
+                            )}`}
+                          >
+                            {transaction.amount > 0 ? "+" : ""}
+                            {formatCurrency(transaction.amount)}
+                          </p>
                         </div>
                       </div>
+                      {index < transactions.length - 1 && <Separator />}
                     </div>
-                    <div className="text-right ml-4">
-                      <p
-                        className={`text-xl font-bold ${getTransactionColor(
-                          transaction.type
-                        )}`}
-                      >
-                        {transaction.amount > 0 ? "+" : ""}
-                        {formatCurrency(transaction.amount)}
-                      </p>
-                    </div>
-                  </div>
-                  {index < transactions.length - 1 && <Separator />}
+                  ))}
                 </div>
-              ))}
-            </div>
+
+                <div className="mt-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    Trang {currentPage} / {totalPages} • Tổng{" "}
+                    {totalRecords.toLocaleString("vi-VN")} giao dịch
+                  </p>
+                  <div className="flex items-center gap-2 justify-end">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={currentPage <= 1}
+                      onClick={() =>
+                        setCurrentPage((prev) => Math.max(prev - 1, 1))
+                      }
+                    >
+                      Trang trước
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={currentPage >= totalPages}
+                      onClick={() =>
+                        setCurrentPage((prev) =>
+                          Math.min(prev + 1, totalPages)
+                        )
+                      }
+                    >
+                      Trang sau
+                    </Button>
+                  </div>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
