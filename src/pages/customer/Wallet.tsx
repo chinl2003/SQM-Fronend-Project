@@ -118,9 +118,7 @@ export default function Wallet() {
     }).format(amount);
   };
 
-  const handleTopupAmountChange = (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
+  const handleTopupAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     const numeric = value.replace(/,/g, "").replace(/\D/g, "");
 
@@ -193,7 +191,7 @@ export default function Wallet() {
 
       const res = await api.post<PaymentResponseApi>(
         "/api/VNPay/create-payment",
-        { amount: numeric }, 
+        { amount: numeric },
         headers
       );
 
@@ -216,19 +214,13 @@ export default function Wallet() {
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    const vnpResponseCode = params.get("vnp_ResponseCode");
-    const vnpTransStatus = params.get("vnp_TransactionStatus");
 
-    if (!vnpResponseCode || !vnpTransStatus) return;
+    if (!params.has("vnp_TxnRef")) return;
 
-    const transactionId = localStorage.getItem("lastVnPayTransactionId");
-    if (!transactionId) {
-      console.warn("Không tìm thấy lastVnPayTransactionId trong localStorage");
-      return;
-    }
-
-    const isSuccess =
-      vnpResponseCode === "00" && vnpTransStatus === "00";
+    const allParams: Record<string, string> = {};
+    params.forEach((value, key) => {
+      allParams[key] = value;
+    });
 
     const validatePayment = async () => {
       try {
@@ -238,32 +230,31 @@ export default function Wallet() {
         };
         if (token) headers.Authorization = `Bearer ${token}`;
 
-        const body = { transactionId }; 
-
+        const storedTransactionId = localStorage.getItem(
+          "lastVnPayTransactionId"
+        );
+        if (storedTransactionId) {
+          allParams.TransactionId = storedTransactionId;
+        }
         const res = await api.post<PaymentResultApi>(
           "/api/VNPay/validate",
-          body,
+          allParams,
           headers
         );
 
-        const payload = (res?.data as any) ?? res;
-        const result: PaymentResult =
-          (payload?.data as PaymentResult) ?? (payload as PaymentResult);
+        const result: PaymentResult = res.data ?? res;
 
-        if (isSuccess) {
+        if (allParams["vnp_ResponseCode"] === "00") {
           toast.success(
-            `Nạp tiền thành công${
-              result.amount != null
-                ? `: ${result.amount.toLocaleString("vi-VN")} VND`
-                : ""
-            }`
+            `Nạp tiền thành công: ${(result.amount ?? 0).toLocaleString(
+              "vi-VN"
+            )} VND`
           );
         } else {
           toast.error("Thanh toán VNPay thất bại hoặc bị hủy.");
         }
 
         localStorage.removeItem("lastVnPayTransactionId");
-
         navigate("/customer/wallet", { replace: true });
       } catch (err: any) {
         console.error(err);
@@ -378,9 +369,7 @@ export default function Wallet() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground mb-1">
-                    Tổng nạp
-                  </p>
+                  <p className="text-sm text-muted-foreground mb-1">Tổng nạp</p>
                   <p className="text-2xl font-bold text-success">
                     {formatCurrency(1500000)}
                   </p>
