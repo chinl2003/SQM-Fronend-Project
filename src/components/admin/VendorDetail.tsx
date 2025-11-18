@@ -129,7 +129,7 @@ const fmtDate = (iso?: string) => {
 function buildMediaUrl(path?: string | null) {
   if (!path) return "";
   if (path.startsWith("http")) return path;
-  const base = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
+  const base = (import.meta.env.VITE_S3_URL || "").replace(/\/+$/, "");
   return `${base}/${(path || "").replace(/^\/+/, "")}`;
 }
 
