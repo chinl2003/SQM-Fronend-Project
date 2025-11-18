@@ -131,7 +131,7 @@ const fmtDate = (iso?: string) => {
 function buildMediaUrl(path?: string) {
   if (!path) return "";
   if (path.startsWith("http")) return path;
-  const base = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
+  const base = (import.meta.env.VITE_S3_URL || "").replace(/\/+$/, "");
   return `${base}/${path.replace(/^\/+/, "")}`;
 }
 
@@ -524,7 +524,7 @@ const VendorManagement = () => {
                                   src={
                                     v.logoUrl.startsWith("http")
                                       ? v.logoUrl
-                                      : `${import.meta.env.VITE_API_URL || ""}/${v.logoUrl}`
+                                      : `${import.meta.env.VITE_S3_URL || ""}/${v.logoUrl}`
                                   }
                                   alt={v.name}
                                   className="object-cover w-full h-full rounded-xl"
@@ -650,7 +650,7 @@ const VendorManagement = () => {
                                 src={
                                   v.logoUrl.startsWith("http")
                                     ? v.logoUrl
-                                    : `${import.meta.env.VITE_API_URL || ""}/${v.logoUrl}`
+                                    : `${import.meta.env.VITE_S3_URL || ""}/${v.logoUrl}`
                                 }
                                 alt={v.name}
                                 className="w-full h-full object-cover rounded-lg"

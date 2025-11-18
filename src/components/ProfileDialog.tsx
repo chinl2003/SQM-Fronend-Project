@@ -36,7 +36,7 @@ export function ProfileDialog({ isOpen, onClose, userId }: ProfileDialogProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<Profile | null>(null);
   const [uploading, setUploading] = useState(false);
-
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const loadUserData = useCallback(async () => {
     if (!userId) return;
     setIsLoading(true);
@@ -55,12 +55,11 @@ export function ProfileDialog({ isOpen, onClose, userId }: ProfileDialogProps) {
             full_name: response.data.fullName,
             phone: response.data.phoneNumber,
             address: null,
-            avatar_url: null, 
+            avatar_url: response.data.imagePath,
             email: response.data.email,
             date_of_birth: response.data.birthday,
             gender: response.data.gender === "True" ? "male" : "female", 
         };
-
         setProfile(mappedProfile);
         setEditForm(mappedProfile);
     } catch (error) {
@@ -83,6 +82,7 @@ export function ProfileDialog({ isOpen, onClose, userId }: ProfileDialogProps) {
       if (!file) return;
 
       setUploading(true);
+      setAvatarFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
         setEditForm(prev => prev ? { ...prev, avatar_url: reader.result as string } : null);
@@ -97,17 +97,22 @@ export function ProfileDialog({ isOpen, onClose, userId }: ProfileDialogProps) {
 
   const handleUpdateProfile = async () => {
     if (!editForm || !profile) return;
+      const formData = new FormData();
+      formData.append("FullName", editForm.full_name);
+      formData.append("Gender", editForm.gender);
+      formData.append("Birthday", editForm.date_of_birth || "");
 
+      // ⬅ Only append if the user uploaded avatar
+      if (avatarFile) {
+          formData.append("ImageFile", avatarFile);   // required for MinIO upload
+      }
     try {
         const response = await api.put<ApiResponse<any>>(
         `/api/account/update/${profile.user_id}`,
-        {
-            FullName: editForm.full_name,
-            Gender: editForm.gender,           
-            Birthday: editForm.date_of_birth ? new Date(editForm.date_of_birth) : null
-        },
+            formData,
         {
             Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
+            "Content-Type": "multipart/form-data",
         }
         );
 
