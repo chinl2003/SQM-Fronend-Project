@@ -281,7 +281,7 @@ export function ViewQueueDetailDialog({
                     )}
                     <span className="text-sm">
                       {queueItem.paymentMethod === "vnpay"
-                        ? "VNPAY"
+                        ? "Thanh toán qua ví"
                         : "Tiền mặt"}
                     </span>
                   </div>

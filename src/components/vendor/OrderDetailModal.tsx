@@ -161,7 +161,7 @@ export const OrderDetailModal = ({ isOpen, onClose, order, onUpdateOrder }: Orde
   };
 
   const getPaymentMethodText = (method: string) => {
-    return method === 'cash' ? 'Tiền mặt' : 'Thanh toán qua VNPay';
+    return method === 'cash' ? 'Tiền mặt' : 'Thanh toán qua ví';
   };
 
   // Return early if order is null to prevent errors

@@ -1,3 +1,4 @@
+// src/pages/ActiveQueue.tsx
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Navigation } from "@/components/Navigation";
@@ -325,11 +326,11 @@ function mapOrderToQueueItem(
       price: d.unitPrice ?? 0,
     })),
     totalAmount: o.totalPrice ?? 0,
-    paymentMethod: o.paymentMethod === 1 ? "vnpay" : "cash",
+    paymentMethod: (o as any).paymentMethod === 1 ? "vnpay" : "cash",
     paymentStatus:
-      o.paymentStatus === 2
+      (o as any).paymentStatus === 2
         ? "paid"
-        : o.paymentStatus === 4
+        : (o as any).paymentStatus === 4
         ? "refunded"
         : "pending",
     orderTime: o.createdAt || new Date().toISOString(),
@@ -339,9 +340,12 @@ function mapOrderToQueueItem(
 }
 
 /** ====== COMPONENT ====== */
-type StatusTab = "pending" | "preparing" | "completed";
+// added "confirmed" to StatusTab
+type StatusTab = "pending" | "confirmed" | "preparing" | "completed";
+// updated mapping to include confirmed (4)
 const tabToApiStatus: Record<StatusTab, number> = {
   pending: 0, // Chưa xác nhận
+  confirmed: 4, // Đã xác nhận
   preparing: 5, // Đang chế biến (Prepareing)
   completed: 2, // Hoàn tất (Completed)
 };
@@ -460,7 +464,7 @@ export default function ActiveQueue() {
                   <Banknote className="h-3 w-3" />
                 )}
                 <span>
-                  {queueItem.paymentMethod === "vnpay" ? "VNPAY" : "Tiền mặt"}
+                  {queueItem.paymentMethod === "vnpay" ? "Thanh toán qua ví" : "Tiền mặt"}
                 </span>
               </div>
             </div>
@@ -548,8 +552,10 @@ export default function ActiveQueue() {
           onValueChange={(v) => setStatusTab(v as StatusTab)}
           className="space-y-4"
         >
-          <TabsList className="w-full grid grid-cols-3">
+          {/* tăng grid-cols -> 4 vì thêm tab confirmed */}
+          <TabsList className="w-full grid grid-cols-4">
             <TabsTrigger value="pending">Chưa xác nhận</TabsTrigger>
+            <TabsTrigger value="confirmed">Đã xác nhận</TabsTrigger>
             <TabsTrigger value="preparing">Đang chế biến</TabsTrigger>
             <TabsTrigger value="completed">Hoàn tất</TabsTrigger>
           </TabsList>
@@ -571,6 +577,8 @@ export default function ActiveQueue() {
                         <h3 className="text-lg font-medium mb-2">
                           {statusTab === "pending" &&
                             "Không có đơn hàng nào chờ xác nhận"}
+                          {statusTab === "confirmed" &&
+                            "Không có đơn hàng đã xác nhận"}
                           {statusTab === "preparing" &&
                             "Không có đơn hàng nào đang chế biến"}
                           {statusTab === "completed" &&
