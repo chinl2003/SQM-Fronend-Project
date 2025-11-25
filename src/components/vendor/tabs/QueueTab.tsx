@@ -20,20 +20,51 @@ type Props = {
 };
 
 export default function QueueTab({ vendor }: Props) {
+  const [liveCount, setLiveCount] = useState<number>(0);
+  const [preCount, setPreCount] = useState<number>(0);
+
+  // reset counts when vendor changes
+  useEffect(() => {
+    setLiveCount(0);
+    setPreCount(0);
+  }, [vendor?.id]);
+
+  const badgeCls =
+    "inline-flex items-center justify-center ml-2 min-w-[1.6rem] px-2 py-0.5 rounded-full text-xs font-semibold";
+
   return (
     <div className="space-y-4">
       <Tabs defaultValue="live" className="space-y-4">
         <TabsList className="w-full grid grid-cols-2">
-          <TabsTrigger value="live">Hàng đợi trực tiếp</TabsTrigger>
-          <TabsTrigger value="preorder">Hàng đợi đặt trước</TabsTrigger>
+          <TabsTrigger value="live" className="flex items-center">
+            <span>Hàng đợi trực tiếp</span>
+            <span className={`${badgeCls} bg-primary text-primary-foreground`}>
+              {liveCount}
+            </span>
+          </TabsTrigger>
+
+          <TabsTrigger value="preorder" className="flex items-center">
+            <span>Hàng đợi đặt trước</span>
+            <span className={`${badgeCls} bg-slate-200 text-slate-800`}>
+              {preCount}
+            </span>
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="live">
-          <QueueList vendorId={vendor?.id} queueType={1} />
+          <QueueList
+            vendorId={vendor?.id}
+            queueType={1}
+            onCountChange={(n) => setLiveCount(n)}
+          />
         </TabsContent>
 
         <TabsContent value="preorder">
-          <QueueList vendorId={vendor?.id} queueType={2} />
+          <QueueList
+            vendorId={vendor?.id}
+            queueType={2}
+            onCountChange={(n) => setPreCount(n)}
+          />
         </TabsContent>
       </Tabs>
     </div>
@@ -43,9 +74,11 @@ export default function QueueTab({ vendor }: Props) {
 function QueueList({
   vendorId,
   queueType,
+  onCountChange,
 }: {
   vendorId?: string;
   queueType: 1 | 2;
+  onCountChange?: (n: number) => void;
 }) {
   const [items, setItems] = useState<OrderWithDetailsDto[]>([]);
   const [loading, setLoading] = useState(false);
@@ -59,7 +92,6 @@ function QueueList({
   const [hasPreviousPage, setHasPreviousPage] = useState<boolean>(false);
 
   const parseResponse = (res: any): OrderWithDetailsDto[] => {
-    // helper: try unwrapOrders (existing util) first, it handles many shapes
     try {
       const arr = unwrapOrders<OrderWithDetailsDto>(res);
       if (Array.isArray(arr) && arr.length > 0) return arr;
@@ -67,7 +99,6 @@ function QueueList({
       // ignore
     }
 
-    // try typical paginated shape: res.data.data => { data: [...], totalRecords, page, pageSize, hasNextPage }
     const outer = (res as any)?.data ?? res;
     const pag = outer?.data ?? outer ?? null;
     if (pag) {
@@ -75,7 +106,6 @@ function QueueList({
       if (Array.isArray(pag)) return pag as OrderWithDetailsDto[];
     }
 
-    // fallback: if res is array directly
     if (Array.isArray(res)) return res as OrderWithDetailsDto[];
 
     return [];
@@ -87,6 +117,7 @@ function QueueList({
       setTotalRecords(0);
       setHasNextPage(false);
       setHasPreviousPage(false);
+      onCountChange?.(0);
       return;
     }
 
@@ -99,14 +130,10 @@ function QueueList({
         vendorId
       )}&queueType=${queueType}&pageNumber=${p}&pageSize=${pageSize}`;
 
-      console.debug("[QueueTab] requesting", { url, headers });
       const res = await api.get(url, headers);
 
       // parse items robustly
       const arr = parseResponse(res);
-      console.debug("[QueueTab] parsed items count", arr.length);
-
-      // If the helper returned empty, try direct unwrapOrders as last resort
       const orders =
         arr.length > 0 ? arr : unwrapOrders<OrderWithDetailsDto>(res) ?? [];
 
@@ -128,9 +155,13 @@ function QueueList({
       setHasNextPage(hasNext);
       setHasPreviousPage(hasPrev);
       setPage(pageFromResp);
+
+      // inform parent about count
+      onCountChange?.(total);
     } catch (err: any) {
       console.error("[QueueTab] load error", err);
       toast.error("Không tải được hàng đợi. Kiểm tra console.");
+      onCountChange?.(0);
     } finally {
       setLoading(false);
     }
@@ -163,12 +194,9 @@ function QueueList({
       case 1:
         return { text: "Đang xử lý", color: "bg-amber-500 text-white" };
       case 2:
-        return { text: "Đã thanh toán", color: "bg-blue-600 text-white" };
+        return { text: "Đã thanh toán", color: "bg-blue-600 text-white" }; // KHÔNG xanh lá
       case 3:
-        return {
-          text: "Thanh toán thất bại",
-          color: "bg-slate-600 text-white",
-        };
+        return { text: "Thanh toán thất bại", color: "bg-slate-600 text-white" };
       case 4:
         return { text: "Đã hoàn tiền", color: "bg-indigo-500 text-white" };
       default:
@@ -180,9 +208,9 @@ function QueueList({
     switch (s) {
       case 0:
       case 1:
-        return "Chờ xác nhận";
+        return "Xác nhận";
       case 4:
-        return "Chuẩn bị chế biến";
+        return "Chế biến";
       case 5:
         return "Sẵn sàng";
       case 6:
@@ -221,8 +249,8 @@ function QueueList({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tất cả trạng thái</SelectItem>
-            <SelectItem value="0">Chờ xác nhận</SelectItem>
-            <SelectItem value="4">Chuẩn bị chế biến</SelectItem>
+            <SelectItem value="0">Xác nhận</SelectItem>
+            <SelectItem value="4">Chế biến</SelectItem>
             <SelectItem value="5">Sẵn sàng</SelectItem>
             <SelectItem value="6">Hoàn tất</SelectItem>
             <SelectItem value="3">Đã hủy</SelectItem>
