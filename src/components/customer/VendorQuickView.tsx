@@ -44,7 +44,7 @@ type VendorModel = {
   id: string;
   name?: string | null;
   address?: string | null;
-  phone?: string | null;
+  ownerPhone?: string | null;
   openingHours?: string | null;
   averageRating?: number | null;
   queueCount?: number | null;
@@ -59,8 +59,9 @@ type VendorWithMenuResponse = {
 
 type VendorQueueSlim = {
   id: string;
-  type: number;  
-  status: number; 
+  type: number;
+  status: number;
+  positionMax?: number; // <-- thêm positionMax
 };
 
 // client-side request types (khớp API)
@@ -76,6 +77,8 @@ type OrderCreateRequest = {
   items: OrderItemCreate[];
   queueId: string;
   totalPrice?: number | null;
+  // gửi enum dưới dạng số: 1 = VNPay, 2 = Cash
+  paymentMethod?: number | null;
 };
 
 // ===== Helpers =====
@@ -101,19 +104,31 @@ export function VendorQuickView({
   open: boolean;
   vendorId: string | null;
   onClose: () => void;
-  customerId: string | null; 
+  customerId: string | null;
 }) {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [data, setData] = useState<VendorWithMenuResponse | null>(null);
+
+  // queueId: lấy queue type === 1 (Normal) như trước
   const queueId = useMemo(() => {
     return data?.vendorQueues?.find((q) => q.type === 1)?.id ?? null;
   }, [data]);
+
+  // positionMax lấy từ vendorQueues (type === 1), mặc định 0
+  const positionMax = useMemo(() => {
+    const p = data?.vendorQueues?.find((q) => q.type === 1)?.positionMax;
+    return typeof p === "number" ? p : 0;
+  }, [data]);
+
   // số lượng chọn theo itemId
   const [qty, setQty] = useState<Record<string, number>>({});
   // modal xác nhận
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<"VNPAY" | "CASH">("CASH");
+  // CHANGED: payment method values - WALLET instead of VNPAY
+  const [paymentMethod, setPaymentMethod] = useState<"WALLET" | "CASH">(
+    "CASH"
+  );
 
   // fetch vendor + menu
   useEffect(() => {
@@ -209,25 +224,28 @@ export function VendorQuickView({
       unitPrice: item.price ?? undefined,
     }));
 
+    // map paymentMethod cho API: WALLET -> VNPay (1), CASH -> Cash (2)
+    const paymentMethodEnumValue = paymentMethod === "WALLET" ? 1 : 2;
+
     const payload: OrderCreateRequest = {
       vendorId: vendor.id,
       customerId,
-      queueId,  
+      queueId,
       items,
       totalPrice: totalPrice || undefined,
+      paymentMethod: paymentMethodEnumValue,
     };
 
     try {
       setSubmitting(true);
       const token = localStorage.getItem("accessToken") || "";
-      await api.post<ApiResponse<any>>(
-        "/api/order/checkout",
-        payload,
-        {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          "Content-Type": "application/json",
-        } as any
-      );
+      // gửi queueId dưới dạng query param (API nhận queueId từ query)
+      const url = `/api/order/checkout${queueId ? `?queueId=${encodeURIComponent(queueId)}` : ""}`;
+
+      await api.post<ApiResponse<any>>(url, payload, {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        "Content-Type": "application/json",
+      } as any);
 
       setConfirmOpen(false);
       toast.success("Tham gia hàng đợi thành công!");
@@ -306,7 +324,7 @@ export function VendorQuickView({
                 <Phone className="w-4 h-4 text-muted-foreground mt-0.5" />
                 <div>
                   <div className="text-muted-foreground">Liên hệ</div>
-                  <div className="font-medium">{vendor?.phone || "—"}</div>
+                  <div className="font-medium">{vendor?.ownerPhone || "—"}</div>
                 </div>
               </div>
             </div>
@@ -484,7 +502,8 @@ export function VendorQuickView({
                 <div className="font-semibold">{vendor?.name ?? "—"}</div>
                 <div className="text-sm text-muted-foreground flex items-center gap-1">
                   <Users className="w-4 h-4" />
-                  Vị trí: —{/* bind nếu có dữ liệu vị trí */}
+                  {/* HIỆN VỊ TRÍ: positionMax + 1 */}
+                  Vị trí: {positionMax + 1}
                 </div>
               </div>
 
@@ -525,10 +544,10 @@ export function VendorQuickView({
               <div className="space-y-2">
                 <button
                   type="button"
-                  onClick={() => setPaymentMethod("VNPAY")}
+                  onClick={() => setPaymentMethod("WALLET")}
                   className={cn(
                     "w-full flex items-center gap-2 rounded-lg border px-3 py-2 text-left",
-                    paymentMethod === "VNPAY"
+                    paymentMethod === "WALLET"
                       ? "border-primary ring-2 ring-primary/20"
                       : "hover:bg-muted/50"
                   )}
@@ -536,10 +555,12 @@ export function VendorQuickView({
                   <span
                     className={cn(
                       "inline-block w-4 h-4 rounded-full border",
-                      paymentMethod === "VNPAY" ? "bg-primary border-primary" : ""
+                      paymentMethod === "WALLET"
+                        ? "bg-primary border-primary"
+                        : ""
                     )}
                   />
-                  VNPAY
+                  Ví của bạn
                 </button>
 
                 <button

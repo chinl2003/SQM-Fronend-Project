@@ -615,13 +615,14 @@ export default function Wallet() {
                         </div>
                         <div className="text-right ml-4">
                           <p
-                            className={`text-xl font-bold ${getTransactionColor(
-                              transaction.type
-                            )}`}
+                            className={`text-xl font-bold ${getTransactionColor(transaction.type)}`}
                           >
-                            {transaction.amount > 0 ? "+" : ""}
-                            {formatCurrency(transaction.amount)}
+                            {transaction.type === "payment"
+                              ? "-"
+                              : "+"}
+                            {formatCurrency(Math.abs(transaction.amount))}
                           </p>
+
                         </div>
                       </div>
                       {index < transactions.length - 1 && <Separator />}

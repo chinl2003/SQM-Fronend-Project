@@ -255,7 +255,9 @@ const VendorDetail = ({
   const SLOT_FEE = 500000;
 
   const paymentStatusBadge = useMemo(() => {
-    if (isApproved) {
+    const method = detail?.paymentMethod;
+
+    if (method === 1) {
       return (
         <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white">
           <CheckCircle className="w-3 h-3 mr-1" />
@@ -263,13 +265,14 @@ const VendorDetail = ({
         </Badge>
       );
     }
+
     return (
       <Badge className="bg-amber-500 hover:bg-amber-500 text-white">
         <Clock className="w-3 h-3 mr-1" />
         Chờ thanh toán
       </Badge>
     );
-  }, [isApproved]);
+  }, [detail?.paymentMethod]);
 
   // ---- Group menu theo TypeOfFood ----
   const groupedMenu = useMemo(() => {
@@ -339,30 +342,20 @@ const VendorDetail = ({
               <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <div className="flex justify-between">
-                    <span>Phí thuê slot:</span>
+                    <span></span>
                     <span className="font-semibold">
-                      {SLOT_FEE.toLocaleString("vi-VN")}đ
-                      {isApproved && (
-                        <CheckCircle className="w-4 h-4 text-success inline ml-2" />
-                      )}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Phí sàn tháng này:</span>
-                    <span className="font-semibold">
-                      {MONTHLY_FEE.toLocaleString("vi-VN")}đ
-                      {isApproved && (
-                        <CheckCircle className="w-4 h-4 text-success inline ml-2" />
-                      )}
+                      
                     </span>
                   </div>
                 </div>
                 <div className="space-y-2">
                   <div className="flex justify-between">
-                    <span>Ngày thanh toán tiếp theo:</span>
-                    <span className="font-semibold flex items-center gap-1">
-                      <Calendar className="w-4 h-4" />
-                      {fmtDate(detail?.createdTime)}
+                    <span>Tổng tiền:</span>
+                    <span className="font-semibold">
+                      {SLOT_FEE.toLocaleString("vi-VN")}đ
+                      {isApproved && (
+                        <CheckCircle className="w-4 h-4 text-success inline ml-2" />
+                      )}
                     </span>
                   </div>
                 </div>

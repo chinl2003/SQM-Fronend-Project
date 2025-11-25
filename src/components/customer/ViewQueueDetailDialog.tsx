@@ -157,7 +157,7 @@ export function ViewQueueDetailDialog({
               alt={queueItem.vendorName}
               className="w-8 h-8 rounded-full object-cover"
             />
-            <span>Chi tiết hàng đợi</span>
+            <span>Chi tiết đơn hàng</span>
           </DialogTitle>
         </DialogHeader>
 

@@ -67,8 +67,10 @@ interface QueueItem {
   slot?: string;
   position?: number;
   estimatedTime: string;
+  // ADDED "processing"
   status:
     | "pending"
+    | "processing"
     | "confirmed"
     | "preparing"
     | "ready"
@@ -97,26 +99,28 @@ const uiStatusFromApi = (
   if (typeof s === "number") {
     switch (s) {
       case 0:
-        return "pending";
-      case 4:
-        return "confirmed"; // Accepted
-      case 1: // fallthrough
-      case 5:
-        return "preparing"; // Processing / Prepareing (typo)
-      case 6:
-        return "ready";
+        return "pending"; // Chờ xác nhận
+      case 1:
+        return "processing"; // Đang xử lý
       case 2:
-        return "completed";
+        return "completed"; // Hoàn tất
       case 3:
-        return "cancelled";
+        return "cancelled"; // Đã hủy
+      case 4:
+        return "confirmed"; // Đã xác nhận
+      case 5:
+        return "preparing"; // Đang chuẩn bị
+      case 6:
+        return "ready"; // Sẵn sàng
       default:
         return "pending";
     }
   }
   const t = (s || "").toString().toLowerCase();
   if (t === "pending") return "pending";
-  if (t === "accepted") return "confirmed";
-  if (t === "processing" || t === "prepareing") return "preparing";
+  if (t === "processing") return "processing";
+  if (t === "accepted" || t === "confirmed") return "confirmed";
+  if (t === "prepareing" || t === "preparing") return "preparing";
   if (t === "ready") return "ready";
   if (t === "completed") return "completed";
   if (t === "cancelled") return "cancelled";
@@ -128,6 +132,8 @@ const getStatusColor = (status: QueueItem["status"]) => {
   switch (status) {
     case "pending":
       return "bg-yellow-500";
+    case "processing":
+      return "bg-indigo-500";
     case "confirmed":
       return "bg-blue-500";
     case "preparing":
@@ -147,6 +153,8 @@ const getStatusText = (status: QueueItem["status"]) => {
   switch (status) {
     case "pending":
       return "Chờ xác nhận";
+    case "processing":
+      return "Đang xử lý";
     case "confirmed":
       return "Đã xác nhận";
     case "preparing":
@@ -162,10 +170,36 @@ const getStatusText = (status: QueueItem["status"]) => {
   }
 };
 
+function orderStatusToText(s?: number | string | null) {
+  if (typeof s === "number") {
+    switch (s) {
+      case 0:
+        return "Chờ xác nhận";
+      case 1:
+        return "Đang xử lý";
+      case 2:
+        return "Hoàn tất";
+      case 3:
+        return "Đã hủy";
+      case 4:
+        return "Đã xác nhận";
+      case 5:
+        return "Đang chuẩn bị";
+      case 6:
+        return "Sẵn sàng";
+      default:
+        return "—";
+    }
+  }
+  return String(s || "—");
+}
+
 const getStatusIcon = (status: QueueItem["status"]) => {
   switch (status) {
     case "pending":
       return <Clock className="h-4 w-4" />;
+    case "processing":
+      return <RefreshCw className="h-4 w-4 animate-spin" />;
     case "confirmed":
       return <CheckCircle2 className="h-4 w-4" />;
     case "preparing":
@@ -271,6 +305,7 @@ function mapOrderToQueueItem(
   o: OrderWithDetailsDto,
   vendor?: VendorMini
 ): QueueItem {
+  // USE order.status (o.status) here as required
   const uiStatus = uiStatusFromApi(o.status as any);
   return {
     id: o.id,
@@ -290,8 +325,13 @@ function mapOrderToQueueItem(
       price: d.unitPrice ?? 0,
     })),
     totalAmount: o.totalPrice ?? 0,
-    paymentMethod: "cash", // chưa có field thanh toán => default
-    paymentStatus: "pending", // default
+    paymentMethod: o.paymentMethod === 1 ? "vnpay" : "cash",
+    paymentStatus:
+      o.paymentStatus === 2
+        ? "paid"
+        : o.paymentStatus === 4
+        ? "refunded"
+        : "pending",
     orderTime: o.createdAt || new Date().toISOString(),
     canCancel: !["completed", "cancelled"].includes(uiStatus),
     canUpdate: ["pending", "confirmed"].includes(uiStatus),
