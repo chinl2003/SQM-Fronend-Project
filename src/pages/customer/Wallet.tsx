@@ -1,3 +1,4 @@
+// src/pages/Wallet.tsx
 import React, { useState, useEffect, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Navigation } from "@/components/Navigation";
@@ -144,6 +145,9 @@ const STATUS_FILTER_LABEL: Record<string, string> = {
 
 export default function Wallet() {
   const [balance, setBalance] = useState<number>(0);
+  const [availableBalance, setAvailableBalance] = useState<number>(0);
+  const [heldBalance, setHeldBalance] = useState<number>(0);
+
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
@@ -156,6 +160,8 @@ export default function Wallet() {
   const [pageSize] = useState<number>(10);
   const [totalPages, setTotalPages] = useState<number>(1);
   const [totalRecords, setTotalRecords] = useState<number>(0);
+
+  const [walletId, setWalletId] = useState<string | null>(null);
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -263,62 +269,65 @@ export default function Wallet() {
     }
   };
 
+  // ------------------------
+  // NEW: fetch wallet id (from /api/wallet/balance) then call /api/wallet/{id}
+  // ------------------------
   useEffect(() => {
-    const params = new URLSearchParams(location.search);
-
-    if (!params.has("vnp_TxnRef")) return;
-
-    const allParams: Record<string, string> = {};
-    params.forEach((value, key) => {
-      allParams[key] = value;
-    });
-
-    const validatePayment = async () => {
+    const fetchWalletAndDetails = async () => {
       try {
         const token = localStorage.getItem("accessToken") || "";
-        const headers: Record<string, string> = {
-          "Content-Type": "application/json",
-        };
+        const headers: Record<string, string> = {};
         if (token) headers.Authorization = `Bearer ${token}`;
 
-        const storedTransactionId = localStorage.getItem(
-          "lastVnPayTransactionId"
-        );
-        if (storedTransactionId) {
-          allParams.TransactionId = storedTransactionId;
+        // 1) call existing endpoint to get wallet info (by current user)
+        const res = await api.get<ApiResponse<any>>("/api/wallet/balance", headers);
+
+        // Res expected to be BaseResponseModel with data = WalletInfoDto
+        const walletInfo = (res?.data as any)?.data ?? res?.data ?? res;
+        const id = walletInfo?.id ?? walletInfo?.Id ?? null;
+        if (!id) {
+          // No wallet yet — set zeros
+          setWalletId(null);
+          setBalance(0);
+          setAvailableBalance(0);
+          setHeldBalance(0);
+          return;
         }
 
-        const res = await api.post<PaymentResultApi>(
-          "/api/VNPay/validate",
-          allParams,
-          headers
-        );
+        setWalletId(id);
 
-        const payload = (res?.data as any) ?? res;
-        const result: PaymentResult =
-          (payload?.data as PaymentResult) ?? (payload as PaymentResult);
+        // 2) call new GET /api/wallet/{id} to get authoritative balances
+        const res2 = await api.get<ApiResponse<any>>(`/api/wallet/${encodeURIComponent(id)}`, headers);
+        const payload2 = (res2?.data as any)?.data ?? res2?.data ?? res2;
+        const walletDetail = payload2 ?? null;
 
-        if (allParams["vnp_ResponseCode"] === "00") {
-          toast.success(
-            `Nạp tiền thành công: ${(result.amount ?? 0).toLocaleString(
-              "vi-VN"
-            )} VND`
-          );
+        if (walletDetail) {
+          // adapt possible property names
+          const bal = Number(walletDetail.balance ?? walletDetail.Balance ?? 0);
+          const avail = Number(walletDetail.availableBalance ?? walletDetail.AvailableBalance ?? (bal - Number(walletDetail.heldBalance ?? walletDetail.HeldBalance ?? 0)));
+          const held = Number(walletDetail.heldBalance ?? walletDetail.HeldBalance ?? 0);
+
+          setBalance(bal);
+          setAvailableBalance(avail);
+          setHeldBalance(held);
         } else {
-          toast.error("Thanh toán VNPay thất bại hoặc bị hủy.");
+          setBalance(0);
+          setAvailableBalance(0);
+          setHeldBalance(0);
         }
-
-        localStorage.removeItem("lastVnPayTransactionId");
-        navigate("/customer/wallet", { replace: true });
       } catch (err: any) {
         console.error(err);
-        toast.error(err?.message || "Có lỗi khi xác nhận thanh toán VNPay.");
+        // don't spam user on mount — just log and show small toast
+        toast.error("Không lấy được thông tin ví. Vui lòng thử lại.");
       }
     };
 
-    validatePayment();
-  }, [location.search, navigate]);
+    fetchWalletAndDetails();
+  }, []); // run once on mount
 
+  // ------------------------
+  // history fetch (unchanged) - still used for transactions list
+  // ------------------------
   useEffect(() => {
     const fetchHistory = async () => {
       try {
@@ -347,10 +356,9 @@ export default function Wallet() {
         setTotalRecords(page?.totalRecords ?? 0);
         setTotalPages(page?.totalPages ?? 1);
 
-        if (items.length > 0) {
+        // keep walletBalance from transaction item only as fallback: we prefer wallet info endpoint
+        if (items.length > 0 && !walletId) {
           setBalance(items[0].walletBalance);
-        } else {
-          setBalance(0);
         }
 
         const mapped: Transaction[] = items.map((tr) => ({
@@ -375,7 +383,7 @@ export default function Wallet() {
     };
 
     fetchHistory();
-  }, [statusFilter, currentPage, pageSize]);
+  }, [statusFilter, currentPage, pageSize, walletId]);
 
   const totalDeposit = useMemo(
     () =>
@@ -435,81 +443,108 @@ export default function Wallet() {
 
         <Card className="mb-8 bg-gradient-to-br from-primary via-primary-light to-primary-dark border-0 shadow-lg">
           <CardContent className="p-8">
-            <div className="flex items-start justify-between">
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 text-primary-foreground/80">
-                  <WalletIcon className="h-5 w-5" />
-                  <span className="text-sm font-medium">Số dư khả dụng</span>
-                </div>
-                <div>
-                  <p className="text-5xl font-bold text-primary-foreground mb-2">
-                    {formatCurrency(balance)}
-                  </p>
-                  <div className="flex items-center gap-2 text-primary-foreground/80">
-                    <TrendingUp className="h-4 w-4" />
-                    <span className="text-sm">
-                      +{formatCurrency(totalDeposit)} tổng nạp
-                    </span>
+            <div className="flex items-center justify-between">
+              {/* LEFT: thông tin 3 ô */}
+              <div className="space-y-4 w-full">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-3">
+                  {/* Số dư ví */}
+                  <div className="flex flex-col items-center">
+                    <div className="flex items-center gap-2">
+                      <WalletIcon className="h-5 w-5 text-primary-foreground/80" />
+                      <span className="text-sm text-primary-foreground/80 font-medium">
+                        Số dư ví
+                      </span>
+                    </div>
+                    <div className="mt-1 text-3xl font-bold text-primary-foreground">
+                      {formatCurrency(balance)}
+                    </div>
+                  </div>
+
+                  {/* Số dư khả dụng */}
+                  <div className="flex flex-col items-center">
+                    <div className="flex items-center gap-2">
+                      <WalletIcon className="h-5 w-5 text-primary-foreground/80" />
+                      <span className="text-sm text-primary-foreground/80 font-medium">
+                        Số dư khả dụng
+                      </span>
+                    </div>
+                    <div className="mt-1 text-3xl font-bold text-primary-foreground">
+                      {formatCurrency(availableBalance)}
+                    </div>
+                  </div>
+
+                  {/* Số tiền tạm giữ */}
+                  <div className="flex flex-col items-center">
+                    <div className="flex items-center gap-2">
+                      <WalletIcon className="h-5 w-5 text-primary-foreground/80" />
+                      <span className="text-sm text-primary-foreground/80 font-medium">
+                        Số tiền tạm giữ
+                      </span>
+                    </div>
+                    <div className="mt-1 text-3xl font-bold text-primary-foreground">
+                      {formatCurrency(heldBalance)}
+                    </div>
                   </div>
                 </div>
+              </div>
 
-                <Dialog open={isTopupOpen} onOpenChange={setIsTopupOpen}>
-                  <Button
-                    className="bg-primary-foreground text-primary hover:bg-primary-foreground/90"
-                    size="lg"
-                    onClick={() => setIsTopupOpen(true)}
-                  >
-                    <Plus className="h-5 w-5 mr-2" />
-                    Nạp tiền
-                  </Button>
+              {/* RIGHT: credit card icon + nút Nạp tiền (nằm ngoài space-y-4) */}
+              <div className="flex flex-col items-end ml-6">
+                <div className="p-4 bg-primary-foreground/10 rounded-2xl backdrop-blur-sm">
+                  <CreditCard className="h-12 w-12 text-primary-foreground" />
+                </div>
 
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Nạp tiền vào ví</DialogTitle>
-                    </DialogHeader>
+                <div className="mt-4">
+                  <Dialog open={isTopupOpen} onOpenChange={setIsTopupOpen}>
+                    <Button
+                      className="bg-primary-foreground text-primary hover:bg-primary-foreground/90"
+                      size="lg"
+                      onClick={() => setIsTopupOpen(true)}
+                    >
+                      Nạp tiền
+                    </Button>
 
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-foreground">
-                        Số tiền
-                      </label>
-                      <div className="flex items-center gap-2">
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Nạp tiền vào ví</DialogTitle>
+                      </DialogHeader>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-foreground">
+                          Số tiền
+                        </label>
                         <Input
-                          placeholder="Vui lòng nhập số tiền cần nạp vào ví"
+                          placeholder="Vui lòng nhập số tiền"
                           inputMode="numeric"
                           value={topupAmount}
                           onChange={handleTopupAmountChange}
                           className="text-left text-lg"
                         />
-                      </div>
-                      {topupAmount && (
-                        <p className="text-xs text-muted-foreground">
-                          Bạn đang nạp:{" "}
-                          <span className="font-semibold">
-                            {topupAmount} VND
-                          </span>
-                        </p>
-                      )}
-                    </div>
 
-                    <DialogFooter>
-                      <Button
-                        variant="outline"
-                        onClick={() => setIsTopupOpen(false)}
-                      >
-                        Hủy
-                      </Button>
-                      <Button
-                        onClick={handleConfirmTopup}
-                        disabled={!topupAmount}
-                      >
-                        Nạp tiền
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              </div>
-              <div className="p-4 bg-primary-foreground/10 rounded-2xl backdrop-blur-sm">
-                <CreditCard className="h-12 w-12 text-primary-foreground" />
+                        {topupAmount && (
+                          <p className="text-xs text-muted-foreground">
+                            Bạn đang nạp:{" "}
+                            <span className="font-semibold">
+                              {topupAmount} VND
+                            </span>
+                          </p>
+                        )}
+                      </div>
+
+                      <DialogFooter>
+                        <Button
+                          variant="outline"
+                          onClick={() => setIsTopupOpen(false)}
+                        >
+                          Hủy
+                        </Button>
+                        <Button onClick={handleConfirmTopup} disabled={!topupAmount}>
+                          Nạp tiền
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                </div>
               </div>
             </div>
           </CardContent>
@@ -617,12 +652,9 @@ export default function Wallet() {
                           <p
                             className={`text-xl font-bold ${getTransactionColor(transaction.type)}`}
                           >
-                            {transaction.type === "payment"
-                              ? "-"
-                              : "+"}
+                            {transaction.type === "payment" ? "-" : "+"}
                             {formatCurrency(Math.abs(transaction.amount))}
                           </p>
-
                         </div>
                       </div>
                       {index < transactions.length - 1 && <Separator />}

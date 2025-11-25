@@ -365,14 +365,12 @@ export function VendorRegisterDialog({
         )}`,
         headers
       );
-      console.log("Wallet balance response:", res);
 
       if (!res || !res.data) {
         throw new Error("Không kiểm tra được số dư ví. Vui lòng thử lại.");
       }
 
       const wallet = res.data;
-      // lưu full wallet để dùng sau (lấy id, các field khác)
       setWalletInfo(wallet);
 
       const available = Number(wallet.availableBalance) || 0;
@@ -433,7 +431,7 @@ export function VendorRegisterDialog({
       const transactionBody = {
         walletId,
         amount: REGISTER_FEE, // hoặc -REGISTER_FEE tùy convention
-        type: 9,
+        type: 10,
         status: 1,
         message: `Thanh toán phí đăng kí quán ${brandName}`,
         paymentMethod: "Ví",
