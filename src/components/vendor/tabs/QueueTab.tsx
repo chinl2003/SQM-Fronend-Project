@@ -102,7 +102,7 @@ function QueueList({
     try {
       const arr = unwrapOrders<OrderWithDetailsDto>(res);
       if (Array.isArray(arr) && arr.length > 0) return arr;
-    } catch (e) {}
+    } catch {}
 
     const outer = (res as any)?.data ?? res;
     const pag = outer?.data ?? outer ?? null;
@@ -160,9 +160,9 @@ function QueueList({
       setPage(pageFromResp);
 
       onCountChange?.(total);
-    } catch (err: any) {
+    } catch (err) {
       console.error("[QueueTab] load error", err);
-      toast.error("Không tải được hàng đợi. Kiểm tra console.");
+      toast.error("Không tải được hàng đợi.");
       onCountChange?.(0);
     } finally {
       setLoading(false);
@@ -174,7 +174,7 @@ function QueueList({
   }, [vendorId, queueType]);
 
   useEffect(() => {
-    load(page);
+    void load(page);
   }, [vendorId, queueType, page]);
 
   const formatDate = (iso?: string | null) => {
@@ -218,9 +218,6 @@ function QueueList({
 
   const mapOrderStatus = (s?: number | null) => {
     switch (s) {
-      case 0:
-      case 1:
-        return "Xác nhận";
       case 4:
         return "Chế biến";
       case 5:
@@ -230,8 +227,10 @@ function QueueList({
         return "Hoàn tất";
       case 3:
         return "Đã hủy";
+      case 0:
+      case 1:
       default:
-        return "Không rõ";
+        return "Xác nhận";
     }
   };
 
@@ -249,10 +248,9 @@ function QueueList({
 
   const updateOrderStatus = async (orderId: string, newStatus: number) => {
     try {
+      setUpdatingId(orderId);
       const token = localStorage.getItem("accessToken") || "";
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-
-      setUpdatingId(orderId);
 
       await api.post(
         `/api/order/${orderId}/status`,
@@ -265,7 +263,7 @@ function QueueList({
 
       toast.success("Cập nhật trạng thái đơn hàng thành công.");
       await load(page);
-    } catch (err: any) {
+    } catch (err) {
       console.error("[QueueTab] updateOrderStatus error", err);
       toast.error("Cập nhật trạng thái đơn hàng thất bại.");
     } finally {
@@ -318,20 +316,29 @@ function QueueList({
               ? formatWaitMinutes(it.queueEntry.estimatedWaitTime)
               : "—";
 
-            const isReadyButton = statusText === "Sẵn sàng";
-            const isCompleteButton = statusText === "Hoàn tất";
-            const canClick =
-              (isReadyButton || isCompleteButton) &&
-              !loading &&
-              updatingId !== it.id;
+            const rawStatus = Number(it.status ?? -1);
 
-            const nextStatus = isReadyButton ? 6 : isCompleteButton ? 2 : null;
+            let buttonLabel = statusText;
+            let nextStatus: number | null = null;
+
+            if (rawStatus === 4) {
+              buttonLabel = "Chế biến";
+              nextStatus = 5;
+            } else if (rawStatus === 5) {
+              buttonLabel = "Sẵn sàng";
+              nextStatus = 6;
+            } else if (rawStatus === 6 || rawStatus === 2) {
+              buttonLabel = "Hoàn tất";
+              nextStatus = 2;
+            }
+
             const isUpdating = updatingId === it.id;
+            const canClick = !!nextStatus && !isUpdating && !loading;
 
             return (
               <div
                 key={it.id}
-                className="border border-border rounded-lg p-4 relative hover:bg-muted/30 transition cursor-pointer"
+                className="border border-border rounded-lg p-4 relative hover:bg-muted/30 transition"
               >
                 <div
                   className={`absolute top-0 right-0 px-3 py-1 rounded-bl-md text-xs font-semibold ${payment.color}`}
@@ -392,7 +399,7 @@ function QueueList({
                   <div>
                     <Button
                       className="px-6"
-                      disabled={!canClick || !nextStatus}
+                      disabled={!canClick}
                       onClick={() => {
                         if (!nextStatus || !canClick) return;
                         updateOrderStatus(it.id, nextStatus);
@@ -404,7 +411,7 @@ function QueueList({
                           Đang cập nhật...
                         </>
                       ) : (
-                        statusText
+                        buttonLabel
                       )}
                     </Button>
                   </div>
