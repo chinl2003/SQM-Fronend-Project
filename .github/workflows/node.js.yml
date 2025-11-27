@@ -1,0 +1,77 @@
+name: staging-nodejs
+
+on:
+  push:
+    branches: [ "staging" ]
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # -------------------------------------
+      # 1. Checkout repository
+      # -------------------------------------
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # -------------------------------------
+      # 2. Setup Node.js
+      # -------------------------------------
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      # -------------------------------------
+      # 3. Install dependencies
+      # -------------------------------------
+      - name: Install dependencies
+        run: npm install
+      
+      # -------------------------------------
+      # 4. Build the project
+      # -------------------------------------
+      - name: Build
+        run: npm run build
+
+      # -------------------------------------
+      # 5. Generate captain-definition
+      # -------------------------------------
+      - name: Generate captain-definition
+        run: |
+          echo '{
+            "schemaVersion": 2,
+            "dockerfilePath": "./Dockerfile",
+            "args": {
+              "NODE_ENV": "production"
+            }
+          }' > captain-definition
+
+      # -------------------------------------
+      # 6. Tar relevant files for CapRover
+      # -------------------------------------
+      - name: Tar project for CapRover
+        uses: a7ul/tar-action@v1.1.0
+        with:
+          command: c
+          cwd: "./"
+          files: |
+            dist/
+            package.json
+            package-lock.json
+            Dockerfile
+            captain-definition
+          outPath: deploy.tar
+
+      # -------------------------------------
+      # 7. Deploy to CapRover
+      # -------------------------------------
+      - name: Deploy to CapRover
+        uses: caprover/deploy-from-github@v1.0.1
+        with:
+          server: '${{ secrets.CAPROVER_SERVER }}'
+          app: '${{ secrets.CAPROVER_APP_NAME_STAGING }}'
+          token: '${{ secrets.CAPROVER_DEPLOY_TOKEN_STAGING }}'
