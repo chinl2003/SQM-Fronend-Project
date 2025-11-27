@@ -1,6 +1,6 @@
 // src/components/vendor/VendorDashboard.tsx
 import { useEffect, useMemo, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api, ApiResponse } from "@/lib/api";
@@ -14,7 +14,6 @@ import {
   Download,
   Plus,
   CheckCircle2,
-  AlertCircle,
 } from "lucide-react";
 
 import QueueTab from "./tabs/QueueTab";
@@ -32,6 +31,8 @@ type VendorFromApi = {
   revenueToday?: number;
   avgWaitMinutes?: number;
   cancelRatePercent?: number;
+  act?: number;
+  parallelFactor?: number;
 };
 
 const STATUS_NUM_TO_TEXT: Record<number, string> = {
@@ -106,11 +107,13 @@ export default function VendorDashboard() {
           `/api/vendor/by-owner/${userId}`,
           token ? { Authorization: `Bearer ${token}` } : undefined
         );
+
         const payload: any = (res?.data as any) ?? res;
         const vendors: VendorFromApi[] =
           (payload?.data as VendorFromApi[]) ??
           (payload as VendorFromApi[]) ??
           [];
+
         if (mounted) setVendor(vendors?.[0] ?? null);
       } catch (e: any) {
         console.error(e);
@@ -128,19 +131,19 @@ export default function VendorDashboard() {
   const statusInfo = statusToLabel(vendor?.status);
   const isEditable = ["draft", "pendingreview"].includes(normalizeStatus(vendor?.status));
 
-  const stats = useMemo(() => {
-    return {
+  const stats = useMemo(
+    () => ({
       activeQueue: vendor?.queueCount ?? 0,
       totalToday: vendor?.totalCompletedToday ?? 0,
       revenue: vendor?.revenueToday ?? 0,
-      avgWaitTime: vendor?.avgWaitMinutes ?? 0,
+      avgWaitTime: vendor?.act ?? vendor?.avgWaitMinutes ?? 0,
       cancelRate: vendor?.cancelRatePercent ?? 0,
-    };
-  }, [vendor]);
+    }),
+    [vendor]
+  );
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header - preserved layout + classes */}
       <div className="border-b border-border bg-card">
         <div className="flex items-center justify-between px-6 py-4">
           <div>
@@ -168,14 +171,13 @@ export default function VendorDashboard() {
         </div>
       </div>
 
-      {/* Stats grid - preserved exactly structure + classes */}
       <div className="p-6 space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           <Card className="shadow-md">
             <CardContent className="p-6">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-primary/10 rounded-lg">
-                  <Users className="h-6 w-6 text-primary" />
+                <div className="p-2 rounded-lg bg-emerald-50">
+                  <Users className="h-6 w-6 text-emerald-600" />
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-foreground">{stats.activeQueue}</p>
@@ -188,8 +190,8 @@ export default function VendorDashboard() {
           <Card className="shadow-md">
             <CardContent className="p-6">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-chart-secondary/10 rounded-lg">
-                  <CheckCircle2 className="h-6 w-6 text-chart-secondary" />
+                <div className="p-2 rounded-lg bg-blue-50">
+                  <CheckCircle2 className="h-6 w-6 text-blue-600" />
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-foreground">{stats.totalToday}</p>
@@ -202,11 +204,13 @@ export default function VendorDashboard() {
           <Card className="shadow-md">
             <CardContent className="p-6">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-revenue-positive/10 rounded-lg">
-                  <DollarSign className="h-6 w-6 text-revenue-positive" />
+                <div className="p-2 rounded-lg bg-emerald-50">
+                  <DollarSign className="h-6 w-6 text-emerald-600" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-foreground">{formatCurrencyVND(stats.revenue)}đ</p>
+                  <p className="text-2xl font-bold text-foreground">
+                    {formatCurrencyVND(stats.revenue)}đ
+                  </p>
                   <p className="text-sm text-muted-foreground">Doanh thu hôm nay</p>
                 </div>
               </div>
@@ -216,8 +220,8 @@ export default function VendorDashboard() {
           <Card className="shadow-md">
             <CardContent className="p-6">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-queue-preparing/10 rounded-lg">
-                  <Clock className="h-6 w-6 text-queue-preparing" />
+                <div className="p-2 rounded-lg bg-amber-50">
+                  <Clock className="h-6 w-6 text-amber-500" />
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-foreground">{stats.avgWaitTime}</p>
@@ -230,8 +234,8 @@ export default function VendorDashboard() {
           <Card className="shadow-md">
             <CardContent className="p-6">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-queue-cancelled/10 rounded-lg">
-                  <TrendingUp className="h-6 w-6 text-queue-cancelled" />
+                <div className="p-2 rounded-lg bg-rose-50">
+                  <TrendingUp className="h-6 w-6 text-rose-500" />
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-foreground">{stats.cancelRate}%</p>
@@ -242,75 +246,39 @@ export default function VendorDashboard() {
           </Card>
         </div>
 
-        {/* Main Tabs (kept styling close to original) */}
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="space-y-4">
           <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger
               value="queue"
-              className="
-                py-2 text-sm font-medium transition-all
-                data-[state=active]:bg-green-500 
-                data-[state=active]:text-white 
-                data-[state=active]:shadow-sm
-                hover:bg-muted/60
-                rounded-md
-              "
+              className="py-2 text-sm font-medium transition-all data-[state=active]:bg-green-500 data-[state=active]:text-white data-[state=active]:shadow-sm hover:bg-muted/60 rounded-md"
             >
               Hàng đợi
             </TabsTrigger>
 
             <TabsTrigger
               value="menu"
-              className="
-                py-2 text-sm font-medium transition-all
-                data-[state=active]:bg-green-500 
-                data-[state=active]:text-white 
-                data-[state=active]:shadow-sm
-                hover:bg-muted/60
-                rounded-md
-              "
+              className="py-2 text-sm font-medium transition-all data-[state=active]:bg-green-500 data-[state=active]:text-white data-[state=active]:shadow-sm hover:bg-muted/60 rounded-md"
             >
               Thực đơn
             </TabsTrigger>
 
             <TabsTrigger
               value="analytics"
-              className="
-                py-2 text-sm font-medium transition-all
-                data-[state=active]:bg-green-500 
-                data-[state=active]:text-white 
-                data-[state=active]:shadow-sm
-                hover:bg-muted/60
-                rounded-md
-              "
+              className="py-2 text-sm font-medium transition-all data-[state=active]:bg-green-500 data-[state=active]:text-white data-[state=active]:shadow-sm hover:bg-muted/60 rounded-md"
             >
               Thống kê
             </TabsTrigger>
 
             <TabsTrigger
               value="reviews"
-              className="
-                py-2 text-sm font-medium transition-all
-                data-[state=active]:bg-green-500 
-                data-[state=active]:text-white 
-                data-[state=active]:shadow-sm
-                hover:bg-muted/60
-                rounded-md
-              "
+              className="py-2 text-sm font-medium transition-all data-[state=active]:bg-green-500 data-[state=active]:text-white data-[state=active]:shadow-sm hover:bg-muted/60 rounded-md"
             >
               Đánh giá
             </TabsTrigger>
 
             <TabsTrigger
               value="settings"
-              className="
-                py-2 text-sm font-medium transition-all
-                data-[state=active]:bg-green-500 
-                data-[state=active]:text-white 
-                data-[state=active]:shadow-sm
-                hover:bg-muted/60
-                rounded-md
-              "
+              className="py-2 text-sm font-medium transition-all data-[state=active]:bg-green-500 data-[state=active]:text-white data-[state=active]:shadow-sm hover:bg-muted/60 rounded-md"
             >
               Cài đặt
             </TabsTrigger>

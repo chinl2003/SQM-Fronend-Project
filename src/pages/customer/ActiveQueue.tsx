@@ -28,13 +28,12 @@ import { CancelConfirmDialog } from "@/components/customer/CancelConfirmDialog";
 import { toast } from "@/hooks/use-toast";
 import { api, ApiResponse } from "@/lib/api";
 
-/** ====== TYPES lấy từ API ====== */
 type OrderWithDetailsDto = {
   id: string;
   code: string;
   vendorId: string;
   totalPrice: number | null;
-  status: number | string | null; // API có thể trả số hoặc chuỗi
+  status: number | string | null;
   createdAt?: string;
   lastUpdatedTime?: string;
   queueEntry?: {
@@ -43,7 +42,7 @@ type OrderWithDetailsDto = {
     position?: number | null;
     joinedAt?: string | null;
     servedAt?: string | null;
-    status: number | string; // số/chuỗi đều chấp nhận
+    status: number | string;
     estimatedWaitTime?: string | null;
     estimatedServeTime?: string | null;
   } | null;
@@ -56,7 +55,6 @@ type OrderWithDetailsDto = {
   }>;
 };
 
-/** ====== UI TYPES ====== */
 interface QueueItem {
   id: string;
   vendorId: string;
@@ -68,7 +66,6 @@ interface QueueItem {
   slot?: string;
   position?: number;
   estimatedTime: string;
-  // ADDED "processing"
   status:
     | "pending"
     | "processing"
@@ -89,9 +86,10 @@ interface QueueItem {
   orderTime: string;
   canCancel: boolean;
   canUpdate: boolean;
+  estimatedWaitTimeRaw?: string | null;
+  estimatedServeTimeRaw?: string | null;
 }
 
-/** ====== STATUS MAPPER ====== */
 type OrderStatusNumber = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
 const uiStatusFromApi = (
@@ -100,19 +98,19 @@ const uiStatusFromApi = (
   if (typeof s === "number") {
     switch (s) {
       case 0:
-        return "pending"; // Chờ xác nhận
+        return "pending";
       case 1:
-        return "processing"; // Đang xử lý
+        return "processing";
       case 2:
-        return "completed"; // Hoàn tất
+        return "completed";
       case 3:
-        return "cancelled"; // Đã hủy
+        return "cancelled";
       case 4:
-        return "confirmed"; // Đã xác nhận
+        return "confirmed";
       case 5:
-        return "preparing"; // Đang chuẩn bị
+        return "preparing";
       case 6:
-        return "ready"; // Sẵn sàng
+        return "ready";
       default:
         return "pending";
     }
@@ -128,7 +126,6 @@ const uiStatusFromApi = (
   return "pending";
 };
 
-/** ====== Helpers ====== */
 const getStatusColor = (status: QueueItem["status"]) => {
   switch (status) {
     case "pending":
@@ -239,13 +236,43 @@ const humanETA = (estimatedServeTime?: string | null) => {
   return `${diffMin} phút`;
 };
 
-/** ====== FETCH HELPERS ====== */
+const fmtServeTimeFull = (t?: string | null) => {
+  if (!t) return "—";
+  const d = new Date(t);
+  if (Number.isNaN(d.getTime())) return "—";
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const date = `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()}`;
+  return `${time} ${date}`;
+};
+
+const fmtWaitTimeFromSpan = (span?: string | null) => {
+  if (!span) return "—";
+  const parts = span.split(":");
+  if (parts.length < 2) return span;
+  const h = parseInt(parts[0] || "0", 10);
+  const m = parseInt(parts[1] || "0", 10);
+  if (Number.isNaN(h) || Number.isNaN(m)) return span;
+  const totalMin = h * 60 + m;
+  if (totalMin <= 0) return "—";
+  return `${totalMin} phút`;
+};
+
+const getPaymentStatusText = (status: QueueItem["paymentStatus"]) => {
+  switch (status) {
+    case "paid":
+      return "Đã thanh toán";
+    case "refunded":
+      return "Đã hoàn tiền";
+    case "pending":
+    default:
+      return "Chưa thanh toán";
+  }
+};
+
 function unwrapArray<T>(raw: any): T[] {
-  // Trường hợp axios: res.data = JSON
   if (Array.isArray(raw?.data)) return raw.data;
-  // Trường hợp fetch/raw:
   if (Array.isArray(raw)) return raw;
-  // Trường hợp BaseResponseModel: { data: { data: [...] } }
   if (Array.isArray(raw?.data?.data)) return raw.data.data;
   if (Array.isArray(raw?.data)) return raw.data;
   return [];
@@ -272,6 +299,7 @@ type VendorMini = {
   address?: string;
   logoUrl?: string;
 };
+
 async function fetchVendorsMap(
   vendorIds: string[],
   token?: string
@@ -306,8 +334,12 @@ function mapOrderToQueueItem(
   o: OrderWithDetailsDto,
   vendor?: VendorMini
 ): QueueItem {
-  // USE order.status (o.status) here as required
   const uiStatus = uiStatusFromApi(o.status as any);
+  const paymentStatusRaw = (o as any).paymentStatus as number | undefined;
+  let paymentStatus: QueueItem["paymentStatus"] = "pending";
+  if (paymentStatusRaw === 2) paymentStatus = "paid";
+  else if (paymentStatusRaw === 4) paymentStatus = "refunded";
+
   return {
     id: o.id,
     code: o.code || "",
@@ -327,27 +359,22 @@ function mapOrderToQueueItem(
     })),
     totalAmount: o.totalPrice ?? 0,
     paymentMethod: (o as any).paymentMethod === 1 ? "vnpay" : "cash",
-    paymentStatus:
-      (o as any).paymentStatus === 2
-        ? "paid"
-        : (o as any).paymentStatus === 4
-        ? "refunded"
-        : "pending",
+    paymentStatus,
     orderTime: o.createdAt || new Date().toISOString(),
     canCancel: !["completed", "cancelled"].includes(uiStatus),
     canUpdate: ["pending", "confirmed"].includes(uiStatus),
+    estimatedWaitTimeRaw: o.queueEntry?.estimatedWaitTime ?? null,
+    estimatedServeTimeRaw: o.queueEntry?.estimatedServeTime ?? null,
   };
 }
 
-/** ====== COMPONENT ====== */
-// added "confirmed" to StatusTab
 type StatusTab = "pending" | "confirmed" | "preparing" | "completed";
-// updated mapping to include confirmed (4)
+
 const tabToApiStatus: Record<StatusTab, number> = {
-  pending: 0, // Chưa xác nhận
-  confirmed: 4, // Đã xác nhận
-  preparing: 5, // Đang chế biến (Prepareing)
-  completed: 2, // Hoàn tất (Completed)
+  pending: 0,
+  confirmed: 4,
+  preparing: 5,
+  completed: 2,
 };
 
 export default function ActiveQueue() {
@@ -363,7 +390,6 @@ export default function ActiveQueue() {
   const [showChatDialog, setShowChatDialog] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
 
-  /** ====== Fetch dữ liệu theo TAB ====== */
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -375,20 +401,13 @@ export default function ActiveQueue() {
           return;
         }
         const token = localStorage.getItem("accessToken") || "";
-
-        // 1) Lấy đơn theo status của tab hiện tại
         const statusCode = tabToApiStatus[statusTab];
         const orders = await fetchOrdersByStatus(userId, statusCode, token);
-
-        // 2) Lấy vendor info
         const vendorIds = orders.map((o) => o.vendorId).filter(Boolean);
         const vendorsMap = await fetchVendorsMap(vendorIds, token);
-
-        // 3) Map sang UI
         const items = orders.map((o) =>
           mapOrderToQueueItem(o, vendorsMap[o.vendorId])
         );
-
         if (mounted) setActiveQueues(items);
       } catch (e) {
         console.error(e);
@@ -407,7 +426,6 @@ export default function ActiveQueue() {
   }, [statusTab]);
 
   const handleCancelOrder = (queueId: string) => {
-    // TODO: gọi API hủy đơn nếu có
     setActiveQueues((prev) => prev.filter((item) => item.id !== queueId));
     setShowCancelDialog(false);
     toast({
@@ -416,123 +434,171 @@ export default function ActiveQueue() {
     });
   };
 
-  const renderQueueCard = (queueItem: QueueItem) => (
-    <Card key={queueItem.id} className="mb-4">
-      <CardContent className="p-4">
-        <div className="flex items-start space-x-3">
-          <img
-            src={queueItem.vendorImage || "/placeholder.svg"}
-            alt={queueItem.vendorName}
-            className="w-16 h-16 rounded-full object-cover bg-muted"
-          />
-          <div className="flex-1">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="font-semibold">{queueItem.vendorName}</h3>
-              <Badge
-                className={`${getStatusColor(queueItem.status)} text-white`}
-              >
-                {getStatusIcon(queueItem.status)}
-                <span className="ml-1">{getStatusText(queueItem.status)}</span>
-              </Badge>
-            </div>
+  const renderQueueCard = (queueItem: QueueItem) => {
+    const isConfirmedTab = statusTab === "confirmed";
 
-            <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground mb-3">
-              <div className="flex items-center space-x-1">
-                <MapPin className="h-3 w-3" />
-                <span>
-                  Loại:{" "}
-                  {queueItem.type === "join_queue"
-                    ? "Xếp hàng ngay"
-                    : "Pre-order"}
-                </span>
+    return (
+      <Card key={queueItem.id} className="mb-4">
+        <CardContent className="p-4">
+          <div className="flex items-start space-x-3">
+            <img
+              src={queueItem.vendorImage || "/placeholder.svg"}
+              alt={queueItem.vendorName}
+              className="w-16 h-16 rounded-full object-cover bg-muted"
+            />
+            <div className="flex-1">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="font-semibold">{queueItem.vendorName}</h3>
+                <Badge
+                  className={`${getStatusColor(queueItem.status)} text-white`}
+                >
+                  {getStatusIcon(queueItem.status)}
+                  <span className="ml-1">{getStatusText(queueItem.status)}</span>
+                </Badge>
               </div>
 
-              <div className="flex items-center space-x-1">
-                <Users className="h-3 w-3" />
-                <span>Vị trí: {queueItem.position ?? "—"}</span>
-              </div>
+              <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground mb-3">
+                <div className="flex items-center space-x-1">
+                  <MapPin className="h-3 w-3" />
+                  <span>
+                    Loại:{" "}
+                    {queueItem.type === "join_queue"
+                      ? "Xếp hàng ngay"
+                      : "Pre-order"}
+                  </span>
+                </div>
 
-              <div className="flex items-center space-x-1">
-                <Clock className="h-3 w-3" />
-                <span>ETA: {queueItem.estimatedTime}</span>
-              </div>
+                <div className="flex items-center space-x-1">
+                  <Users className="h-3 w-3" />
+                  <span>Vị trí: {queueItem.position ?? "—"}</span>
+                </div>
 
-              <div className="flex items-center space-x-1">
-                {queueItem.paymentMethod === "vnpay" ? (
-                  <CreditCard className="h-3 w-3" />
+                {isConfirmedTab ? (
+                  <>
+                    <div className="flex items-center space-x-1">
+                      <Clock className="h-3 w-3" />
+                      <span>
+                        Thời gian đợi đến lượt:{" "}
+                        {fmtWaitTimeFromSpan(queueItem.estimatedWaitTimeRaw)}
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-1">
+                      <Clock className="h-3 w-3" />
+                      <span>
+                        Thời gian nhận hàng dự kiến:{" "}
+                        {fmtServeTimeFull(queueItem.estimatedServeTimeRaw)}
+                      </span>
+                    </div>
+                  </>
                 ) : (
-                  <Banknote className="h-3 w-3" />
+                  <>
+                    <div className="flex items-center space-x-1">
+                      <Clock className="h-3 w-3" />
+                      <span>ETA: {queueItem.estimatedTime}</span>
+                    </div>
+                    <div className="flex items-center space-x-1">
+                      {queueItem.paymentMethod === "vnpay" ? (
+                        <CreditCard className="h-3 w-3" />
+                      ) : (
+                        <Banknote className="h-3 w-3" />
+                      )}
+                      <span>
+                        {queueItem.paymentMethod === "vnpay"
+                          ? "Thanh toán qua ví"
+                          : "Tiền mặt"}
+                      </span>
+                    </div>
+                  </>
                 )}
-                <span>
-                  {queueItem.paymentMethod === "vnpay" ? "Thanh toán qua ví" : "Tiền mặt"}
+              </div>
+
+              {isConfirmedTab && (
+                <div className="flex items-center space-x-1 text-sm text-muted-foreground mb-2">
+                  {queueItem.paymentMethod === "vnpay" ? (
+                    <CreditCard className="h-3 w-3" />
+                  ) : (
+                    <Banknote className="h-3 w-3" />
+                  )}
+                  <span>
+                    {queueItem.paymentMethod === "vnpay"
+                      ? "Thanh toán qua ví"
+                      : "Tiền mặt"}
+                  </span>
+                </div>
+              )}
+
+              <div className="text-sm text-muted-foreground mb-1">
+                Tình trạng thanh toán:{" "}
+                <span className="font-medium">
+                  {getPaymentStatusText(queueItem.paymentStatus)}
                 </span>
               </div>
-            </div>
 
-            <div className="text-sm mb-3">
-              <span className="font-medium">
-                Tổng: {fmtCurrency(queueItem.totalAmount)}
-              </span>
-            </div>
+              <div className="text-sm mb-3">
+                <span className="font-medium">
+                  Tổng: {fmtCurrency(queueItem.totalAmount)}
+                </span>
+              </div>
 
-            <div className="flex flex-wrap gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  setSelectedQueueItem(queueItem);
-                  setShowDetailDialog(true);
-                }}
-              >
-                <Eye className="h-3 w-3 mr-1" />
-                Chi tiết
-              </Button>
-
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  setSelectedQueueItem(queueItem);
-                  setShowChatDialog(true);
-                }}
-              >
-                <MessageCircle className="h-3 w-3 mr-1" />
-                Chat
-              </Button>
-
-              {queueItem.canUpdate && (
+              <div className="flex flex-wrap gap-2">
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={() => {
                     setSelectedQueueItem(queueItem);
-                    setShowUpdateDialog(true);
+                    setShowDetailDialog(true);
                   }}
                 >
-                  <Edit className="h-3 w-3 mr-1" />
-                  Cập nhật
+                  <Eye className="h-3 w-3 mr-1" />
+                  Chi tiết
                 </Button>
-              )}
 
-              {queueItem.canCancel && (
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={() => {
                     setSelectedQueueItem(queueItem);
-                    setShowCancelDialog(true);
+                    setShowChatDialog(true);
                   }}
                 >
-                  <CloseIcon className="h-3 w-3 mr-1" />
-                  Hủy
+                  <MessageCircle className="h-3 w-3 mr-1" />
+                  Chat
                 </Button>
-              )}
+
+                {queueItem.canUpdate && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setSelectedQueueItem(queueItem);
+                      setShowUpdateDialog(true);
+                    }}
+                  >
+                    <Edit className="h-3 w-3 mr-1" />
+                    Cập nhật
+                  </Button>
+                )}
+
+                {queueItem.canCancel && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setSelectedQueueItem(queueItem);
+                      setShowCancelDialog(true);
+                    }}
+                  >
+                    <CloseIcon className="h-3 w-3 mr-1" />
+                    Hủy
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
+        </CardContent>
+      </Card>
+    );
+  };
 
   const mockMenuItems = [
     { id: "1", name: "Margherita Pizza", price: 350000, isAvailable: true },
@@ -544,7 +610,7 @@ export default function ActiveQueue() {
 
       <div className="container mx-auto px-4 py-6">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold">Hàng đợi hiện tại</h1>
+          <h1 className="text-2xl font-bold">Hàng đợi của bạn</h1>
         </div>
 
         <Tabs
@@ -552,7 +618,6 @@ export default function ActiveQueue() {
           onValueChange={(v) => setStatusTab(v as StatusTab)}
           className="space-y-4"
         >
-          {/* tăng grid-cols -> 4 vì thêm tab confirmed */}
           <TabsList className="w-full grid grid-cols-4">
             <TabsTrigger value="pending">Chưa xác nhận</TabsTrigger>
             <TabsTrigger value="confirmed">Đã xác nhận</TabsTrigger>

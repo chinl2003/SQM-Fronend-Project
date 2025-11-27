@@ -1,4 +1,6 @@
+// src/pages/Index.tsx
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Navigation } from "@/components/Navigation";
 import { VendorCard } from "@/components/VendorCard";
 import { FilterBar } from "@/components/FilterBar";
@@ -39,7 +41,6 @@ type ApiVendor = {
   distance?: number | null; // distance in km from API
 };
 
-// ---------- Helpers ----------
 function buildMediaUrl(path?: string | null) {
   if (!path) return "";
   if (path.startsWith("http")) return path;
@@ -57,6 +58,7 @@ function extractVendorsFromResponse(res: any): ApiVendor[] {
 }
 
 export default function Index() {
+  const navigate = useNavigate();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [vendors, setVendors] = useState<ApiVendor[]>([]);
@@ -202,7 +204,7 @@ export default function Index() {
   );
 
   const handleVendorClick = (vendorId: string) => {
-    setQuickViewId(vendorId); // mở modal
+    navigate(`/customer/vendors/${vendorId}`);
   };
 
   const handleFilterChange = () => {
@@ -215,7 +217,6 @@ export default function Index() {
 
       <FilterBar onFilterChange={handleFilterChange} />
 
-      {/* Hero Section */}
       <section className="relative h-64 md:h-80 overflow-hidden">
         <img
           src={heroImage}
@@ -274,7 +275,6 @@ export default function Index() {
           />
         </section>
 
-        {/* Categories */}
         <section>
           <h2 className="text-xl font-semibold mb-4 flex items-center">
             <Utensils className="mr-2 h-5 w-5" />
@@ -284,7 +284,9 @@ export default function Index() {
             {categories.map((category) => (
               <Card
                 key={category.name}
-                className={`h-full w-full cursor-pointer transition-all hover:shadow-md ${selectedCategory === category.name ? "ring-2 ring-primary" : ""}`}
+                className={`h-full w-full cursor-pointer transition-all hover:shadow-md ${
+                  selectedCategory === category.name ? "ring-2 ring-primary" : ""
+                }`}
                 onClick={() =>
                   setSelectedCategory(
                     selectedCategory === category.name ? null : category.name
@@ -303,7 +305,6 @@ export default function Index() {
           </div>
         </section>
 
-        {/* Nhà hàng mới */}
         <section>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold">
@@ -347,13 +348,6 @@ export default function Index() {
           )}
         </section>
       </div>
-
-      <VendorQuickView
-        open={!!quickViewId}
-        vendorId={quickViewId}
-        onClose={() => setQuickViewId(null)}
-        customerId={currentCustomerId}
-      />
 
       <div className="h-16 md:h-0" />
     </div>
