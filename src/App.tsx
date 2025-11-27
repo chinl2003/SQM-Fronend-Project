@@ -25,6 +25,7 @@ import Analytics from "./pages/admin/Analytics";
 import Notifications from "./pages/admin/Notifications";
 import SystemSettings from "./pages/admin/SystemSettings";
 import Wallet from "./pages/customer/Wallet";
+import VendorDetailPage from "./pages/vendor/VendorDetailPage";
 // import Profile from "./pages/Profile";
 
 const queryClient = new QueryClient();
@@ -53,6 +54,7 @@ const App = () => (
           <Route path="/auth" element={<Auth />} />
           <Route path="/customer/active-queue" element={<ActiveQueue />} />
           <Route path="/customer/wallet" element={<Wallet />} />
+          <Route path="/customer/vendors/:vendorId" element={<VendorDetailPage />} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route
             path="/admin/vendor-management"
