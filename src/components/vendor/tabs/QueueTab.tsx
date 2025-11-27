@@ -96,6 +96,8 @@ function QueueList({
   const [hasNextPage, setHasNextPage] = useState<boolean>(false);
   const [hasPreviousPage, setHasPreviousPage] = useState<boolean>(false);
 
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+
   const parseResponse = (res: any): OrderWithDetailsDto[] => {
     try {
       const arr = unwrapOrders<OrderWithDetailsDto>(res);
@@ -173,7 +175,6 @@ function QueueList({
 
   useEffect(() => {
     load(page);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vendorId, queueType, page]);
 
   const formatDate = (iso?: string | null) => {
@@ -225,6 +226,7 @@ function QueueList({
       case 5:
         return "Sẵn sàng";
       case 6:
+      case 2:
         return "Hoàn tất";
       case 3:
         return "Đã hủy";
@@ -243,6 +245,32 @@ function QueueList({
   };
   const onNext = () => {
     if (hasNextPage) setPage((p) => p + 1);
+  };
+
+  const updateOrderStatus = async (orderId: string, newStatus: number) => {
+    try {
+      const token = localStorage.getItem("accessToken") || "";
+      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+
+      setUpdatingId(orderId);
+
+      await api.post(
+        `/api/order/${orderId}/status`,
+        {
+          id: orderId,
+          status: newStatus,
+        },
+        headers
+      );
+
+      toast.success("Cập nhật trạng thái đơn hàng thành công.");
+      await load(page);
+    } catch (err: any) {
+      console.error("[QueueTab] updateOrderStatus error", err);
+      toast.error("Cập nhật trạng thái đơn hàng thất bại.");
+    } finally {
+      setUpdatingId(null);
+    }
   };
 
   const startRecord = totalRecords === 0 ? 0 : (page - 1) * pageSize + 1;
@@ -290,6 +318,16 @@ function QueueList({
               ? formatWaitMinutes(it.queueEntry.estimatedWaitTime)
               : "—";
 
+            const isReadyButton = statusText === "Sẵn sàng";
+            const isCompleteButton = statusText === "Hoàn tất";
+            const canClick =
+              (isReadyButton || isCompleteButton) &&
+              !loading &&
+              updatingId !== it.id;
+
+            const nextStatus = isReadyButton ? 6 : isCompleteButton ? 2 : null;
+            const isUpdating = updatingId === it.id;
+
             return (
               <div
                 key={it.id}
@@ -312,7 +350,6 @@ function QueueList({
                         {it.customerName} - {it.customerPhone}
                       </p>
 
-                      {/* 3 dòng thời gian với icon có màu, tiêu đề bold, value thường */}
                       <div className="mt-2 space-y-1 text-xs sm:text-sm text-muted-foreground">
                         <div className="flex items-center gap-2">
                           <CalendarDays className="h-4 w-4 text-emerald-600" />
@@ -353,7 +390,23 @@ function QueueList({
                   </div>
 
                   <div>
-                    <Button className="px-6">{statusText}</Button>
+                    <Button
+                      className="px-6"
+                      disabled={!canClick || !nextStatus}
+                      onClick={() => {
+                        if (!nextStatus || !canClick) return;
+                        updateOrderStatus(it.id, nextStatus);
+                      }}
+                    >
+                      {isUpdating ? (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                          Đang cập nhật...
+                        </>
+                      ) : (
+                        statusText
+                      )}
+                    </Button>
                   </div>
                 </div>
               </div>
