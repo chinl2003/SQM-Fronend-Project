@@ -767,11 +767,7 @@ export default function VendorDetailPage() {
               </Button>
               <Button
                 onClick={() => {
-                  if (orderInfo?.orderId) {
-                    navigate(`/orders/${orderInfo.orderId}`);
-                  } else {
-                    navigate("/orders");
-                  }
+                  navigate("/customer/active-queue");
                 }}
               >
                 Theo dõi đơn hàng
