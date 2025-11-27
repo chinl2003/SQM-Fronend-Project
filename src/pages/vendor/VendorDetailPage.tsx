@@ -382,10 +382,10 @@ export default function VendorDetailPage() {
 
                             <div className="flex-1 space-y-1">
                               <div className="font-medium truncate">
-                                {it.name ?? "—"}
+                                {it.name ?? ""}
                               </div>
                               <div className="text-xs text-muted-foreground line-clamp-2">
-                                {it.description || "—"}
+                                {it.description || ""}
                               </div>
 
                               <div className="grid grid-cols-2 gap-2 text-xs pt-2">
@@ -396,16 +396,10 @@ export default function VendorDetailPage() {
                                   {fmtVND(it.price ?? 0)}
                                 </div>
                                 <div className="text-muted-foreground">
-                                  Chế biến
+                                  Thời gian chế biến
                                 </div>
                                 <div className="text-right">
                                   {(it.prepTime ?? 0).toString()} phút
-                                </div>
-                                <div className="text-muted-foreground">
-                                  Còn lại
-                                </div>
-                                <div className="text-right">
-                                  {(it.quantity ?? 0).toString()}
                                 </div>
                               </div>
                             </div>
@@ -517,113 +511,99 @@ export default function VendorDetailPage() {
 
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Xác nhận xếp hàng</DialogTitle>
-          </DialogHeader>
+  <DialogHeader>
+    <DialogTitle>Xác nhận xếp hàng</DialogTitle>
+  </DialogHeader>
 
-          <div className="space-y-3">
-            <div className="rounded-xl border p-4 bg-accent/20">
-              <div className="flex items-center justify-between">
-                <div className="font-semibold">{vendor?.name ?? "—"}</div>
-                <div className="text-sm text-muted-foreground flex items-center gap-1">
-                  <Users className="w-4 h-4" />
-                  Vị trí: {positionMax + 1}
-                </div>
-              </div>
+  <div className="space-y-4">
 
-              <div className="text-sm text-muted-foreground mt-2">
-                Chi tiết đơn hàng:
-              </div>
+    <div className="rounded-xl border bg-white shadow-sm p-4 space-y-3">
 
-              <div className="mt-2 space-y-1">
-                {selectedItems.length === 0 ? (
-                  <div className="text-sm text-muted-foreground">
-                    Chưa chọn món.
-                  </div>
-                ) : (
-                  selectedItems.map(({ item, q }) => (
-                    <div key={item.id} className="flex justify-between text-sm">
-                      <div>
-                        {q}x {item.name}
-                      </div>
-                      <div>{fmtVND((item.price ?? 0) * q)}</div>
-                    </div>
-                  ))
-                )}
-              </div>
+      <div className="text-lg font-semibold">
+        {vendor?.name ?? "—"}
+      </div>
 
-              <Separator className="my-3" />
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Users className="w-4 h-4" />
+        Vị trí hiện tại: <span className="font-medium text-foreground">{positionMax + 1}</span>
+      </div>
 
-              <div className="flex items-center justify-between">
-                <div className="font-semibold">Tổng cộng</div>
-                <div className="font-semibold text-emerald-600">
-                  {fmtVND(totalPrice)}
-                </div>
-              </div>
-            </div>
+      <div className="flex items-start gap-2 text-sm">
+        <MapPin className="w-4 h-4 text-muted-foreground mt-0.5" />
+        <div>
+          <div className="text-muted-foreground text-xs">Địa điểm nhận đơn</div>
+          <div className="font-medium">{vendor?.address || "—"}</div>
+        </div>
+      </div>
+    </div>
 
-            <div className="rounded-xl border p-4">
-              <div className="font-medium mb-3">Phương thức thanh toán</div>
-              <div className="space-y-2">
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethod("WALLET")}
-                  className={cn(
-                    "w-full flex items-center gap-2 rounded-lg border px-3 py-2 text-left",
-                    paymentMethod === "WALLET"
-                      ? "border-primary ring-2 ring-primary/20"
-                      : "hover:bg-muted/50"
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "inline-block w-4 h-4 rounded-full border",
-                      paymentMethod === "WALLET"
-                        ? "bg-primary border-primary"
-                        : ""
-                    )}
-                  />
-                  Ví của bạn
-                </button>
 
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethod("CASH")}
-                  className={cn(
-                    "w-full flex items-center gap-2 rounded-lg border px-3 py-2 text-left",
-                    paymentMethod === "CASH"
-                      ? "border-primary ring-2 ring-primary/20"
-                      : "hover:bg-muted/50"
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "inline-block w-4 h-4 rounded-full border",
-                      paymentMethod === "CASH"
-                        ? "bg-primary border-primary"
-                        : ""
-                    )}
-                  />
-                  Thanh toán tiền mặt
-                </button>
-              </div>
-            </div>
+    <div className="rounded-xl border p-4 bg-emerald-50 shadow-[0_0_10px_rgba(0,0,0,0.04)]">
+  <div className="font-semibold mb-2">Chi tiết đơn hàng</div>
 
-            <div className="flex justify-end gap-2 pt-1">
-              <Button
-                variant="outline"
-                onClick={() => setConfirmOpen(false)}
-                disabled={submitting}
-              >
-                Hủy
-              </Button>
-              <Button onClick={handleConfirmJoin} disabled={submitting}>
-                <CheckCircle className="w-4 h-4 mr-1" />
-                {submitting ? "Đang xử lý..." : "Xác nhận"}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
+  {selectedItems.length === 0 ? (
+    <div className="text-sm text-emerald-700 opacity-70">
+      Chưa chọn món.
+    </div>
+  ) : (
+    <div className="space-y-1">
+      {selectedItems.map(({ item, q }) => (
+        <div key={item.id} className="flex justify-between text-sm">
+          <span>{q}x {item.name}</span>
+          <span className="font-semibold">{fmtVND((item.price ?? 0) * q)}</span>
+        </div>
+      ))}
+    </div>
+  )}
+
+  <div className="border-t border-emerald-200 pt-3 mt-3 flex items-center justify-between">
+    <span className="font-semibold">Tổng cộng</span>
+    <span className="font-semibold text-emerald-600">{fmtVND(totalPrice)}</span>
+  </div>
+</div>
+
+
+    <div className="rounded-xl border p-4 space-y-2">
+      <div className="font-medium mb-1">Phương thức thanh toán</div>
+
+      <button
+        type="button"
+        onClick={() => setPaymentMethod("WALLET")}
+        className={cn(
+          "w-full flex items-center gap-2 rounded-lg border px-3 py-2 text-left",
+          paymentMethod === "WALLET" ? "border-primary ring-2 ring-primary/20" : "hover:bg-muted/50"
+        )}
+      >
+        <span className={cn("w-4 h-4 rounded-full border", paymentMethod === "WALLET" && "bg-primary border-primary")} />
+        Ví của bạn
+      </button>
+
+      <button
+        type="button"
+        onClick={() => setPaymentMethod("CASH")}
+        className={cn(
+          "w-full flex items-center gap-2 rounded-lg border px-3 py-2 text-left",
+          paymentMethod === "CASH" ? "border-primary ring-2 ring-primary/20" : "hover:bg-muted/50"
+        )}
+      >
+        <span className={cn("w-4 h-4 rounded-full border", paymentMethod === "CASH" && "bg-primary border-primary")} />
+        Thanh toán tiền mặt
+      </button>
+    </div>
+
+
+    <div className="flex justify-end gap-2 pt-1">
+      <Button variant="outline" onClick={() => setConfirmOpen(false)} disabled={submitting}>
+        Hủy
+      </Button>
+      <Button onClick={handleConfirmJoin} disabled={submitting} className="flex items-center gap-1">
+        <CheckCircle className="w-4 h-4" />
+        {submitting ? "Đang xử lý..." : "Xác nhận"}
+      </Button>
+    </div>
+
+  </div>
+</DialogContent>
       </Dialog>
     </div>
   );
