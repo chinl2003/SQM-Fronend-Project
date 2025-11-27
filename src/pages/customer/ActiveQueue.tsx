@@ -270,6 +270,18 @@ const getPaymentStatusText = (status: QueueItem["paymentStatus"]) => {
   }
 };
 
+const getPaymentStatusIcon = (status: QueueItem["paymentStatus"]) => {
+  switch (status) {
+    case "paid":
+      return <CheckCircle2 className="h-4 w-4 text-green-500" />;
+    case "refunded":
+      return <RefreshCw className="h-4 w-4 text-sky-500" />;
+    case "pending":
+    default:
+      return <Clock className="h-4 w-4 text-amber-500" />;
+  }
+};
+
 function unwrapArray<T>(raw: any): T[] {
   if (Array.isArray(raw?.data)) return raw.data;
   if (Array.isArray(raw)) return raw;
@@ -459,9 +471,9 @@ export default function ActiveQueue() {
 
               <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground mb-3">
                 <div className="flex items-center space-x-1">
-                  <MapPin className="h-3 w-3" />
+                  <MapPin className="h-3 w-3 text-emerald-500" />
                   <span>
-                    Loại:{" "}
+                    <span className="font-semibold">Loại:</span>{" "}
                     {queueItem.type === "join_queue"
                       ? "Xếp hàng ngay"
                       : "Pre-order"}
@@ -469,23 +481,30 @@ export default function ActiveQueue() {
                 </div>
 
                 <div className="flex items-center space-x-1">
-                  <Users className="h-3 w-3" />
-                  <span>Vị trí: {queueItem.position ?? "—"}</span>
+                  <Users className="h-3 w-3 text-sky-500" />
+                  <span>
+                    <span className="font-semibold">Vị trí:</span>{" "}
+                    {queueItem.position ?? "—"}
+                  </span>
                 </div>
 
                 {isConfirmedTab ? (
                   <>
                     <div className="flex items-center space-x-1">
-                      <Clock className="h-3 w-3" />
+                      <Clock className="h-3 w-3 text-amber-500" />
                       <span>
-                        Thời gian đợi đến lượt:{" "}
+                        <span className="font-semibold">
+                          Thời gian đợi đến lượt:
+                        </span>{" "}
                         {fmtWaitTimeFromSpan(queueItem.estimatedWaitTimeRaw)}
                       </span>
                     </div>
                     <div className="flex items-center space-x-1">
-                      <Clock className="h-3 w-3" />
+                      <Clock className="h-3 w-3 text-emerald-500" />
                       <span>
-                        Thời gian nhận hàng dự kiến:{" "}
+                        <span className="font-semibold">
+                          Thời gian nhận hàng dự kiến:
+                        </span>{" "}
                         {fmtServeTimeFull(queueItem.estimatedServeTimeRaw)}
                       </span>
                     </div>
@@ -493,16 +512,22 @@ export default function ActiveQueue() {
                 ) : (
                   <>
                     <div className="flex items-center space-x-1">
-                      <Clock className="h-3 w-3" />
-                      <span>ETA: {queueItem.estimatedTime}</span>
+                      <Clock className="h-3 w-3 text-emerald-500" />
+                      <span>
+                        <span className="font-semibold">ETA:</span>{" "}
+                        {queueItem.estimatedTime}
+                      </span>
                     </div>
                     <div className="flex items-center space-x-1">
                       {queueItem.paymentMethod === "vnpay" ? (
-                        <CreditCard className="h-3 w-3" />
+                        <CreditCard className="h-3 w-3 text-indigo-500" />
                       ) : (
-                        <Banknote className="h-3 w-3" />
+                        <Banknote className="h-3 w-3 text-green-600" />
                       )}
                       <span>
+                        <span className="font-semibold">
+                          Phương thức thanh toán:
+                        </span>{" "}
                         {queueItem.paymentMethod === "vnpay"
                           ? "Thanh toán qua ví"
                           : "Tiền mặt"}
@@ -512,86 +537,93 @@ export default function ActiveQueue() {
                 )}
               </div>
 
-              {isConfirmedTab && (
-                <div className="flex items-center space-x-1 text-sm text-muted-foreground mb-2">
-                  {queueItem.paymentMethod === "vnpay" ? (
-                    <CreditCard className="h-3 w-3" />
-                  ) : (
-                    <Banknote className="h-3 w-3" />
-                  )}
-                  <span>
-                    {queueItem.paymentMethod === "vnpay"
-                      ? "Thanh toán qua ví"
-                      : "Tiền mặt"}
-                  </span>
+              {(isConfirmedTab || !isConfirmedTab) && (
+                <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground mb-3">
+                  <div className="flex items-center space-x-1">
+                    {queueItem.paymentMethod === "vnpay" ? (
+                      <CreditCard className="h-3 w-3 text-indigo-500" />
+                    ) : (
+                      <Banknote className="h-3 w-3 text-green-600" />
+                    )}
+                    <span className="font-semibold">
+                      Phương thức thanh toán:
+                    </span>
+                    <span>
+                      {queueItem.paymentMethod === "vnpay"
+                        ? "Thanh toán qua ví"
+                        : "Tiền mặt"}
+                    </span>
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    {getPaymentStatusIcon(queueItem.paymentStatus)}
+                    <span className="font-semibold">
+                      Tình trạng thanh toán:
+                    </span>
+                    <span>{getPaymentStatusText(queueItem.paymentStatus)}</span>
+                  </div>
                 </div>
               )}
 
-              <div className="text-sm text-muted-foreground mb-1">
-                Tình trạng thanh toán:{" "}
-                <span className="font-medium">
-                  {getPaymentStatusText(queueItem.paymentStatus)}
-                </span>
-              </div>
-
-              <div className="text-sm mb-3">
-                <span className="font-medium">
-                  Tổng: {fmtCurrency(queueItem.totalAmount)}
-                </span>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    setSelectedQueueItem(queueItem);
-                    setShowDetailDialog(true);
-                  }}
-                >
-                  <Eye className="h-3 w-3 mr-1" />
-                  Chi tiết
-                </Button>
-
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    setSelectedQueueItem(queueItem);
-                    setShowChatDialog(true);
-                  }}
-                >
-                  <MessageCircle className="h-3 w-3 mr-1" />
-                  Chat
-                </Button>
-
-                {queueItem.canUpdate && (
+              <div className="mt-2 flex items-center gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Button
                     size="sm"
                     variant="outline"
                     onClick={() => {
                       setSelectedQueueItem(queueItem);
-                      setShowUpdateDialog(true);
+                      setShowDetailDialog(true);
                     }}
                   >
-                    <Edit className="h-3 w-3 mr-1" />
-                    Cập nhật
+                    <Eye className="h-3 w-3 mr-1" />
+                    Chi tiết
                   </Button>
-                )}
 
-                {queueItem.canCancel && (
                   <Button
                     size="sm"
                     variant="outline"
                     onClick={() => {
                       setSelectedQueueItem(queueItem);
-                      setShowCancelDialog(true);
+                      setShowChatDialog(true);
                     }}
                   >
-                    <CloseIcon className="h-3 w-3 mr-1" />
-                    Hủy
+                    <MessageCircle className="h-3 w-3 mr-1" />
+                    Chat
                   </Button>
-                )}
+
+                  {queueItem.canUpdate && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setSelectedQueueItem(queueItem);
+                        setShowUpdateDialog(true);
+                      }}
+                    >
+                      <Edit className="h-3 w-3 mr-1" />
+                      Cập nhật
+                    </Button>
+                  )}
+
+                  {queueItem.canCancel && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setSelectedQueueItem(queueItem);
+                        setShowCancelDialog(true);
+                      }}
+                    >
+                      <CloseIcon className="h-3 w-3 mr-1" />
+                      Hủy
+                    </Button>
+                  )}
+                </div>
+
+                <div className="ml-auto text-right">
+                  <div className="text-lg font-bold">
+                    Tổng tiền: {fmtCurrency(queueItem.totalAmount)}
+                  </div>
+                </div>
               </div>
             </div>
           </div>

@@ -51,6 +51,8 @@ interface QueueItem {
   orderTime: string;
   canCancel: boolean;
   canUpdate: boolean;
+  estimatedWaitTimeRaw?: string | null;
+  estimatedServeTimeRaw?: string | null;
 }
 
 interface ViewQueueDetailDialogProps {
@@ -58,6 +60,28 @@ interface ViewQueueDetailDialogProps {
   onClose: () => void;
   queueItem: QueueItem;
 }
+
+const fmtServeTimeFull = (t?: string | null) => {
+  if (!t) return "—";
+  const d = new Date(t);
+  if (Number.isNaN(d.getTime())) return "—";
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const date = `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()}`;
+  return `${time} ${date}`;
+};
+
+const fmtWaitTimeFromSpan = (span?: string | null) => {
+  if (!span) return "—";
+  const parts = span.split(":");
+  if (parts.length < 2) return span;
+  const h = parseInt(parts[0] || "0", 10);
+  const m = parseInt(parts[1] || "0", 10);
+  if (Number.isNaN(h) || Number.isNaN(m)) return span;
+  const totalMin = h * 60 + m;
+  if (totalMin <= 0) return "—";
+  return `${totalMin} phút`;
+};
 
 export function ViewQueueDetailDialog({
   isOpen,
@@ -138,7 +162,7 @@ export function ViewQueueDetailDialog({
     switch (status) {
       case "paid":
         return "Đã thanh toán";
-      case "pending":
+    case "pending":
         return "Chờ thanh toán";
       case "refunded":
         return "Đã hoàn tiền";
@@ -149,7 +173,7 @@ export function ViewQueueDetailDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md mx-auto max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-lg mx-auto max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center space-x-3">
             <img
@@ -162,7 +186,6 @@ export function ViewQueueDetailDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Vendor Info */}
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-3">
@@ -190,15 +213,11 @@ export function ViewQueueDetailDialog({
                   <p className="text-sm font-medium text-muted-foreground">
                     Loại hàng đợi
                   </p>
-                  <Badge
-                    variant={
-                      queueItem.type === "join_queue" ? "default" : "secondary"
-                    }
-                  >
+                  <p className="text-base font-semibold">
                     {queueItem.type === "join_queue"
                       ? "Xếp hàng ngay"
                       : "Pre-order"}
-                  </Badge>
+                  </p>
                 </div>
               </div>
 
@@ -217,10 +236,26 @@ export function ViewQueueDetailDialog({
                 </div>
 
                 {queueItem.type === "pre_order" ? (
-                  <div className="flex items-center space-x-2 text-muted-foreground">
-                    <Calendar className="h-4 w-4" />
-                    <span>Khung giờ: {queueItem.slot}</span>
-                  </div>
+                  <>
+                    <div className="flex items-center space-x-2 text-muted-foreground">
+                      <Calendar className="h-4 w-4" />
+                      <span>Khung giờ: {queueItem.slot}</span>
+                    </div>
+                    <div className="flex items-center space-x-2 text-muted-foreground">
+                      <Clock className="h-4 w-4" />
+                      <span>
+                        Thời gian đợi đến lượt:{" "}
+                        {fmtWaitTimeFromSpan(queueItem.estimatedWaitTimeRaw)}
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-2 text-muted-foreground">
+                      <Clock className="h-4 w-4" />
+                      <span>
+                        Thời gian nhận hàng dự kiến:{" "}
+                        {fmtServeTimeFull(queueItem.estimatedServeTimeRaw)}
+                      </span>
+                    </div>
+                  </>
                 ) : (
                   <>
                     <div className="flex items-center space-x-2 text-muted-foreground">
@@ -229,7 +264,17 @@ export function ViewQueueDetailDialog({
                     </div>
                     <div className="flex items-center space-x-2 text-muted-foreground">
                       <Clock className="h-4 w-4" />
-                      <span>Thời gian ước tính: {queueItem.estimatedTime}</span>
+                      <span>
+                        Thời gian đợi đến lượt:{" "}
+                        {fmtWaitTimeFromSpan(queueItem.estimatedWaitTimeRaw)}
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-2 text-muted-foreground">
+                      <Clock className="h-4 w-4" />
+                      <span>
+                        Thời gian nhận hàng dự kiến:{" "}
+                        {fmtServeTimeFull(queueItem.estimatedServeTimeRaw)}
+                      </span>
                     </div>
                   </>
                 )}
@@ -237,7 +282,6 @@ export function ViewQueueDetailDialog({
             </CardContent>
           </Card>
 
-          {/* Order Items */}
           <Card>
             <CardContent className="p-4">
               <h4 className="font-medium mb-3">Chi tiết đơn hàng</h4>
@@ -266,7 +310,6 @@ export function ViewQueueDetailDialog({
             </CardContent>
           </Card>
 
-          {/* Payment Info */}
           <Card>
             <CardContent className="p-4">
               <h4 className="font-medium mb-3">Thông tin thanh toán</h4>
@@ -298,7 +341,6 @@ export function ViewQueueDetailDialog({
             </CardContent>
           </Card>
 
-          {/* Action Button */}
           <Button onClick={onClose} className="w-full">
             Đóng
           </Button>
