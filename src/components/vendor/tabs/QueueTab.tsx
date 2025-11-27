@@ -9,7 +9,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  RefreshCw,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Hourglass,
+  CalendarDays,
+} from "lucide-react";
 import { api } from "@/lib/api";
 import { unwrapOrders } from "../utils";
 import { OrderWithDetailsDto } from "../utils";
@@ -23,7 +30,6 @@ export default function QueueTab({ vendor }: Props) {
   const [liveCount, setLiveCount] = useState<number>(0);
   const [preCount, setPreCount] = useState<number>(0);
 
-  // reset counts when vendor changes
   useEffect(() => {
     setLiveCount(0);
     setPreCount(0);
@@ -84,9 +90,8 @@ function QueueList({
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
 
-  // pagination
   const [page, setPage] = useState<number>(1);
-  const [pageSize] = useState<number>(20); // mặc định 20
+  const [pageSize] = useState<number>(20);
   const [totalRecords, setTotalRecords] = useState<number>(0);
   const [hasNextPage, setHasNextPage] = useState<boolean>(false);
   const [hasPreviousPage, setHasPreviousPage] = useState<boolean>(false);
@@ -95,9 +100,7 @@ function QueueList({
     try {
       const arr = unwrapOrders<OrderWithDetailsDto>(res);
       if (Array.isArray(arr) && arr.length > 0) return arr;
-    } catch (e) {
-      // ignore
-    }
+    } catch (e) {}
 
     const outer = (res as any)?.data ?? res;
     const pag = outer?.data ?? outer ?? null;
@@ -132,12 +135,10 @@ function QueueList({
 
       const res = await api.get(url, headers);
 
-      // parse items robustly
       const arr = parseResponse(res);
       const orders =
         arr.length > 0 ? arr : unwrapOrders<OrderWithDetailsDto>(res) ?? [];
 
-      // Try to extract pagination meta if present
       const outer = (res as any)?.data ?? res;
       const pag = outer?.data ?? outer ?? null;
 
@@ -156,7 +157,6 @@ function QueueList({
       setHasPreviousPage(hasPrev);
       setPage(pageFromResp);
 
-      // inform parent about count
       onCountChange?.(total);
     } catch (err: any) {
       console.error("[QueueTab] load error", err);
@@ -167,7 +167,6 @@ function QueueList({
     }
   };
 
-  // reset page when vendor/queueType changes
   useEffect(() => {
     setPage(1);
   }, [vendorId, queueType]);
@@ -177,14 +176,26 @@ function QueueList({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vendorId, queueType, page]);
 
-  // ---- Format helpers ----
   const formatDate = (iso?: string | null) => {
     if (!iso) return "—";
     const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "—";
     const pad = (n: number) => String(n).padStart(2, "0");
-    return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(
-      d.getSeconds()
-    )} ${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()}`;
+    return `${pad(d.getHours())}:${pad(d.getMinutes())} ${pad(
+      d.getDate()
+    )}-${pad(d.getMonth() + 1)}-${d.getFullYear()}`;
+  };
+
+  const formatWaitMinutes = (span?: string | null) => {
+    if (!span) return "—";
+    const parts = span.split(":");
+    if (parts.length < 2) return span;
+    const h = parseInt(parts[0] || "0", 10);
+    const m = parseInt(parts[1] || "0", 10);
+    if (Number.isNaN(h) || Number.isNaN(m)) return span;
+    const totalMin = h * 60 + m;
+    if (totalMin <= 0) return "—";
+    return `${totalMin} phút`;
   };
 
   const mapPaymentStatus = (ps: number | null | undefined) => {
@@ -194,7 +205,7 @@ function QueueList({
       case 1:
         return { text: "Đang xử lý", color: "bg-amber-500 text-white" };
       case 2:
-        return { text: "Đã thanh toán", color: "bg-blue-600 text-white" }; // KHÔNG xanh lá
+        return { text: "Đã thanh toán", color: "bg-blue-600 text-white" };
       case 3:
         return { text: "Thanh toán thất bại", color: "bg-slate-600 text-white" };
       case 4:
@@ -227,7 +238,6 @@ function QueueList({
     return items.filter((i) => String(i.status) === statusFilter);
   }, [items, statusFilter]);
 
-  // pagination controls
   const onPrev = () => {
     if (page > 1) setPage((p) => Math.max(1, p - 1));
   };
@@ -241,7 +251,6 @@ function QueueList({
 
   return (
     <div>
-      {/* FILTER + RELOAD */}
       <div className="flex items-center gap-2 justify-end mb-3">
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-48">
@@ -267,7 +276,6 @@ function QueueList({
         </Button>
       </div>
 
-      {/* LIST */}
       <div className="space-y-3">
         {filtered.length === 0 ? (
           <p className="text-sm text-muted-foreground">Chưa có đơn nào.</p>
@@ -277,6 +285,9 @@ function QueueList({
             const statusText = mapOrderStatus(it.status ?? null);
             const estServe = it.queueEntry?.estimatedServeTime
               ? formatDate(it.queueEntry.estimatedServeTime)
+              : "—";
+            const waitText = it.queueEntry?.estimatedWaitTime
+              ? formatWaitMinutes(it.queueEntry.estimatedWaitTime)
               : "—";
 
             return (
@@ -291,7 +302,6 @@ function QueueList({
                 </div>
 
                 <div className="flex items-center justify-between">
-                  {/* LEFT */}
                   <div className="flex items-center gap-4">
                     <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white font-bold">
                       #{it.queueEntry?.position ?? "-"}
@@ -302,21 +312,38 @@ function QueueList({
                         {it.customerName} - {it.customerPhone}
                       </p>
 
-                      <p className="text-sm text-muted-foreground flex items-center gap-2 mt-1">
-                        <span className="font-semibold">Đặt vào:</span>
-                        <span>{formatDate(it.createdAt)}</span>
+                      {/* 3 dòng thời gian với icon có màu, tiêu đề bold, value thường */}
+                      <div className="mt-2 space-y-1 text-xs sm:text-sm text-muted-foreground">
+                        <div className="flex items-center gap-2">
+                          <CalendarDays className="h-4 w-4 text-emerald-600" />
+                          <span className="font-semibold text-foreground">
+                            Đặt vào:
+                          </span>
+                          <span>{formatDate(it.createdAt)}</span>
+                        </div>
 
-                        <span className="mx-2 text-muted-foreground">•</span>
+                        <div className="flex items-center gap-2">
+                          <Hourglass className="h-4 w-4 text-amber-600" />
+                          <span className="font-semibold text-foreground">
+                            Thời gian đợi:
+                          </span>
+                          <span>{waitText}</span>
+                        </div>
 
-                        <span className="font-semibold">ETA:</span>
-                        <span>{estServe}</span>
-                      </p>
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-4 w-4 text-sky-600" />
+                          <span className="font-semibold text-foreground">
+                            Thời gian nhận hàng dự kiến:
+                          </span>
+                          <span>{estServe}</span>
+                        </div>
+                      </div>
 
-                      <div className="flex flex-wrap gap-1 mt-2">
+                      <div className="flex flex-wrap gap-1 mt-3">
                         {it.details.map((d) => (
                           <span
                             key={d.id}
-                            className="text-xs bg-muted px-2 py-1 rounded"
+                            className="text-xs bg-muted px-2 py-1 rounded border border-border shadow-sm"
                           >
                             {d.quantity} x {d.menuItemName}
                           </span>
@@ -325,7 +352,6 @@ function QueueList({
                     </div>
                   </div>
 
-                  {/* RIGHT */}
                   <div>
                     <Button className="px-6">{statusText}</Button>
                   </div>
@@ -336,7 +362,6 @@ function QueueList({
         )}
       </div>
 
-      {/* PAGINATION FOOTER */}
       <div className="mt-4 flex items-center justify-between">
         <div className="text-sm text-muted-foreground">
           Hiển thị <span className="font-semibold">{startRecord}</span> -{" "}
