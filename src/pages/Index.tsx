@@ -6,12 +6,26 @@ import { GoogleMap } from "@/components/GoogleMap";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Utensils, MapPin } from "lucide-react";
+import { Utensils, MapPin, Loader2, MapPinOff } from "lucide-react";
 import heroImage from "@/assets/hero-image.jpg";
 import { api, ApiResponse } from "@/lib/api";
 import { VendorQuickView } from "@/components/customer/VendorQuickView";
+import { useGeolocation } from "@/hooks/useGeolocation";
+import { calculateDistance, formatDistance } from "@/lib/geolocation";
 
 // ---------- Types ----------
+type VendorFilter = "Rating" | "Queue" | "NearestMe" | "MostSelling";
+
+type FilterVendorRequest = {
+  filter?: VendorFilter;
+  nameSearch?: string;
+  categoryFoodSearch?: string;
+  latitude?: number;
+  longitude?: number;
+  radiusKm?: number;
+  status?: string;
+};
+
 type ApiVendor = {
   id: string;
   name?: string | null;
@@ -22,6 +36,7 @@ type ApiVendor = {
   averageRating?: number | null;
   queueCount?: number | null;
   allowPreorder?: boolean | null;
+  distance?: number | null; // distance in km from API
 };
 
 // ---------- Helpers ----------
@@ -33,7 +48,7 @@ function buildMediaUrl(path?: string | null) {
 }
 
 function extractVendorsFromResponse(res: any): ApiVendor[] {
-  const outer = res?.data ?? res;
+  const outer = res?.data.data ?? res;
   const list =
     (Array.isArray(outer) && outer) ||
     (Array.isArray(outer?.data) && outer.data) ||
@@ -45,12 +60,23 @@ export default function Index() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [vendors, setVendors] = useState<ApiVendor[]>([]);
-  const [quickViewId, setQuickViewId] = useState<string | null>(null); // <-- NEW
+  const [quickViewId, setQuickViewId] = useState<string | null>(null);
   const [currentCustomerId, setCurrentCustomerId] = useState<string | null>(null);
+  const [radiusKm] = useState<number>(5);
+
+  // Geolocation hook
+  const {
+    coordinates: userLocation,
+    loading: locationLoading,
+    error: locationError,
+    requestLocation,
+  } = useGeolocation();
+
   useEffect(() => {
     const cid = localStorage.getItem("userId") || null;
     setCurrentCustomerId(cid);
   }, []);
+
   const categories = [
     { name: "Ý", icon: "🍕", count: 23 },
     { name: "Châu Á", icon: "🍜", count: 18 },
@@ -60,30 +86,62 @@ export default function Index() {
     { name: "Tráng Miệng", icon: "🍰", count: 14 },
   ];
 
-  // --- Fetch vendors from API ---
+  // --- Fetch vendors from API with location filter ---
   useEffect(() => {
     let mounted = true;
-    (async () => {
+
+    const fetchVendors = async () => {
       try {
         setLoading(true);
         const token = localStorage.getItem("accessToken") || "";
+        const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+
+        // Build query params
+        const params = new URLSearchParams({
+          filter: "NearestMe",
+          radiusKm: radiusKm.toString(),
+        });
+
+        // Add location if available
+        if (userLocation) {
+          params.append("latitude", userLocation.latitude.toString());
+          params.append("longitude", userLocation.longitude.toString());
+        }
+
         const res = await api.get<ApiResponse<ApiVendor[]>>(
-          "/api/vendor",
-          token ? { Authorization: `Bearer ${token}` } : undefined
+          `/api/Vendor/filter?${params.toString()}`,
+          headers
         );
         const list = extractVendorsFromResponse(res);
         if (mounted) setVendors(list);
       } catch (e) {
-        console.error(e);
-        setVendors([]);
+        console.error("Error fetching vendors:", e);
+        // Fallback to basic vendor list if filter fails
+        try {
+          const token = localStorage.getItem("accessToken") || "";
+          const res = await api.get<ApiResponse<ApiVendor[]>>(
+            "/api/vendor",
+            token ? { Authorization: `Bearer ${token}` } : undefined
+          );
+          const list = extractVendorsFromResponse(res);
+          if (mounted) setVendors(list);
+        } catch {
+          if (mounted) setVendors([]);
+        }
       } finally {
         if (mounted) setLoading(false);
       }
-    })();
+    };
+
+    // Only fetch when location is resolved (either got coords or failed)
+    if (!locationLoading) {
+      fetchVendors();
+    }
+
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [userLocation, locationLoading, radiusKm]);
 
   const vendorLocations = useMemo(
     () =>
@@ -97,6 +155,31 @@ export default function Index() {
     [vendors]
   );
 
+  // Calculate distance client-side if API doesn't provide it
+  const getVendorDistance = (vendor: ApiVendor): string => {
+    // If API provides distance, use it
+    if (vendor.distance != null) {
+      return formatDistance(vendor.distance);
+    }
+
+    // Otherwise, calculate client-side if user location is available
+    if (
+      userLocation &&
+      vendor.latitude != null &&
+      vendor.longitude != null
+    ) {
+      const distanceKm = calculateDistance(
+        userLocation.latitude,
+        userLocation.longitude,
+        vendor.latitude,
+        vendor.longitude
+      );
+      return formatDistance(distanceKm);
+    }
+
+    return "";
+  };
+
   const vendorCards = useMemo(
     () =>
       vendors.map((v) => ({
@@ -105,9 +188,9 @@ export default function Index() {
         coverImage: buildMediaUrl(v.logoUrl) || heroImage,
         rating: typeof v.averageRating === "number" ? v.averageRating : 0,
         reviewCount: 0,
-        eta: "", // dùng mặc định "0" trong VendorCard
+        eta: "",
         queueSize: v.queueCount ?? 0,
-        distance: "", // dùng mặc định "0" trong VendorCard
+        distance: getVendorDistance(v),
         cuisineType: "",
         priceRange: "€€" as const,
         isPreOrderAvailable: !!v.allowPreorder,
@@ -115,14 +198,15 @@ export default function Index() {
         lat: v.latitude ?? 0,
         lng: v.longitude ?? 0,
       })),
-    [vendors]
+    [vendors, userLocation]
   );
 
   const handleVendorClick = (vendorId: string) => {
     setQuickViewId(vendorId); // mở modal
   };
 
-  const handleFilterChange = (filters: any) => {
+  const handleFilterChange = () => {
+    // TODO: implement filter logic
   };
 
   return (
@@ -158,10 +242,33 @@ export default function Index() {
       </section>
 
       <div className="w-full px-4 md:px-6 py-6 space-y-8">
+        {/* Location Status */}
+        {(locationLoading || locationError) && (
+          <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50">
+            {locationLoading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                <span className="text-sm text-muted-foreground">
+                  Đang xác định vị trí của bạn...
+                </span>
+              </>
+            ) : locationError ? (
+              <>
+                <MapPinOff className="h-4 w-4 text-destructive" />
+                <span className="text-sm text-muted-foreground">{locationError}</span>
+                <Button variant="link" size="sm" onClick={requestLocation} className="p-0 h-auto">
+                  Thử lại
+                </Button>
+              </>
+            ) : null}
+          </div>
+        )}
+
         {/* Map */}
         <section>
           <GoogleMap
             vendors={vendorLocations}
+            userLocation={userLocation ? { lat: userLocation.latitude, lng: userLocation.longitude } : null}
             onVendorClick={handleVendorClick}
             height="300px"
           />

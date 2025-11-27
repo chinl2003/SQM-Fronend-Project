@@ -1,9 +1,11 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Star, Clock, MapPin, Users, Utensils } from "lucide-react";
+import { Star, Clock, MapPin, Users, Utensils, Map } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { MockGoogleMap } from "./MockGoogleMap";
+import { VendorMiniMap } from "./VendorMiniMap";
+import { useState } from "react";
+import { VendorMapDialog } from "@/components/VendorMapDialog";
 
 interface VendorCardProps {
   id: string;
@@ -42,9 +44,8 @@ export function VendorCard({
   onClick,
   className
 }: VendorCardProps) {
-  // Phòng khi truyền vào là chuỗi rỗng/space
   const etaDisplay = (eta ?? "").toString().trim() || "0";
-  const distanceDisplay = (distance ?? "").toString().trim() || "0";
+  const distanceDisplay = (distance ?? "").toString().trim() || "";
 
   return (
     <Card 
@@ -74,7 +75,7 @@ export function VendorCard({
           )}
         </div>
 
-        <div className="absolute top-3 right-3">
+        <div className="absolute top-3 right-3 flex flex-col gap-1 items-end">
           <div
             className={cn(
               "flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium",
@@ -88,6 +89,13 @@ export function VendorCard({
             <Users className="h-3 w-3" />
             <span>{queueSize}</span>
           </div>
+          
+          {distanceDisplay && distanceDisplay !== "0" && (
+            <div className="flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-500/90 text-white">
+              <MapPin className="h-3 w-3" />
+              <span>{distanceDisplay}</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -116,14 +124,14 @@ export function VendorCard({
             <Clock className="h-3 w-3" />
             <span>{etaDisplay} phút</span>
           </div>
-          <div className="flex items-center space-x-1 text-muted-foreground">
+          <div className="flex items-center space-x-1 text-primary font-medium">
             <MapPin className="h-3 w-3" />
-            <span>{distanceDisplay} km</span>
+            <span>{distanceDisplay || "—"}</span>
           </div>
         </div>
 
         <div className="mb-4 rounded-lg overflow-hidden">
-          <MockGoogleMap
+          <VendorMiniMap
             lat={lat}
             lng={lng}
             queueSize={queueSize}
