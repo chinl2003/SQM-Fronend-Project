@@ -31,6 +31,18 @@ import { api, ApiResponse } from "@/lib/api";
 import VendorReviewDialog from "@/components/customer/VendorReviewDialog";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 
+type OrderRatingApi = {
+  id: string;
+  orderId: string;
+  vendorId: string;
+  customerId: string;
+  customerName: string;
+  comment?: string | null;
+  stars: string; // "10"
+  imageUrls?: string | null; // "a;b;c"
+  createdTime?: string | null;
+};
+
 type OrderWithDetailsDto = {
   id: string;
   code: string;
@@ -56,6 +68,18 @@ type OrderWithDetailsDto = {
     quantity?: number | null;
     unitPrice?: number | null;
   }>;
+  paymentMethod?: number;
+  paymentStatus?: number;
+  ratings?: OrderRatingApi[];
+};
+
+type RatingDto = {
+  id: string;
+  orderId: string;
+  stars: number;
+  comment?: string | null;
+  imageUrls?: string[];
+  createdTime?: string | null;
 };
 
 interface QueueItem {
@@ -91,9 +115,12 @@ interface QueueItem {
   canUpdate: boolean;
   estimatedWaitTimeRaw?: string | null;
   estimatedServeTimeRaw?: string | null;
+  rating?: RatingDto | null;
 }
 
 type OrderStatusNumber = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+type StatusTab = "pending" | "confirmed" | "preparing" | "completed";
+type ReviewMode = "create" | "view" | "update";
 
 const uiStatusFromApi = (
   s?: OrderStatusNumber | string | null
@@ -128,6 +155,11 @@ const uiStatusFromApi = (
   if (t === "cancelled") return "cancelled";
   return "pending";
 };
+
+const isSameDate = (a: Date, b: Date) =>
+  a.getFullYear() === b.getFullYear() &&
+  a.getMonth() === b.getMonth() &&
+  a.getDate() === b.getDate();
 
 const getStatusColor = (status: QueueItem["status"]) => {
   switch (status) {
@@ -345,15 +377,45 @@ async function fetchVendorsMap(
   return Object.fromEntries(entries);
 }
 
+const mapRatingFromOrder = (r: OrderRatingApi): RatingDto => {
+  const points = parseInt(r.stars || "0", 10);
+  const stars = Number.isNaN(points)
+    ? 0
+    : Math.max(1, Math.min(5, points / 2)); 
+
+  let imageUrls: string[] | undefined;
+  if (typeof r.imageUrls === "string" && r.imageUrls) {
+    imageUrls = r.imageUrls
+      .split(";")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((s) => buildMediaUrl(s));
+  }
+
+  return {
+    id: r.id,
+    orderId: r.orderId,
+    stars,
+    comment: r.comment,
+    imageUrls,
+    createdTime: r.createdTime,
+  };
+};
+
 function mapOrderToQueueItem(
   o: OrderWithDetailsDto,
   vendor?: VendorMini
 ): QueueItem {
   const uiStatus = uiStatusFromApi(o.status as any);
-  const paymentStatusRaw = (o as any).paymentStatus as number | undefined;
+  const paymentStatusRaw = o.paymentStatus as number | undefined;
   let paymentStatus: QueueItem["paymentStatus"] = "pending";
   if (paymentStatusRaw === 2) paymentStatus = "paid";
   else if (paymentStatusRaw === 4) paymentStatus = "refunded";
+
+  let rating: RatingDto | null = null;
+  if (o.ratings && o.ratings.length > 0) {
+    rating = mapRatingFromOrder(o.ratings[0]);
+  }
 
   return {
     id: o.id,
@@ -373,17 +435,16 @@ function mapOrderToQueueItem(
       price: d.unitPrice ?? 0,
     })),
     totalAmount: o.totalPrice ?? 0,
-    paymentMethod: (o as any).paymentMethod === 1 ? "vnpay" : "cash",
+    paymentMethod: o.paymentMethod === 1 ? "vnpay" : "cash",
     paymentStatus,
     orderTime: o.createdAt || new Date().toISOString(),
     canCancel: !["completed", "cancelled"].includes(uiStatus),
     canUpdate: ["pending", "confirmed"].includes(uiStatus),
     estimatedWaitTimeRaw: o.queueEntry?.estimatedWaitTime ?? null,
     estimatedServeTimeRaw: o.queueEntry?.estimatedServeTime ?? null,
+    rating,
   };
 }
-
-type StatusTab = "pending" | "confirmed" | "preparing" | "completed";
 
 const tabToApiStatus: Record<StatusTab, number> = {
   pending: 0,
@@ -406,6 +467,16 @@ export default function ActiveQueue() {
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [showReviewDialog, setShowReviewDialog] = useState(false);
   const [showReviewSuccess, setShowReviewSuccess] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [reviewMode, setReviewMode] = useState<ReviewMode>("create");
+  const [currentRating, setCurrentRating] = useState<RatingDto | null>(null);
+
+  const openReviewDialog = (queueItem: QueueItem, mode: ReviewMode) => {
+    setSelectedQueueItem(queueItem);
+    setReviewMode(mode);
+    setCurrentRating(queueItem.rating ?? null);
+    setShowReviewDialog(true);
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -422,9 +493,11 @@ export default function ActiveQueue() {
         const orders = await fetchOrdersByStatus(userId, statusCode, token);
         const vendorIds = orders.map((o) => o.vendorId).filter(Boolean);
         const vendorsMap = await fetchVendorsMap(vendorIds, token);
+
         const items = orders.map((o) =>
           mapOrderToQueueItem(o, vendorsMap[o.vendorId])
         );
+
         if (mounted) setActiveQueues(items);
       } catch (e) {
         console.error(e);
@@ -440,7 +513,7 @@ export default function ActiveQueue() {
     return () => {
       mounted = false;
     };
-  }, [statusTab]);
+  }, [statusTab, reloadKey]);
 
   const handleCancelOrder = (queueId: string) => {
     setActiveQueues((prev) => prev.filter((item) => item.id !== queueId));
@@ -583,17 +656,38 @@ export default function ActiveQueue() {
                   </Button>
 
                   {isCompletedTab ? (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setSelectedQueueItem(queueItem);
-                        setShowReviewDialog(true);
-                      }}
-                    >
-                      <Star className="h-3 w-3 mr-1" />
-                      Đánh giá
-                    </Button>
+                    (() => {
+                      const rating = queueItem.rating;
+                      let label = "Đánh giá";
+                      let mode: ReviewMode = "create";
+
+                      if (rating?.createdTime) {
+                        const created = new Date(rating.createdTime);
+                        const today = new Date();
+                        const sameDay =
+                          !Number.isNaN(created.getTime()) &&
+                          isSameDate(created, today);
+
+                        if (sameDay) {
+                          label = "Cập nhật đánh giá";
+                          mode = "update";
+                        } else {
+                          label = "Xem đánh giá";
+                          mode = "view";
+                        }
+                      }
+
+                      return (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openReviewDialog(queueItem, mode)}
+                        >
+                          <Star className="h-3 w-3 mr-1" />
+                          {label}
+                        </Button>
+                      );
+                    })()
                   ) : (
                     <>
                       <Button
@@ -762,25 +856,46 @@ export default function ActiveQueue() {
             vendorName={selectedQueueItem.vendorName}
             vendorImage={selectedQueueItem.vendorImage}
             orderCode={selectedQueueItem.code}
+            mode={reviewMode}
+            readOnly={reviewMode === "view"}
+            initialRating={
+              currentRating
+                ? {
+                    rating: currentRating.stars,
+                    comment: currentRating.comment || "",
+                    imageUrls: currentRating.imageUrls || [],
+                  }
+                : undefined
+            }
             onSubmit={async ({ rating, comment, images }) => {
               if (!selectedQueueItem) return;
 
+              if (reviewMode === "view") {
+                setShowReviewDialog(false);
+                return;
+              }
+
               try {
                 const token = localStorage.getItem("accessToken") || "";
-                const headers: Record<string, string> = {};
-                if (token) headers.Authorization = `Bearer ${token}`;
 
                 const formData = new FormData();
                 formData.append("OrderId", selectedQueueItem.id);
                 formData.append("Stars", rating.toString());
                 formData.append("Comment", comment || "");
+                if (reviewMode === "update" && currentRating?.id) {
+                  formData.append("RatingId", currentRating.id);
+                }
 
                 images.forEach((file) => {
                   formData.append("Images", file);
                 });
 
-                await api.post("/api/rating", formData, headers);
+                await api.post("/api/rating", formData, {
+                  Authorization: `Bearer ${token}`,
+                  "Content-Type": "multipart/form-data",
+                });
 
+                setShowReviewDialog(false);
                 setShowReviewSuccess(true);
               } catch (error: any) {
                 console.error(error);
@@ -804,14 +919,19 @@ export default function ActiveQueue() {
             <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center">
               <CheckCircle2 className="w-8 h-8 text-emerald-600" />
             </div>
-            <h2 className="text-lg font-semibold">Đã gửi đánh giá thành công</h2>
+            <h2 className="text-lg font-semibold">
+              Đã gửi đánh giá thành công
+            </h2>
             <p className="text-sm text-muted-foreground">
               Cảm ơn bạn đã chia sẻ trải nghiệm. Đánh giá của bạn sẽ giúp quán
               và các khách hàng khác rất nhiều.
             </p>
             <Button
               className="mt-2"
-              onClick={() => setShowReviewSuccess(false)}
+              onClick={() => {
+                setShowReviewSuccess(false);
+                setReloadKey((prev) => prev + 1); 
+              }}
             >
               Đóng
             </Button>
