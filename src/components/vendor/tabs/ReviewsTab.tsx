@@ -262,7 +262,6 @@ export default function ReviewsTab({ vendorId }: ReviewsTabProps) {
         <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
-              <Star className="h-5 w-5 text-yellow-400 fill-yellow-400" />
               <span>Đánh giá từ khách hàng</span>
             </CardTitle>
             <p className="text-sm text-muted-foreground mt-1">

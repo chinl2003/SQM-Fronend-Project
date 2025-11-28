@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 
 import QueueTab from "./tabs/QueueTab";
-import MenuTab from "./tabs/MenuTab";
+import SettingsMenu from "./SettingsMenu";
 import AnalyticsTab from "./tabs/AnalyticsTab";
 import ReviewsTab from "./tabs/ReviewsTab";
 import SettingsTab from "./tabs/SettingsTab";
@@ -298,8 +298,15 @@ export default function VendorDashboard() {
           </TabsContent>
 
           <TabsContent value="menu">
-            <MenuTab vendor={vendor} />
+            {vendor?.id ? (
+              <SettingsMenu vendorId={vendor.id} />
+            ) : (
+              <div className="rounded-md border px-4 py-8 text-sm text-muted-foreground">
+                Không tìm thấy thông tin quán. Vui lòng tải lại trang hoặc đăng nhập lại.
+              </div>
+            )}
           </TabsContent>
+
 
           <TabsContent value="analytics">
             <AnalyticsTab vendor={vendor} />

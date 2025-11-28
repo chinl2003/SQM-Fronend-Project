@@ -235,22 +235,22 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
       prev.map((c) =>
         c.id === catId
           ? {
-              ...c,
-              items: [
-                ...c.items,
-                {
-                  id: `new-${uid()}`,
-                  name: "",
-                  price: "",
-                  prepMinutes: "",
-                  image: null,
-                  imageUrl: null,
-                  dailyQuantity: "",
-                  description: "",
-                  isNew: true,
-                },
-              ],
-            }
+            ...c,
+            items: [
+              ...c.items,
+              {
+                id: `new-${uid()}`,
+                name: "",
+                price: "",
+                prepMinutes: "",
+                image: null,
+                imageUrl: null,
+                dailyQuantity: "",
+                description: "",
+                isNew: true,
+              },
+            ],
+          }
           : c
       )
     );
@@ -276,11 +276,11 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
       prev.map((c) =>
         c.id === catId
           ? {
-              ...c,
-              items: c.items.map((i) =>
-                i.id === itemId ? { ...i, [key]: value } : i
-              ),
-            }
+            ...c,
+            items: c.items.map((i) =>
+              i.id === itemId ? { ...i, [key]: value } : i
+            ),
+          }
           : c
       )
     );
@@ -490,196 +490,209 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
               <Separator />
 
               {/* Items */}
-              <div className="space-y-4 p-4">
+              <div className="p-4">
                 {cat.items.length === 0 && (
                   <div className="rounded-md border border-dashed px-4 py-8 text-sm text-muted-foreground flex items-center justify-center">
                     Danh mục này chưa có món. Bấm “Thêm món”.
                   </div>
                 )}
 
-                {cat.items.map((item) => (
-                  <div
-                    key={item.id}
-                    className={cn(
-                      "relative rounded-lg border bg-background p-4",
-                      "hover:ring-1 hover:ring-primary/20 hover:shadow-sm transition-all"
-                    )}
-                  >
-                    {/* Nút xóa góc phải */}
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="absolute right-2 top-2 text-destructive"
-                      onClick={() => removeItem(cat.id, item.id)}
-                      title="Xóa món"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                {cat.items.length > 0 && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {cat.items.map((item) => {
+                      const inputId = `image-${cat.id}-${item.id}`;
 
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-start">
-                      {/* Tên món */}
-                      <div className="md:col-span-3 space-y-1.5">
-                        <Label className="font-semibold">
-                          Tên món <span className="text-destructive">*</span>
-                        </Label>
-                        <Input
-                          placeholder="Tên món"
-                          value={item.name}
-                          onChange={(e) =>
-                            updateItem(cat.id, item.id, "name", e.target.value)
-                          }
-                        />
-                      </div>
+                      return (
+                        <div
+                          key={item.id}
+                          className={cn(
+                            "relative flex flex-col gap-2 rounded-lg border bg-background p-3",
+                            "hover:ring-1 hover:ring-primary/20 hover:shadow-sm transition-all"
+                          )}
+                        >
+                          {/* Nút xóa góc phải */}
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="absolute right-2 top-2 text-destructive"
+                            onClick={() => removeItem(cat.id, item.id)}
+                            title="Xóa món"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
 
-                      {/* Giá bán */}
-                      <div className="md:col-span-2 space-y-1.5">
-                        <Label className="font-semibold">
-                          Giá bán (VND) <span className="text-destructive">*</span>
-                        </Label>
-                        <Input
-                          inputMode="decimal"
-                          placeholder="VD: 120000"
-                          value={item.price}
-                          onChange={(e) => {
-                            const pretty = sanitizeNumeric(e.target.value);
-                            updateItem(cat.id, item.id, "price", pretty);
-                          }}
-                          onKeyDown={(e) => {
-                            const allowedKeys = [
-                              "Backspace",
-                              "Delete",
-                              "ArrowLeft",
-                              "ArrowRight",
-                              "ArrowUp",
-                              "ArrowDown",
-                              "Tab",
-                              "Home",
-                              "End",
-                              ".",
-                            ];
-                            if (
-                              !allowedKeys.includes(e.key) &&
-                              !(e.key >= "0" && e.key <= "9")
-                            ) {
-                              e.preventDefault();
-                            }
-                          }}
-                        />
-                      </div>
+                          {/* Khung ảnh upload (đặt ở đầu card) */}
+                          <div className="space-y-1">
+                            <Label className="font-semibold">Hình ảnh</Label>
+                            <label
+                              htmlFor={inputId}
+                              className={cn(
+                                "group relative flex cursor-pointer items-center justify-center",
+                                "rounded-md border-2 border-dashed border-muted-foreground/40",
+                                "bg-muted/40 px-3 py-3 text-sm text-muted-foreground",
+                                "hover:border-primary/60 hover:bg-muted/70 transition-colors",
+                                "overflow-hidden min-h-[110px]"
+                              )}
+                            >
+                              {item.image || item.imageUrl ? (
+                                <img
+                                  src={
+                                    item.image
+                                      ? URL.createObjectURL(item.image)
+                                      : item.imageUrl || ""
+                                  }
+                                  alt={item.name || "image"}
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                <div className="flex flex-col items-center gap-1">
+                                  <ImageIcon className="h-5 w-5" />
+                                  <span className="text-xs">Nhấn để tải ảnh lên</span>
+                                </div>
+                              )}
+                            </label>
+                            <input
+                              id={inputId}
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) =>
+                                updateItem(
+                                  cat.id,
+                                  item.id,
+                                  "image",
+                                  e.target.files?.[0] ?? null
+                                )
+                              }
+                            />
+                          </div>
 
-                      {/* Thời gian chế biến */}
-                      <div className="md:col-span-2 space-y-1.5">
-                        <Label className="font-semibold">
-                          Thời gian chế biến (phút) <span className="text-destructive">*</span>
-                        </Label>
-                        <Input
-                          inputMode="numeric"
-                          placeholder="VD: 15"
-                          value={item.prepMinutes}
-                          onChange={(e) =>
-                            updateItem(
-                              cat.id,
-                              item.id,
-                              "prepMinutes",
-                              e.target.value
-                            )
-                          }
-                        />
-                      </div>
-
-                      {/* Số lượng mỗi ngày */}
-                      <div className="md:col-span-2 space-y-1.5">
-                        <Label className="font-semibold">
-                          Số lượng mỗi ngày <span className="text-destructive">*</span>
-                        </Label>
-                        <Input
-                          inputMode="decimal"
-                          placeholder="VD: 50"
-                          value={item.dailyQuantity}
-                          onChange={(e) => {
-                            const pretty = sanitizeNumeric(e.target.value);
-                            updateItem(cat.id, item.id, "dailyQuantity", pretty);
-                          }}
-                          onKeyDown={(e) => {
-                            const allowedKeys = [
-                              "Backspace",
-                              "Delete",
-                              "ArrowLeft",
-                              "ArrowRight",
-                              "ArrowUp",
-                              "ArrowDown",
-                              "Tab",
-                              "Home",
-                              "End",
-                              ".",
-                            ];
-                            if (
-                              !allowedKeys.includes(e.key) &&
-                              !(e.key >= "0" && e.key <= "9")
-                            ) {
-                              e.preventDefault();
-                            }
-                          }}
-                        />
-                      </div>
-
-                      {/* Hình ảnh + preview */}
-                      <div className="md:col-span-3 space-y-1.5">
-                        <Label className="font-semibold">Hình ảnh</Label>
-                        <div className="flex items-center gap-2">
-                          <Input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) =>
-                              updateItem(
-                                cat.id,
-                                item.id,
-                                "image",
-                                e.target.files?.[0] ?? null
-                              )
-                            }
-                          />
-                        </div>
-                        {item.imageUrl && !item.image && (
-                          <div className="mt-2 w-full h-24 rounded border overflow-hidden bg-muted flex items-center justify-center">
-                            {item.imageUrl ? (
-                              <img
-                                src={item.imageUrl}
-                                alt={item.name || "image"}
-                                className="w-full h-full object-cover"
+                          {/* Thông tin món – mỗi thông tin một hàng */}
+                          <div className="flex flex-col gap-2">
+                            {/* Tên món */}
+                            <div className="space-y-1">
+                              <Label className="font-semibold">
+                                Tên món <span className="text-destructive">*</span>
+                              </Label>
+                              <Input
+                                placeholder="Tên món"
+                                value={item.name}
+                                onChange={(e) =>
+                                  updateItem(cat.id, item.id, "name", e.target.value)
+                                }
                               />
-                            ) : (
-                              <ImageIcon className="w-6 h-6 text-muted-foreground" />
-                            )}
-                          </div>
-                        )}
-                        {item.image && (
-                          <div className="mt-2 text-xs text-muted-foreground">
-                            Đã chọn: {item.image.name}
-                          </div>
-                        )}
-                      </div>
+                            </div>
 
-                      {/* Mô tả */}
-                      <div className="md:col-span-12 space-y-1.5">
-                        <Label className="font-semibold">Mô tả</Label>
-                        <Textarea
-                          placeholder="Mô tả món…"
-                          value={item.description || ""}
-                          onChange={(e) =>
-                            updateItem(
-                              cat.id,
-                              item.id,
-                              "description",
-                              e.target.value
-                            )
-                          }
-                        />
-                      </div>
-                    </div>
+                            {/* Giá bán */}
+                            <div className="space-y-1">
+                              <Label className="font-semibold">
+                                Giá bán (VND) <span className="text-destructive">*</span>
+                              </Label>
+                              <Input
+                                inputMode="decimal"
+                                placeholder="VD: 120000"
+                                value={item.price}
+                                onChange={(e) => {
+                                  const pretty = sanitizeNumeric(e.target.value);
+                                  updateItem(cat.id, item.id, "price", pretty);
+                                }}
+                                onKeyDown={(e) => {
+                                  const allowedKeys = [
+                                    "Backspace",
+                                    "Delete",
+                                    "ArrowLeft",
+                                    "ArrowRight",
+                                    "ArrowUp",
+                                    "ArrowDown",
+                                    "Tab",
+                                    "Home",
+                                    "End",
+                                    ".",
+                                  ];
+                                  if (
+                                    !allowedKeys.includes(e.key) &&
+                                    !(e.key >= "0" && e.key <= "9")
+                                  ) {
+                                    e.preventDefault();
+                                  }
+                                }}
+                              />
+                            </div>
+
+                            {/* Thời gian chế biến */}
+                            <div className="space-y-1">
+                              <Label className="font-semibold">
+                                Thời gian chế biến (phút){" "}
+                                <span className="text-destructive">*</span>
+                              </Label>
+                              <Input
+                                inputMode="numeric"
+                                placeholder="VD: 15"
+                                value={item.prepMinutes}
+                                onChange={(e) =>
+                                  updateItem(cat.id, item.id, "prepMinutes", e.target.value)
+                                }
+                              />
+                            </div>
+
+                            {/* Số lượng mỗi ngày */}
+                            <div className="space-y-1">
+                              <Label className="font-semibold">
+                                Số lượng mỗi ngày{" "}
+                                <span className="text-destructive">*</span>
+                              </Label>
+                              <Input
+                                inputMode="decimal"
+                                placeholder="VD: 50"
+                                value={item.dailyQuantity}
+                                onChange={(e) => {
+                                  const pretty = sanitizeNumeric(e.target.value);
+                                  updateItem(cat.id, item.id, "dailyQuantity", pretty);
+                                }}
+                                onKeyDown={(e) => {
+                                  const allowedKeys = [
+                                    "Backspace",
+                                    "Delete",
+                                    "ArrowLeft",
+                                    "ArrowRight",
+                                    "ArrowUp",
+                                    "ArrowDown",
+                                    "Tab",
+                                    "Home",
+                                    "End",
+                                    ".",
+                                  ];
+                                  if (
+                                    !allowedKeys.includes(e.key) &&
+                                    !(e.key >= "0" && e.key <= "9")
+                                  ) {
+                                    e.preventDefault();
+                                  }
+                                }}
+                              />
+                            </div>
+
+                            {/* Mô tả */}
+                            <div className="space-y-1">
+                              <Label className="font-semibold">Mô tả</Label>
+                              <Textarea
+                                placeholder="Mô tả món…"
+                                value={item.description || ""}
+                                className="min-h-[70px]"
+                                onChange={(e) =>
+                                  updateItem(cat.id, item.id, "description", e.target.value)
+                                }
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                ))}
+                )}
+
               </div>
+
             </div>
           ))}
 
