@@ -525,7 +525,6 @@ export default function ActiveQueue() {
   };
 
   const renderQueueCard = (queueItem: QueueItem) => {
-    const isConfirmedTab = statusTab === "confirmed";
     const isCompletedTab = statusTab === "completed";
 
     return (
@@ -548,6 +547,7 @@ export default function ActiveQueue() {
                 </Badge>
               </div>
 
+              {/* ✅ TẤT CẢ CÁC TAB ĐỀU DÙNG CHUNG BLOCK NÀY (giống Đã xác nhận) */}
               <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground mb-3">
                 <div className="flex items-center space-x-1">
                   <MapPin className="h-3 w-3 text-emerald-500" />
@@ -567,55 +567,28 @@ export default function ActiveQueue() {
                   </span>
                 </div>
 
-                {isConfirmedTab ? (
-                  <>
-                    <div className="flex items-center space-x-1">
-                      <Clock className="h-3 w-3 text-amber-500" />
-                      <span>
-                        <span className="font-semibold">
-                          Thời gian đợi đến lượt:
-                        </span>{" "}
-                        {fmtWaitTimeFromSpan(queueItem.estimatedWaitTimeRaw)}
-                      </span>
-                    </div>
-                    <div className="flex items-center space-x-1">
-                      <Clock className="h-3 w-3 text-emerald-500" />
-                      <span>
-                        <span className="font-semibold">
-                          Thời gian nhận hàng dự kiến:
-                        </span>{" "}
-                        {fmtServeTimeFull(queueItem.estimatedServeTimeRaw)}
-                      </span>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="flex items-center space-x-1">
-                      <Clock className="h-3 w-3 text-emerald-500" />
-                      <span>
-                        <span className="font-semibold">ETA:</span>{" "}
-                        {queueItem.estimatedTime}
-                      </span>
-                    </div>
-                    <div className="flex items-center space-x-1">
-                      {queueItem.paymentMethod === "vnpay" ? (
-                        <CreditCard className="h-3 w-3 text-indigo-500" />
-                      ) : (
-                        <Banknote className="h-3 w-3 text-green-600" />
-                      )}
-                      <span>
-                        <span className="font-semibold">
-                          Phương thức thanh toán:
-                        </span>{" "}
-                        {queueItem.paymentMethod === "vnpay"
-                          ? "Thanh toán qua ví"
-                          : "Tiền mặt"}
-                      </span>
-                    </div>
-                  </>
-                )}
+                <div className="flex items-center space-x-1">
+                  <Clock className="h-3 w-3 text-amber-500" />
+                  <span>
+                    <span className="font-semibold">
+                      Thời gian đợi đến lượt:
+                    </span>{" "}
+                    {fmtWaitTimeFromSpan(queueItem.estimatedWaitTimeRaw)}
+                  </span>
+                </div>
+
+                <div className="flex items-center space-x-1">
+                  <Clock className="h-3 w-3 text-emerald-500" />
+                  <span>
+                    <span className="font-semibold">
+                      Thời gian nhận hàng dự kiến:
+                    </span>{" "}
+                    {fmtServeTimeFull(queueItem.estimatedServeTimeRaw)}
+                  </span>
+                </div>
               </div>
 
+              {/* Thanh toán + trạng thái thanh toán */}
               <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground mb-3">
                 <div className="flex items-center space-x-1">
                   {queueItem.paymentMethod === "vnpay" ? (
@@ -702,33 +675,38 @@ export default function ActiveQueue() {
                         Chat
                       </Button>
 
-                      {queueItem.canUpdate && statusTab !== "confirmed" && statusTab !== "preparing" && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setSelectedQueueItem(queueItem);
-                            setShowUpdateDialog(true);
-                          }}
-                        >
-                          <Edit className="h-3 w-3 mr-1" />
-                          Cập nhật
-                        </Button>
-                      )}
+                      {/* Ẩn Hủy & Cập nhật ở tab Đã xác nhận và Đang chế biến */}
+                      {queueItem.canUpdate &&
+                        statusTab !== "confirmed" &&
+                        statusTab !== "preparing" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setSelectedQueueItem(queueItem);
+                              setShowUpdateDialog(true);
+                            }}
+                          >
+                            <Edit className="h-3 w-3 mr-1" />
+                            Cập nhật
+                          </Button>
+                        )}
 
-                      {queueItem.canCancel && statusTab !== "confirmed" && statusTab !== "preparing" && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setSelectedQueueItem(queueItem);
-                            setShowCancelDialog(true);
-                          }}
-                        >
-                          <CloseIcon className="h-3 w-3 mr-1" />
-                          Hủy
-                        </Button>
-                      )}
+                      {queueItem.canCancel &&
+                        statusTab !== "confirmed" &&
+                        statusTab !== "preparing" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setSelectedQueueItem(queueItem);
+                              setShowCancelDialog(true);
+                            }}
+                          >
+                            <CloseIcon className="h-3 w-3 mr-1" />
+                            Hủy
+                          </Button>
+                        )}
                     </>
                   )}
                 </div>
@@ -754,7 +732,7 @@ export default function ActiveQueue() {
     <div className="min-h-screen bg-background">
       <Navigation userType="customer" />
 
-      {/* rộng hơn: bỏ container fixed, dùng max-w-6xl cho đỡ sát mép nếu muốn */}
+      {/* full width */}
       <div className="w-full px-4 py-4">
         <div className="mb-4">
           <h1 className="text-2xl font-bold">Hàng đợi của bạn</h1>
@@ -765,72 +743,31 @@ export default function ActiveQueue() {
           onValueChange={(v) => setStatusTab(v as StatusTab)}
           className="space-y-4"
         >
-          {/* Tabs với màu Grab cho tab active */}
           <TabsList className="w-full grid grid-cols-4 gap-2 bg-transparent p-0">
-            <TabsTrigger
-              value="pending"
-              className="
-                text-sm font-medium py-2
-                border border-gray-300 rounded-md
-                data-[state=active]:bg-[#00a759]
-                data-[state=active]:text-white
-                data-[state=active]:border-[#00914b]
-                data-[state=active]:shadow
-                data-[state=inactive]:bg-white
-                data-[state=inactive]:text-gray-700
-                hover:data-[state=inactive]:bg-green-50
-              "
-            >
-              Chưa xác nhận
-            </TabsTrigger>
-            <TabsTrigger
-              value="confirmed"
-              className="
-                text-sm font-medium py-2
-                border border-gray-300 rounded-md
-                data-[state=active]:bg-[#00a759]
-                data-[state=active]:text-white
-                data-[state=active]:border-[#00914b]
-                data-[state=active]:shadow
-                data-[state=inactive]:bg-white
-                data-[state=inactive]:text-gray-700
-                hover:data-[state=inactive]:bg-green-50
-              "
-            >
-              Đã xác nhận
-            </TabsTrigger>
-            <TabsTrigger
-              value="preparing"
-              className="
-                text-sm font-medium py-2
-                border border-gray-300 rounded-md
-                data-[state=active]:bg-[#00a759]
-                data-[state=active]:text-white
-                data-[state=active]:border-[#00914b]
-                data-[state=active]:shadow
-                data-[state=inactive]:bg-white
-                data-[state=inactive]:text-gray-700
-                hover:data-[state=inactive]:bg-green-50
-              "
-            >
-              Đang chế biến
-            </TabsTrigger>
-            <TabsTrigger
-              value="completed"
-              className="
-                text-sm font-medium py-2
-                border border-gray-300 rounded-md
-                data-[state=active]:bg-[#00a759]
-                data-[state=active]:text-white
-                data-[state=active]:border-[#00914b]
-                data-[state=active]:shadow
-                data-[state=inactive]:bg-white
-                data-[state=inactive]:text-gray-700
-                hover:data-[state=inactive]:bg-green-50
-              "
-            >
-              Hoàn tất
-            </TabsTrigger>
+            {(["pending", "confirmed", "preparing", "completed"] as StatusTab[]).map(
+              (tab) => (
+                <TabsTrigger
+                  key={tab}
+                  value={tab}
+                  className="
+                    text-sm font-medium py-2
+                    border border-gray-300 rounded-md
+                    data-[state=active]:bg-[#00a759]
+                    data-[state=active]:text-white
+                    data-[state=active]:border-[#00914b]
+                    data-[state=active]:shadow
+                    data-[state=inactive]:bg-white
+                    data-[state=inactive]:text-gray-700
+                    hover:data-[state=inactive]:bg-green-50
+                  "
+                >
+                  {tab === "pending" && "Chưa xác nhận"}
+                  {tab === "confirmed" && "Đã xác nhận"}
+                  {tab === "preparing" && "Đang chế biến"}
+                  {tab === "completed" && "Hoàn tất"}
+                </TabsTrigger>
+              )
+            )}
           </TabsList>
 
           <TabsContent value={statusTab}>
