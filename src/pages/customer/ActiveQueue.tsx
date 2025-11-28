@@ -20,6 +20,7 @@ import {
   Edit,
   X as CloseIcon,
   MessageCircle,
+  Star,
 } from "lucide-react";
 import { QueueUpdateDialog } from "@/components/customer/QueueUpdateDialog";
 import { ViewQueueDetailDialog } from "@/components/customer/ViewQueueDetailDialog";
@@ -27,6 +28,8 @@ import { VendorChatDialog } from "@/components/customer/VendorChatDialog";
 import { CancelConfirmDialog } from "@/components/customer/CancelConfirmDialog";
 import { toast } from "@/hooks/use-toast";
 import { api, ApiResponse } from "@/lib/api";
+import VendorReviewDialog from "@/components/customer/VendorReviewDialog";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 
 type OrderWithDetailsDto = {
   id: string;
@@ -401,6 +404,8 @@ export default function ActiveQueue() {
   const [showDetailDialog, setShowDetailDialog] = useState(false);
   const [showChatDialog, setShowChatDialog] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [showReviewDialog, setShowReviewDialog] = useState(false);
+  const [showReviewSuccess, setShowReviewSuccess] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -448,6 +453,7 @@ export default function ActiveQueue() {
 
   const renderQueueCard = (queueItem: QueueItem) => {
     const isConfirmedTab = statusTab === "confirmed";
+    const isCompletedTab = statusTab === "completed";
 
     return (
       <Card key={queueItem.id} className="mb-4">
@@ -537,32 +543,30 @@ export default function ActiveQueue() {
                 )}
               </div>
 
-              {(isConfirmedTab || !isConfirmedTab) && (
-                <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground mb-3">
-                  <div className="flex items-center space-x-1">
-                    {queueItem.paymentMethod === "vnpay" ? (
-                      <CreditCard className="h-3 w-3 text-indigo-500" />
-                    ) : (
-                      <Banknote className="h-3 w-3 text-green-600" />
-                    )}
-                    <span className="font-semibold">
-                      Phương thức thanh toán:
-                    </span>
-                    <span>
-                      {queueItem.paymentMethod === "vnpay"
-                        ? "Thanh toán qua ví"
-                        : "Tiền mặt"}
-                    </span>
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    {getPaymentStatusIcon(queueItem.paymentStatus)}
-                    <span className="font-semibold">
-                      Tình trạng thanh toán:
-                    </span>
-                    <span>{getPaymentStatusText(queueItem.paymentStatus)}</span>
-                  </div>
+              <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground mb-3">
+                <div className="flex items-center space-x-1">
+                  {queueItem.paymentMethod === "vnpay" ? (
+                    <CreditCard className="h-3 w-3 text-indigo-500" />
+                  ) : (
+                    <Banknote className="h-3 w-3 text-green-600" />
+                  )}
+                  <span className="font-semibold">
+                    Phương thức thanh toán:
+                  </span>
+                  <span>
+                    {queueItem.paymentMethod === "vnpay"
+                      ? "Thanh toán qua ví"
+                      : "Tiền mặt"}
+                  </span>
                 </div>
-              )}
+                <div className="flex items-center space-x-1">
+                  {getPaymentStatusIcon(queueItem.paymentStatus)}
+                  <span className="font-semibold">
+                    Tình trạng thanh toán:
+                  </span>
+                  <span>{getPaymentStatusText(queueItem.paymentStatus)}</span>
+                </div>
+              </div>
 
               <div className="mt-2 flex items-center gap-2">
                 <div className="flex flex-wrap gap-2">
@@ -578,44 +582,60 @@ export default function ActiveQueue() {
                     Chi tiết
                   </Button>
 
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setSelectedQueueItem(queueItem);
-                      setShowChatDialog(true);
-                    }}
-                  >
-                    <MessageCircle className="h-3 w-3 mr-1" />
-                    Chat
-                  </Button>
-
-                  {queueItem.canUpdate && (
+                  {isCompletedTab ? (
                     <Button
                       size="sm"
                       variant="outline"
                       onClick={() => {
                         setSelectedQueueItem(queueItem);
-                        setShowUpdateDialog(true);
+                        setShowReviewDialog(true);
                       }}
                     >
-                      <Edit className="h-3 w-3 mr-1" />
-                      Cập nhật
+                      <Star className="h-3 w-3 mr-1" />
+                      Đánh giá
                     </Button>
-                  )}
+                  ) : (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setSelectedQueueItem(queueItem);
+                          setShowChatDialog(true);
+                        }}
+                      >
+                        <MessageCircle className="h-3 w-3 mr-1" />
+                        Chat
+                      </Button>
 
-                  {queueItem.canCancel && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setSelectedQueueItem(queueItem);
-                        setShowCancelDialog(true);
-                      }}
-                    >
-                      <CloseIcon className="h-3 w-3 mr-1" />
-                      Hủy
-                    </Button>
+                      {queueItem.canUpdate && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setSelectedQueueItem(queueItem);
+                            setShowUpdateDialog(true);
+                          }}
+                        >
+                          <Edit className="h-3 w-3 mr-1" />
+                          Cập nhật
+                        </Button>
+                      )}
+
+                      {queueItem.canCancel && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setSelectedQueueItem(queueItem);
+                            setShowCancelDialog(true);
+                          }}
+                        >
+                          <CloseIcon className="h-3 w-3 mr-1" />
+                          Hủy
+                        </Button>
+                      )}
+                    </>
                   )}
                 </div>
 
@@ -735,8 +755,69 @@ export default function ActiveQueue() {
             onConfirm={() => handleCancelOrder(selectedQueueItem.id)}
             queueItem={selectedQueueItem}
           />
+
+          <VendorReviewDialog
+            isOpen={showReviewDialog}
+            onClose={() => setShowReviewDialog(false)}
+            vendorName={selectedQueueItem.vendorName}
+            vendorImage={selectedQueueItem.vendorImage}
+            orderCode={selectedQueueItem.code}
+            onSubmit={async ({ rating, comment, images }) => {
+              if (!selectedQueueItem) return;
+
+              try {
+                const token = localStorage.getItem("accessToken") || "";
+                const headers: Record<string, string> = {};
+                if (token) headers.Authorization = `Bearer ${token}`;
+
+                const formData = new FormData();
+                formData.append("OrderId", selectedQueueItem.id);
+                formData.append("Stars", rating.toString());
+                formData.append("Comment", comment || "");
+
+                images.forEach((file) => {
+                  formData.append("Images", file);
+                });
+
+                await api.post("/api/rating", formData, headers);
+
+                setShowReviewSuccess(true);
+              } catch (error: any) {
+                console.error(error);
+                toast({
+                  title: "Gửi đánh giá thất bại",
+                  description:
+                    error?.response?.data?.message ||
+                    "Vui lòng thử lại sau.",
+                  variant: "destructive",
+                });
+                throw error;
+              }
+            }}
+          />
         </>
       )}
+
+      <Dialog open={showReviewSuccess} onOpenChange={setShowReviewSuccess}>
+        <DialogContent className="sm:max-w-md text-center">
+          <div className="flex flex-col items-center gap-3 py-4">
+            <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center">
+              <CheckCircle2 className="w-8 h-8 text-emerald-600" />
+            </div>
+            <h2 className="text-lg font-semibold">Đã gửi đánh giá thành công</h2>
+            <p className="text-sm text-muted-foreground">
+              Cảm ơn bạn đã chia sẻ trải nghiệm. Đánh giá của bạn sẽ giúp quán
+              và các khách hàng khác rất nhiều.
+            </p>
+            <Button
+              className="mt-2"
+              onClick={() => setShowReviewSuccess(false)}
+            >
+              Đóng
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
