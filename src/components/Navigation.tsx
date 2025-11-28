@@ -366,7 +366,7 @@ export function Navigation({
                   </DropdownMenuItem>
                   <DropdownMenuItem>
                     <Link
-                      to="/order-history"
+                      to="/customer/active-queue"
                       className="flex items-center w-full"
                     >
                       <Clock className="h-4 w-4 mr-2" />
