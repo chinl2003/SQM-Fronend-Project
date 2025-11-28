@@ -361,7 +361,7 @@ export function Navigation({
                   <DropdownMenuItem>
                     <Link to="/customer/wallet" className="flex items-center w-full">
                       <ShoppingBag className="h-4 w-4 mr-2" />
-                      Ví của tôi
+                      Ví của bạn
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem>
@@ -370,7 +370,7 @@ export function Navigation({
                       className="flex items-center w-full"
                     >
                       <Clock className="h-4 w-4 mr-2" />
-                      Đơn hàng của tôi
+                      Hàng đợi của bạn
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem>

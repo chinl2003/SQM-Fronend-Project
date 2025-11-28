@@ -38,8 +38,8 @@ type OrderRatingApi = {
   customerId: string;
   customerName: string;
   comment?: string | null;
-  stars: string; // "10"
-  imageUrls?: string | null; // "a;b;c"
+  stars: string;
+  imageUrls?: string | null;
   createdTime?: string | null;
 };
 
@@ -381,7 +381,7 @@ const mapRatingFromOrder = (r: OrderRatingApi): RatingDto => {
   const points = parseInt(r.stars || "0", 10);
   const stars = Number.isNaN(points)
     ? 0
-    : Math.max(1, Math.min(5, points / 2)); 
+    : Math.max(1, Math.min(5, points / 2));
 
   let imageUrls: string[] | undefined;
   if (typeof r.imageUrls === "string" && r.imageUrls) {
@@ -702,7 +702,7 @@ export default function ActiveQueue() {
                         Chat
                       </Button>
 
-                      {queueItem.canUpdate && (
+                      {queueItem.canUpdate && statusTab !== "confirmed" && statusTab !== "preparing" && (
                         <Button
                           size="sm"
                           variant="outline"
@@ -716,7 +716,7 @@ export default function ActiveQueue() {
                         </Button>
                       )}
 
-                      {queueItem.canCancel && (
+                      {queueItem.canCancel && statusTab !== "confirmed" && statusTab !== "preparing" && (
                         <Button
                           size="sm"
                           variant="outline"
@@ -754,8 +754,9 @@ export default function ActiveQueue() {
     <div className="min-h-screen bg-background">
       <Navigation userType="customer" />
 
-      <div className="container mx-auto px-4 py-6">
-        <div className="mb-6">
+      {/* rộng hơn: bỏ container fixed, dùng max-w-6xl cho đỡ sát mép nếu muốn */}
+      <div className="w-full px-4 py-4">
+        <div className="mb-4">
           <h1 className="text-2xl font-bold">Hàng đợi của bạn</h1>
         </div>
 
@@ -764,17 +765,79 @@ export default function ActiveQueue() {
           onValueChange={(v) => setStatusTab(v as StatusTab)}
           className="space-y-4"
         >
-          <TabsList className="w-full grid grid-cols-4">
-            <TabsTrigger value="pending">Chưa xác nhận</TabsTrigger>
-            <TabsTrigger value="confirmed">Đã xác nhận</TabsTrigger>
-            <TabsTrigger value="preparing">Đang chế biến</TabsTrigger>
-            <TabsTrigger value="completed">Hoàn tất</TabsTrigger>
+          {/* Tabs với màu Grab cho tab active */}
+          <TabsList className="w-full grid grid-cols-4 gap-2 bg-transparent p-0">
+            <TabsTrigger
+              value="pending"
+              className="
+                text-sm font-medium py-2
+                border border-gray-300 rounded-md
+                data-[state=active]:bg-[#00a759]
+                data-[state=active]:text-white
+                data-[state=active]:border-[#00914b]
+                data-[state=active]:shadow
+                data-[state=inactive]:bg-white
+                data-[state=inactive]:text-gray-700
+                hover:data-[state=inactive]:bg-green-50
+              "
+            >
+              Chưa xác nhận
+            </TabsTrigger>
+            <TabsTrigger
+              value="confirmed"
+              className="
+                text-sm font-medium py-2
+                border border-gray-300 rounded-md
+                data-[state=active]:bg-[#00a759]
+                data-[state=active]:text-white
+                data-[state=active]:border-[#00914b]
+                data-[state=active]:shadow
+                data-[state=inactive]:bg-white
+                data-[state=inactive]:text-gray-700
+                hover:data-[state=inactive]:bg-green-50
+              "
+            >
+              Đã xác nhận
+            </TabsTrigger>
+            <TabsTrigger
+              value="preparing"
+              className="
+                text-sm font-medium py-2
+                border border-gray-300 rounded-md
+                data-[state=active]:bg-[#00a759]
+                data-[state=active]:text-white
+                data-[state=active]:border-[#00914b]
+                data-[state=active]:shadow
+                data-[state=inactive]:bg-white
+                data-[state=inactive]:text-gray-700
+                hover:data-[state=inactive]:bg-green-50
+              "
+            >
+              Đang chế biến
+            </TabsTrigger>
+            <TabsTrigger
+              value="completed"
+              className="
+                text-sm font-medium py-2
+                border border-gray-300 rounded-md
+                data-[state=active]:bg-[#00a759]
+                data-[state=active]:text-white
+                data-[state=active]:border-[#00914b]
+                data-[state=active]:shadow
+                data-[state=inactive]:bg-white
+                data-[state=inactive]:text-gray-700
+                hover:data-[state=inactive]:bg-green-50
+              "
+            >
+              Hoàn tất
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value={statusTab}>
             {loading && (
-              <div className="text-sm text-muted-foreground mb-4">
-                Đang tải...
+              <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
+                <RefreshCw className="h-4 w-4 animate-spin text-emerald-500" />
+                <span>Đang tải dữ liệu...</span>
               </div>
             )}
 
@@ -930,7 +993,7 @@ export default function ActiveQueue() {
               className="mt-2"
               onClick={() => {
                 setShowReviewSuccess(false);
-                setReloadKey((prev) => prev + 1); 
+                setReloadKey((prev) => prev + 1);
               }}
             >
               Đóng
