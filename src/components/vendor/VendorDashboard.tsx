@@ -21,6 +21,7 @@ import MenuTab from "./tabs/MenuTab";
 import AnalyticsTab from "./tabs/AnalyticsTab";
 import ReviewsTab from "./tabs/ReviewsTab";
 import SettingsTab from "./tabs/SettingsTab";
+import VendorWalletTab from "./tabs/VendorWalletTab"; 
 
 type VendorFromApi = {
   id: string;
@@ -87,7 +88,7 @@ export default function VendorDashboard() {
   const [loadingVendor, setLoadingVendor] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<
-    "queue" | "menu" | "analytics" | "reviews" | "settings"
+    "queue" | "menu" | "analytics" | "reviews" | "wallet" | "settings" // <- THÊM "wallet"
   >("queue");
 
   useEffect(() => {
@@ -247,7 +248,7 @@ export default function VendorDashboard() {
         </div>
 
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger
               value="queue"
               className="py-2 text-sm font-medium transition-all data-[state=active]:bg-green-500 data-[state=active]:text-white data-[state=active]:shadow-sm hover:bg-muted/60 rounded-md"
@@ -276,6 +277,14 @@ export default function VendorDashboard() {
               Đánh giá
             </TabsTrigger>
 
+            {/* TAB VÍ CỦA BẠN - mới */}
+            <TabsTrigger
+              value="wallet"
+              className="py-2 text-sm font-medium transition-all data-[state=active]:bg-green-500 data-[state=active]:text-white data-[state=active]:shadow-sm hover:bg-muted/60 rounded-md"
+            >
+              Ví của bạn
+            </TabsTrigger>
+
             <TabsTrigger
               value="settings"
               className="py-2 text-sm font-medium transition-all data-[state=active]:bg-green-500 data-[state=active]:text-white data-[state=active]:shadow-sm hover:bg-muted/60 rounded-md"
@@ -298,6 +307,11 @@ export default function VendorDashboard() {
 
           <TabsContent value="reviews">
             <ReviewsTab vendor={vendor} />
+          </TabsContent>
+
+          {/* NỘI DUNG TAB VÍ CỦA BẠN */}
+          <TabsContent value="wallet">
+            <VendorWalletTab vendor={vendor} />
           </TabsContent>
 
           <TabsContent value="settings">
