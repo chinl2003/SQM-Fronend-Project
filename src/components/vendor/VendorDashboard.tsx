@@ -306,7 +306,7 @@ export default function VendorDashboard() {
           </TabsContent>
 
           <TabsContent value="reviews">
-            <ReviewsTab vendor={vendor} />
+            <ReviewsTab vendorId={vendor?.id}/>
           </TabsContent>
 
           {/* NỘI DUNG TAB VÍ CỦA BẠN */}
