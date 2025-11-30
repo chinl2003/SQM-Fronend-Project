@@ -9,6 +9,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import {
   RefreshCw,
   ChevronLeft,
@@ -97,6 +99,12 @@ function QueueList({
   const [hasPreviousPage, setHasPreviousPage] = useState<boolean>(false);
 
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmOrderId, setConfirmOrderId] = useState<string | null>(null);
+  const [isOnTime, setIsOnTime] = useState(true);
+  const [delayMinutes, setDelayMinutes] = useState<number>(0);
+  const [delayReason, setDelayReason] = useState("");
+  const [confirmSubmitting, setConfirmSubmitting] = useState(false);
 
   const parseResponse = (res: any): OrderWithDetailsDto[] => {
     try {
@@ -131,9 +139,10 @@ function QueueList({
       const token = localStorage.getItem("accessToken") || "";
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
 
+      const statusParam = statusFilter !== "all" ? `&status=${encodeURIComponent(statusFilter)}` : "";
       const url = `/api/order/by-customer?vendorId=${encodeURIComponent(
         vendorId
-      )}&queueType=${queueType}&pageNumber=${p}&pageSize=${pageSize}`;
+      )}&queueType=${queueType}&pageNumber=${p}&pageSize=${pageSize}${statusParam}`;
 
       const res = await api.get(url, headers);
 
@@ -171,11 +180,11 @@ function QueueList({
 
   useEffect(() => {
     setPage(1);
-  }, [vendorId, queueType]);
+  }, [vendorId, queueType, statusFilter]);
 
   useEffect(() => {
     void load(page);
-  }, [vendorId, queueType, page]);
+  }, [vendorId, queueType, page, statusFilter]);
 
   const formatDate = (iso?: string | null) => {
     if (!iso) return "—";
@@ -228,6 +237,7 @@ function QueueList({
       case 3:
         return "Đã hủy";
       case 0:
+        return "Xác nhận";
       case 1:
       default:
         return "Xác nhận";
@@ -246,17 +256,31 @@ function QueueList({
     if (hasNextPage) setPage((p) => p + 1);
   };
 
-  const updateOrderStatus = async (orderId: string, newStatus: number) => {
+  const updateOrderStatusWithContext = async (
+    order: OrderWithDetailsDto,
+    newStatus: number
+  ) => {
     try {
-      setUpdatingId(orderId);
+      setUpdatingId(order.id);
       const token = localStorage.getItem("accessToken") || "";
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
 
+      const estServeIso = order.queueEntry?.estimatedServeTime || null;
+      const onTime = (() => {
+        if (!estServeIso) return false;
+        const now = Date.now();
+        const est = new Date(estServeIso).getTime();
+        if (Number.isNaN(est)) return false;
+        return now <= est;
+      })();
+
       await api.post(
-        `/api/order/${orderId}/status`,
+        `/api/order/${order.id}/status`,
         {
-          id: orderId,
+          id: order.id,
           status: newStatus,
+          notifyVendor: true,
+          onTime,
         },
         headers
       );
@@ -287,7 +311,7 @@ function QueueList({
             <SelectItem value="0">Xác nhận</SelectItem>
             <SelectItem value="4">Chế biến</SelectItem>
             <SelectItem value="5">Sẵn sàng</SelectItem>
-            <SelectItem value="6">Hoàn tất</SelectItem>
+            <SelectItem value="2">Hoàn tất</SelectItem>
             <SelectItem value="3">Đã hủy</SelectItem>
           </SelectContent>
         </Select>
@@ -327,9 +351,15 @@ function QueueList({
             } else if (rawStatus === 5) {
               buttonLabel = "Sẵn sàng";
               nextStatus = 6;
-            } else if (rawStatus === 6 || rawStatus === 2) {
+            } else if (rawStatus === 6) {
               buttonLabel = "Hoàn tất";
               nextStatus = 2;
+            } else if (rawStatus === 0) {
+              buttonLabel = "Xác Nhận";
+              nextStatus = 4;
+            }else if (rawStatus === 2) {
+              buttonLabel = "Hoàn tất";
+              nextStatus = null;
             }
 
             const isUpdating = updatingId === it.id;
@@ -402,7 +432,7 @@ function QueueList({
                       disabled={!canClick}
                       onClick={() => {
                         if (!nextStatus || !canClick) return;
-                        updateOrderStatus(it.id, nextStatus);
+                        updateOrderStatusWithContext(it, nextStatus);
                       }}
                     >
                       {isUpdating ? (
@@ -414,6 +444,21 @@ function QueueList({
                         buttonLabel
                       )}
                     </Button>
+                    {rawStatus === 4 && (
+                      <Button
+                        variant="outline"
+                        className="ml-2"
+                        onClick={() => {
+                          setIsOnTime(true);
+                          setDelayMinutes(0);
+                          setDelayReason("");
+                          setConfirmOrderId(it.id);
+                          setConfirmOpen(true);
+                        }}
+                      >
+                        Xác nhận ETA
+                      </Button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -458,6 +503,86 @@ function QueueList({
           </Button>
         </div>
       </div>
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Xác nhận tiến độ món ăn</DialogTitle>
+            <DialogDescription>Vui lòng xác nhận kịp ETA hay báo trễ.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Button
+                variant={isOnTime ? "default" : "outline"}
+                onClick={() => setIsOnTime(true)}
+              >
+                Kịp ETA
+              </Button>
+              <Button
+                variant={!isOnTime ? "default" : "outline"}
+                onClick={() => setIsOnTime(false)}
+              >
+                Không kịp
+              </Button>
+            </div>
+            {!isOnTime && (
+              <div className="grid gap-3">
+                <div>
+                  <label className="text-sm">Số phút trễ (tối đa 30)</label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={30}
+                    value={delayMinutes}
+                    onChange={(e) => setDelayMinutes(parseInt(e.target.value || "0", 10))}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm">Lý do (tuỳ chọn)</label>
+                  <Input
+                    value={delayReason}
+                    onChange={(e) => setDelayReason(e.target.value)}
+                    placeholder="Ví dụ: nguyên liệu thiếu, thiết bị trục trặc"
+                  />
+                </div>
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setConfirmOpen(false)}>Đóng</Button>
+              <Button onClick={submitVendorConfirm} disabled={confirmSubmitting}>
+                {confirmSubmitting ? "Đang gửi..." : "Xác nhận"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+  const submitVendorConfirm = async () => {
+    if (!confirmOrderId) return;
+    try {
+      setConfirmSubmitting(true);
+      const token = localStorage.getItem("accessToken") || "";
+      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+      const payload: { isOnTime: boolean; delayMinutes?: number; reason?: string } = {
+        isOnTime,
+      };
+      if (!isOnTime) {
+        const d = Math.max(0, Math.min(30, Number.isFinite(delayMinutes) ? delayMinutes : 0));
+        payload.delayMinutes = d;
+        if (delayReason && delayReason.trim()) payload.reason = delayReason.trim();
+      }
+      await api.post(`/api/order/${confirmOrderId}/confirm-cooking`, payload, headers);
+      toast.success(isOnTime ? "Đã xác nhận kịp ETA" : "Đã báo trễ ETA");
+      setConfirmOpen(false);
+      setConfirmOrderId(null);
+      setDelayMinutes(0);
+      setDelayReason("");
+      await load(page);
+    } catch (err) {
+      console.error("[QueueTab] confirm-cooking error", err);
+      toast.error("Xác nhận tiến độ thất bại.");
+    } finally {
+      setConfirmSubmitting(false);
+    }
+  };

@@ -3,6 +3,7 @@ import {
   HubConnectionBuilder,
   LogLevel,
   HubConnection,
+  HttpTransportType,
 } from "@microsoft/signalr";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +35,7 @@ import { ProfileDialog } from "./ProfileDialog";
 import { NoStoreDialog } from "./customer/NoStoreDialog";
 import { VendorRegisterDialog } from "./customer/VendorRegisterDialog";
 import { api } from "@/lib/api";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 interface NavigationProps {
   userType?: "customer" | "guest" | "vendor" | "admin";
   queueCount?: number;
@@ -87,6 +89,7 @@ export function Navigation({
 
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [connection, setConnection] = useState<HubConnection | null>(null);
+  const [vendorConfirm, setVendorConfirm] = useState<{ open: boolean; orderId?: string }>({ open: false });
 
   const navigate = useNavigate();
 
@@ -116,6 +119,7 @@ export function Navigation({
     const newConnection = new HubConnectionBuilder()
       .withUrl(`${apiBaseUrl}/hubs/notifications`, {
         accessTokenFactory: () => token,
+        transport: HttpTransportType.LongPolling,
       })
       .withAutomaticReconnect()
       .configureLogging(LogLevel.None)
@@ -123,6 +127,7 @@ export function Navigation({
 
     newConnection.on("ReceiveNotification", (msg) => {
       const now = new Date();
+      console.log(msg)
       const n: AppNotification = {
         id: crypto.randomUUID(),
         title: msg.title ?? "Thông báo",
@@ -136,6 +141,22 @@ export function Navigation({
       };
 
       setNotifications((prev) => [n, ...prev]);
+      const kind = n.type === "warning" ? "warning" : "info";
+      if (kind === "warning") {
+        toast.warning(n.title, { description: n.message });
+      } else {
+        toast.info(n.title, { description: n.message });
+      }
+
+      const notifType = (msg?.type ?? "").toString();
+      if (notifType === "vendor_confirm") {
+        const rawData = (msg as Record<string, unknown>).data as unknown;
+        let orderId: string | undefined;
+        if (rawData && typeof rawData === "object") {
+          orderId = (rawData as { orderId?: string }).orderId;
+        }
+        if (orderId) setVendorConfirm({ open: true, orderId });
+      }
     });
 
     newConnection.start().catch(() => {});
@@ -166,13 +187,12 @@ export function Navigation({
         if (token) headers.Authorization = `Bearer ${token}`;
 
         const res = await api.get<NotificationApiItem[]>(
-          "/api/notifications",
+          "/api/Notification",
           headers
         );
-
         if (cancelled || !res) return;
 
-        const mapped: AppNotification[] = res.map((n) => ({
+        const mapped: AppNotification[] = res.data.map((n) => ({
           id: String(n.id),
           title: n.title,
           message: n.body ?? n.message ?? "",
@@ -234,7 +254,7 @@ export function Navigation({
       const headers: Record<string, string> = {};
       if (token) headers.Authorization = `Bearer ${token}`;
 
-      await api.post<void>("/api/notifications/mark-all-read", {}, headers);
+      await api.put<void>("/api/Notification/mark-all-read", {}, headers);
     } catch {}
   };
 
@@ -498,6 +518,50 @@ export function Navigation({
         isOpen={isVendorRegisterOpen}
         onClose={() => setIsVendorRegisterOpen(false)}
       />
+
+      <Dialog open={vendorConfirm.open} onOpenChange={(v) => setVendorConfirm((p) => ({ ...p, open: v }))}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Xác nhận tiến độ món ăn</DialogTitle>
+            <DialogDescription>
+              Bạn có kịp đúng ETA cho đơn hàng này không?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={async () => {
+                try {
+                  const token = localStorage.getItem("accessToken") || "";
+                  const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+                  if (vendorConfirm.orderId) {
+                    await api.post<void>(`/api/order/${vendorConfirm.orderId}/vendor-confirm`, { onTime: false }, headers);
+                  }
+                  toast.info("Đã xác nhận: Trễ ETA");
+                } catch {}
+                setVendorConfirm({ open: false, orderId: undefined });
+              }}
+            >
+              Không kịp
+            </Button>
+            <Button
+              onClick={async () => {
+                try {
+                  const token = localStorage.getItem("accessToken") || "";
+                  const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+                  if (vendorConfirm.orderId) {
+                    await api.post<void>(`/api/order/${vendorConfirm.orderId}/vendor-confirm`, { onTime: true }, headers);
+                  }
+                  toast.success("Đã xác nhận: Đúng ETA");
+                } catch {}
+                setVendorConfirm({ open: false, orderId: undefined });
+              }}
+            >
+              Kịp ETA
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </nav>
   );
 }

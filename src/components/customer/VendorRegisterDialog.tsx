@@ -137,6 +137,8 @@ export function VendorRegisterDialog({
   const [hasEnoughBalance, setHasEnoughBalance] = useState<boolean | null>(
     null
   );
+  const [geoLat, setGeoLat] = useState<number | null>(null);
+  const [geoLon, setGeoLon] = useState<number | null>(null);
 
   const selectedBank = useMemo(
     () => banks.find((b) => b.bin === selectedBankBin),
@@ -237,6 +239,7 @@ export function VendorRegisterDialog({
         (payload?.data as PaymentResponse) ?? (payload as PaymentResponse);
 
       if (!payment?.paymentUrl || !payment?.transactionId) {
+
         throw new Error("Không lấy được link thanh toán VNPay.");
       }
       localStorage.setItem("lastVnPayTransactionId", payment.transactionId);
@@ -344,7 +347,28 @@ export function VendorRegisterDialog({
   async function handleCheckBalanceAndOpenDialog() {
     try {
       setCheckingBalance(true);
-      // ... (phần validate form giữ nguyên)
+
+      const geocodeKey = import.meta.env.VITE_GEOCODE_API_KEY as
+        | string
+        | undefined;
+      const geocodeUrl = `https://geocode.maps.co/search?q=${encodeURIComponent(
+        address
+      )}${geocodeKey ? `&api_key=${geocodeKey}` : ""}`;
+      const geoRes = await fetch(geocodeUrl);
+      if (!geoRes.ok) {
+        throw new Error("Không thể xác thực địa chỉ với dịch vụ Geocoding.");
+      }
+      const geoData = await geoRes.json();
+      const first =
+        Array.isArray(geoData) && geoData.length > 0 ? geoData[0] : null;
+      if (!first || !first.lat || !first.lon) {
+        toast.error(
+          "Địa chỉ không hợp lệ hoặc không tìm thấy vị trí. Vui lòng kiểm tra lại."
+        ); 
+        return;
+      }
+      setGeoLat(parseFloat(first.lat));
+      setGeoLon(parseFloat(first.lon));
 
       const token = localStorage.getItem("accessToken") || "";
       const userId = localStorage.getItem("userId") || "";
@@ -372,7 +396,6 @@ export function VendorRegisterDialog({
 
       const wallet = res.data;
       setWalletInfo(wallet);
-
       const available = Number(wallet.availableBalance) || 0;
 
       setWalletBalance(available);
@@ -533,12 +556,19 @@ export function VendorRegisterDialog({
         return;
       }
 
+      if (geoLat == null || geoLon == null) {
+        toast.error("Vui lòng kiểm tra địa chỉ trước khi gửi hồ sơ.");
+        return;
+      }
+
       const paymentMethodEnum = 1;
 
       const fd = new FormData();
       fd.append("Name", brandName);
       fd.append("BusinessTypeId", businessTypeId);
       fd.append("Address", address);
+      fd.append("Latitude", String(geoLat));
+      fd.append("Longitude", String(geoLon));
       fd.append("OpeningHours", openingHours);
       fd.append("Phone", phone);
       fd.append("Email", email);
