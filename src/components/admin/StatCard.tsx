@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { LucideIcon } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, LucideIcon } from "lucide-react";
+
 
 interface StatCardProps {
   title: string;
@@ -35,15 +36,16 @@ const StatCard = ({
   };
 
   const getChangeIcon = () => {
-    switch (changeType) {
-      case "increase":
-        return "↗";
-      case "decrease":
-        return "↘";
-      default:
-        return "→";
-    }
-  };
+  switch (changeType) {
+    case "increase":
+      return <TrendingUp className="w-3 h-3" />;
+    case "decrease":
+      return <TrendingDown className="w-3 h-3" />;
+    default:
+      return <Minus className="w-3 h-3" />;
+  }
+};
+
 
   return (
     <Card className="hover:shadow-md transition-shadow">
