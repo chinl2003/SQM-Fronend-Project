@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { api, ApiResponse } from "@/lib/api";
 import VendorItemReportModal from "./VendorItemReportModal";
+import VendorReportModal from "./VendorReportModal";
 
 type SettingsMenuProps = {
   vendorId: string;
@@ -590,7 +591,11 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
+      <VendorReportModal
+        open={reportOpen}
+        onOpenChange={(v) => setReportOpen(v)}
+        vendorId={vendorId}
+      />
       <VendorItemReportModal
         open={itemReportOpen}
         onOpenChange={(v) => {

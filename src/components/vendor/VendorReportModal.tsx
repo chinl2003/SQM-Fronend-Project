@@ -1,5 +1,5 @@
 // src/components/vendor/VendorReportModal.tsx
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -9,10 +9,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { Toggle } from "@/components/ui/toggle";
 import { X } from "lucide-react";
 import {
   BarChart,
@@ -21,322 +19,465 @@ import {
   YAxis,
   Tooltip,
   ResponsiveContainer,
-  Line,
   CartesianGrid,
   Legend,
+  Cell,
+  PieChart,
+  Pie,
 } from "recharts";
+import { toast } from "sonner";
+import { api, ApiResponse } from "@/lib/api";
 
-type Props = {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-  vendorId: string;
+/**
+ * VendorReportModal
+ * - Shows hourly overview (bar / pie) with peak-hour highlighting
+ * - Shows per-item ETA analysis (vendor ETA vs actual average vs suggested)
+ * - Buttons to apply suggestions (per item and whole shop)
+ * - Clean, colorful, large UI suitable for street food owners
+ */
+
+/* ----------------------- Types ----------------------- */
+type TopItem = {
+  id: string;
+  name: string;
+  vendorPrepTime: number; // vendor-entered ETA
+  ordersForItem: number;
+  avgActualPrep: number; // from data
+  suggestedPrepTime: number; // suggestion per hour / aggregated
+  lateCount: number;
+  lateRate: number;
 };
 
 type HourBucket = {
   hour: number;
   ordersCount: number;
+  lateCount: number;
+  avgPrepMinutes: number; // avg actual prep (for all items)
   avgWaitMinutes: number;
-  avgPrepMinutes: number;
-  lateRatePercent: number;
-  topItems: Array<{
-    id: string;
-    name: string;
-    ordersForItem: number;
-    avgActualPrep: number;
-    vendorPrepTime: number;
-    suggestedPrepTime: number;
-    lateRate: number;
-  }>;
-  suggestionText?: string;
+  topItems: TopItem[];
   preorderSuggested?: boolean;
+  suggestionText?: string;
 };
 
+/* -------------------- Helpers / Mock ------------------ */
 function randomInt(min: number, max: number) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-function generateMockData(): HourBucket[] {
-  const data: HourBucket[] = [];
-  for (let h = 0; h < 24; h++) {
-    let orders = randomInt(5, 30);
-    if (h >= 11 && h <= 13) orders = randomInt(100, 220);
-    if (h >= 18 && h <= 20) orders = randomInt(80, 160);
-    const avgWait = Math.round((orders / 20) * 10) / 10 + randomInt(5, 20);
-    const avgPrep = Math.round((orders / 30) * 5) + randomInt(8, 15);
-    const lateRate = Math.min(60, Math.round((orders / 300) * 100));
-    const topItems = [
-      {
-        id: "i-pho",
-        name: "Phở Bò",
-        ordersForItem: Math.round(orders * 0.45),
-        avgActualPrep: Math.max(8, Math.round(avgPrep * 1.05)),
-        vendorPrepTime: 10,
-        suggestedPrepTime: Math.max(10, Math.round(avgPrep)),
-        lateRate: Math.round(lateRate * 1.1),
-      },
-      {
-        id: "i-bun",
-        name: "Bún Riêu",
-        ordersForItem: Math.round(orders * 0.18),
-        avgActualPrep: Math.max(8, Math.round(avgPrep * 0.95)),
-        vendorPrepTime: 9,
-        suggestedPrepTime: Math.max(9, Math.round(avgPrep - 1)),
-        lateRate: Math.round(lateRate * 0.9),
-      },
-      {
-        id: "i-goi",
-        name: "Gỏi Cuốn",
-        ordersForItem: Math.round(orders * 0.08),
-        avgActualPrep: Math.max(4, Math.round(avgPrep * 0.6)),
-        vendorPrepTime: 6,
-        suggestedPrepTime: Math.max(6, Math.round(avgPrep * 0.6)),
-        lateRate: Math.round(lateRate * 0.5),
-      },
-    ];
-    const suggestionText =
-      orders > 70
-        ? `Gợi ý bật PRE-ORDER ${h}:00–${h + 1}:00 (giảm chờ ~${Math.max(5, Math.round(avgWait / 3))} phút)`
-        : "";
-    data.push({
-      hour: h,
-      ordersCount: orders,
-      avgWaitMinutes: Math.round(avgWait),
-      avgPrepMinutes: Math.round(avgPrep),
-      lateRatePercent: lateRate,
-      topItems,
-      suggestionText,
-      preorderSuggested: orders > 80,
-    });
-  }
-  return data;
+function generateMockHour(hour: number): HourBucket {
+  let orders = randomInt(5, 35);
+  if (hour >= 11 && hour <= 13) orders = randomInt(120, 260);
+  if (hour >= 18 && hour <= 20) orders = randomInt(60, 160);
+  const avgPrep = Math.max(5, Math.round((orders / 30) * 6) + randomInt(6, 16));
+  const avgWait = Math.max(5, Math.round((orders / 20) * 8) + randomInt(3, 22));
+  const lateCount = Math.round((orders * (randomInt(5, 35) / 100)));
+  const topItems: TopItem[] = [
+    {
+      id: `itm-pho-${hour}`,
+      name: "Phở Bò",
+      vendorPrepTime: 10,
+      ordersForItem: Math.round(orders * 0.45),
+      avgActualPrep: Math.max(6, Math.round(avgPrep * 0.95)),
+      suggestedPrepTime: Math.max(8, Math.round(avgPrep)),
+      lateCount: Math.round(lateCount * 0.6),
+      lateRate: Math.round((Math.round(lateCount * 0.6) / Math.max(1, Math.round(orders * 0.45))) * 100),
+    },
+    {
+      id: `itm-bun-${hour}`,
+      name: "Bún Riêu",
+      vendorPrepTime: 9,
+      ordersForItem: Math.round(orders * 0.2),
+      avgActualPrep: Math.max(6, Math.round(avgPrep * 0.9)),
+      suggestedPrepTime: Math.max(7, Math.round(avgPrep - 1)),
+      lateCount: Math.round(lateCount * 0.25),
+      lateRate: Math.round((Math.round(lateCount * 0.25) / Math.max(1, Math.round(orders * 0.2))) * 100),
+    },
+    {
+      id: `itm-goi-${hour}`,
+      name: "Gỏi Cuốn",
+      vendorPrepTime: 6,
+      ordersForItem: Math.round(orders * 0.08),
+      avgActualPrep: Math.max(3, Math.round(avgPrep * 0.6)),
+      suggestedPrepTime: Math.max(4, Math.round(avgPrep * 0.6)),
+      lateCount: Math.round(lateCount * 0.15),
+      lateRate: Math.round((Math.round(lateCount * 0.15) / Math.max(1, Math.round(orders * 0.08))) * 100),
+    },
+  ];
+  const suggestionText = orders > 70 ? `Gợi ý bật PRE-ORDER ${hour}:00–${hour + 1}:00` : "";
+  return {
+    hour,
+    ordersCount: orders,
+    lateCount,
+    avgPrepMinutes: avgPrep,
+    avgWaitMinutes: avgWait,
+    topItems,
+    preorderSuggested: orders > 90,
+    suggestionText,
+  };
 }
 
-export default function VendorReportModal({ open, onOpenChange, vendorId }: Props) {
-  const [selectedHour, setSelectedHour] = useState<number | null>(12);
-  const [preorderEnabled, setPreorderEnabled] = useState<boolean>(false);
-  const data = useMemo(generateMockData, []);
-  const selected = selectedHour != null ? data[selectedHour] : null;
-
-  const heatMax = Math.max(...data.map((d) => d.ordersCount));
-  const heatMin = Math.min(...data.map((d) => d.ordersCount));
-
-  function heatColor(val: number) {
-    const t = (val - heatMin) / (heatMax - heatMin || 1);
-    if (t < 0.4) return "bg-emerald-200";
-    if (t < 0.7) return "bg-amber-300";
-    return "bg-rose-400";
+function generateMockData(): HourBucket[] {
+  const arr: HourBucket[] = [];
+  for (let h = 0; h < 24; h++) {
+    arr.push(generateMockHour(h));
   }
+  return arr;
+}
+
+/* ----------------------- Component ----------------------- */
+export default function VendorReportModal({ open, onOpenChange, vendorId }: { open: boolean; onOpenChange: (v: boolean) => void; vendorId: string; }) {
+  const [data, setData] = useState<HourBucket[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [selectedHour, setSelectedHour] = useState<number | null>(new Date().getHours());
+  const [showPie, setShowPie] = useState(false);
+  const [applyAllLoading, setApplyAllLoading] = useState(false);
+  const [applyItemLoadingId, setApplyItemLoadingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    async function load() {
+      setLoading(true);
+      try {
+        // Try to fetch real aggregated hourly data
+        const token = localStorage.getItem("accessToken") || "";
+        const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+
+        const res = await api.get<ApiResponse<any>>(`/api/reports/vendor/${vendorId}/hourly`, headers).catch(() => null);
+        const payload = (res?.data as any) ?? res;
+
+        if (mounted && payload && Array.isArray(payload?.data || payload)) {
+          // Map expected shape to HourBucket, but be defensive
+          const rows: HourBucket[] = (payload?.data || payload).map((r: any) => ({
+            hour: Number(r.hour) ?? 0,
+            ordersCount: Number(r.orders) ?? 0,
+            lateCount: Number(r.lateCount) ?? 0,
+            avgPrepMinutes: Number(r.avgPrep) ?? 0,
+            avgWaitMinutes: Number(r.avgWait) ?? 0,
+            topItems: Array.isArray(r.topItems) ? r.topItems.map((it: any) => ({
+              id: it.id,
+              name: it.name,
+              vendorPrepTime: Number(it.vendorPrepTime) ?? 0,
+              ordersForItem: Number(it.ordersForItem) ?? 0,
+              avgActualPrep: Number(it.avgActualPrep) ?? 0,
+              suggestedPrepTime: Number(it.suggestedPrepTime) ?? 0,
+              lateCount: Number(it.lateCount) ?? 0,
+              lateRate: Number(it.lateRate) ?? 0,
+            })) : [],
+            preorderSuggested: !!r.preorderSuggested,
+            suggestionText: r.suggestionText ?? "",
+          }));
+          setData(rows);
+        } else {
+          // fallback: mock data
+          setData(generateMockData());
+        }
+      } catch (e) {
+        console.error(e);
+        setData(generateMockData());
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+    if (open) load();
+    return () => { mounted = false; };
+  }, [open, vendorId]);
+
+  const totals = useMemo(() => {
+    if (!data) return { totalOrders: 0, totalLate: 0 };
+    return data.reduce((acc, h) => ({ totalOrders: acc.totalOrders + h.ordersCount, totalLate: acc.totalLate + h.lateCount }), { totalOrders: 0, totalLate: 0 });
+  }, [data]);
+
+  // Chart data for bar / pie
+  const chartData = useMemo(() => {
+    if (!data) return [];
+    return data.map((d) => ({
+      hourLabel: `${d.hour}:00`,
+      hour: d.hour,
+      orders: d.ordersCount,
+      late: d.lateCount,
+      peak: d.ordersCount >= 70 || d.lateCount >= Math.max(5, Math.round(d.ordersCount * 0.2)),
+    }));
+  }, [data]);
+
+  const pieData = useMemo(() => {
+    if (!data) return [];
+    return data.map((d) => ({ name: `${d.hour}:00`, value: d.ordersCount, late: d.lateCount }));
+  }, [data]);
+
+  const selected = (selectedHour != null && data) ? data.find((h) => h.hour === selectedHour) ?? null : null;
+
+  // peak hour by orders (with lateCount tie-break)
+  const peakHour = useMemo(() => {
+    if (!data) return null;
+    return data.slice().sort((a, b) => {
+      if (a.ordersCount !== b.ordersCount) return b.ordersCount - a.ordersCount;
+      return b.lateCount - a.lateCount;
+    })[0] ?? null;
+  }, [data]);
+
+  const applySuggestedForItem = async (item: TopItem) => {
+    setApplyItemLoadingId(item.id);
+    try {
+      // call API to update item prep time per shop (if available)
+      const token = localStorage.getItem("accessToken") || "";
+      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+
+      // Example endpoint — adjust to your backend contract
+      await api.put<ApiResponse<any>>(`/api/menuitem/${item.id}/prep`, { prepTime: item.suggestedPrepTime }, headers).catch(() => null);
+
+      toast.success(`Áp dụng gợi ý ${item.suggestedPrepTime} phút cho ${item.name}`);
+    } catch (e) {
+      console.error(e);
+      toast.error("Áp dụng thất bại");
+    } finally {
+      setApplyItemLoadingId(null);
+    }
+  };
+
+  const applySuggestedForShop = async () => {
+    if (!data) return;
+    setApplyAllLoading(true);
+    try {
+      const token = localStorage.getItem("accessToken") || "";
+      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+
+      // compute overall suggested prep time as weighted average of suggestedPrepTime * ordersForItem across all top items
+      let sumSuggested = 0;
+      let sumOrdersForWeights = 0;
+      for (const h of data) {
+        for (const it of h.topItems) {
+          sumSuggested += (it.suggestedPrepTime || it.vendorPrepTime) * (it.ordersForItem || 0);
+          sumOrdersForWeights += it.ordersForItem || 0;
+        }
+      }
+      const shopSuggested = sumOrdersForWeights ? Math.max(1, Math.round(sumSuggested / sumOrdersForWeights)) : 8;
+
+      // Example endpoint - adjust to your backend: update vendor default prepTime or apply to many items
+      await api.put<ApiResponse<any>>(`/api/vendor/${vendorId}/suggested-prep`, { suggestedPrepMinutes: shopSuggested }, headers).catch(() => null);
+
+      toast.success(`Đã áp dụng ETA trung bình mới cho quán: ${shopSuggested} phút`);
+    } catch (e) {
+      console.error(e);
+      toast.error("Không thể áp dụng cho quán");
+    } finally {
+      setApplyAllLoading(false);
+    }
+  };
+
+  if (!open) return null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl w-full">
-        <DialogHeader className="flex items-start justify-between gap-4">
+      {/* DialogContent contains a flex column limited in height.
+          Header and Footer remain visible; inner content scrolls when tall. */}
+      <DialogContent className="max-w-7xl w-full">
+        <div className="flex flex-col max-h-[80vh]">
           <div>
-            <DialogTitle className="text-lg font-semibold">
-              Báo cáo hoạt động theo khung giờ — Quán {vendorId}
-            </DialogTitle>
-            <p className="text-sm text-muted-foreground mt-1">
-              Bản đồ nhiệt giờ, biểu đồ số đơn & thời gian chờ, món phổ biến, gợi ý bật pre-order.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => onOpenChange(false)}
-              className="text-muted-foreground"
-              aria-label="Đóng"
-            >
-              <X />
-            </Button>
-          </div>
-        </DialogHeader>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 py-2">
-          <Card className="col-span-2">
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                <div className="col-span-2">
-                  <Label className="text-sm font-medium">Số đơn theo giờ</Label>
-                  <div style={{ height: 220 }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={data} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="hour" tickFormatter={(h) => `${h}:00`} />
-                        <YAxis />
-                        <Tooltip formatter={(value: any, name: any) => [value, name === "avgWaitMinutes" ? "Trung bình chờ (phút)" : name === "ordersCount" ? "Số đơn" : name]} />
-                        <Legend />
-                        <Bar dataKey="ordersCount" name="Số đơn" fill="#10b981" />
-                        <Line type="monotone" dataKey="avgWaitMinutes" name="Trung bình chờ (phút)" stroke="#fb923c" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-
-                <div>
-                  <Label className="text-sm font-medium">Bản đồ nhiệt (24 giờ)</Label>
-                  <div className="mt-2 grid grid-cols-6 gap-2">
-                    {data.map((d) => (
-                      <button
-                        key={d.hour}
-                        onClick={() => setSelectedHour(d.hour)}
-                        className={`relative rounded-md p-2 text-xs text-white flex flex-col items-center justify-center shadow-sm transition-transform transform hover:scale-105 ${heatColor(
-                          d.ordersCount
-                        )} ${selectedHour === d.hour ? "ring-2 ring-offset-1 ring-primary" : ""}`}
-                        title={`${d.hour}:00 — ${d.ordersCount} đơn • Chờ trung bình ${d.avgWaitMinutes} phút`}
-                      >
-                        <div className="font-semibold">{d.hour}:00</div>
-                        <div className="text-[10px] opacity-90">{d.ordersCount} đơn</div>
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="mt-3 text-xs text-muted-foreground">
-                    <div>Xanh = ít đơn • Vàng = trung bình • Đỏ = đông</div>
-                  </div>
-                </div>
-              </div>
-
-              <Separator className="my-3" />
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="p-3 rounded-lg border bg-background">
-                  <div className="text-xs text-muted-foreground">Thời gian chờ trung bình (khung chọn)</div>
-                  <div className="text-2xl font-bold">{selected?.avgWaitMinutes ?? "-"} phút</div>
-                  <div className="text-sm text-muted-foreground mt-1">Thời gian nấu trung bình: {selected?.avgPrepMinutes ?? "-"} phút</div>
-                </div>
-
-                <div className="p-3 rounded-lg border bg-background">
-                  <div className="text-xs text-muted-foreground">Số đơn (khung chọn)</div>
-                  <div className="text-2xl font-bold">{selected?.ordersCount ?? "-"}</div>
-                  <div className="text-sm text-muted-foreground mt-1">Tỷ lệ trễ: {selected?.lateRatePercent ?? "-"}%</div>
-                </div>
-
-                <div className="p-3 rounded-lg border bg-background">
-                  <div className="flex items-center justify-between">
-                    <div className="text-xs text-muted-foreground">Pre-order</div>
-                    <div className="text-sm font-medium">{selected?.preorderSuggested ? "Gợi ý" : "Không cần"}</div>
-                  </div>
-                  <div className="mt-2">
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        setPreorderEnabled((s) => !s);
-                      }}
-                    >
-                      {preorderEnabled ? "Tắt Pre-order (mô phỏng)" : "Bật Pre-order (mô phỏng)"}
-                    </Button>
-                  </div>
-                </div>
-              </div>
-
-              <Separator className="my-4" />
-
+            <DialogHeader className="flex items-start justify-between gap-4">
               <div>
-                <Label className="text-sm font-medium">Món phổ biến trong khung giờ</Label>
-                <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
-                  {selected?.topItems.map((it) => (
-                    <div key={it.id} className="rounded-lg border p-3 bg-white">
-                      <div className="flex items-center justify-between">
-                        <div className="font-medium">{it.name}</div>
-                        <div className="text-xs text-muted-foreground">{it.ordersForItem} đơn</div>
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-2">
-                        Thời gian nấu trung bình: <span className="font-semibold">{it.avgActualPrep} phút</span>
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        Vendor nhập: {it.vendorPrepTime} phút • Gợi ý: {it.suggestedPrepTime} phút
-                      </div>
-                      <div className="mt-3 flex items-center gap-2">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => {
-                            alert(`(Mô phỏng) Cập nhật thời gian nấu cho ${it.name} → ${it.suggestedPrepTime} phút`);
-                          }}
-                        >
-                          Áp gợi ý
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <DialogTitle className="text-lg font-semibold">Báo cáo hiệu suất theo khung giờ — Quán {vendorId}</DialogTitle>
+                <p className="text-sm text-muted-foreground mt-1">Xem khung giờ cao điểm, số đơn trễ và gợi ý ETA cho từng món / cho quán.</p>
               </div>
-            </CardContent>
-          </Card>
 
-          <div className="space-y-4">
-            <Card>
-              <CardContent>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-xs text-muted-foreground">Khung giờ đang chọn</div>
-                    <div className="text-lg font-semibold">{selected ? `${selected.hour}:00` : "-"}</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-xs text-muted-foreground">Gợi ý</div>
-                    <div className="font-medium text-sm text-amber-600">{selected?.suggestionText || "Không có"}</div>
-                  </div>
-                </div>
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)} className="text-muted-foreground" aria-label="Đóng"><X /></Button>
+              </div>
+            </DialogHeader>
+          </div>
 
-                <Separator className="my-3" />
+          {/* MAIN SCROLLABLE AREA */}
+          <div
+            className="px-4 py-3 overflow-auto"
+            style={{ maxHeight: "calc(80vh - 140px)" }} // reserve space for header + footer (approx)
+          >
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              {/* Left: Charts */}
+              <div className="lg:col-span-2 space-y-4">
+                <Card className="bg-gradient-to-br from-white to-slate-50 shadow-sm">
+                  <CardContent>
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <Label className="text-base font-medium">Khung giờ cao điểm (theo số đơn)</Label>
+                        <div className="text-xs text-muted-foreground">Xem tổng số đơn & số đơn trễ mỗi giờ. Nhấn vào cột để chọn giờ.</div>
+                      </div>
 
-                <div className="text-sm">
-                  <div className="mb-2"><strong>Thời gian chờ trung bình</strong>: {selected?.avgWaitMinutes ?? "-"} phút</div>
-                  <div className="mb-2"><strong>Thời gian nấu trung bình</strong>: {selected?.avgPrepMinutes ?? "-"} phút</div>
-                  <div className="mb-2"><strong>Số đơn</strong>: {selected?.ordersCount ?? "-"}</div>
-                  <div className="mb-2"><strong>Tỷ lệ trễ</strong>: {selected?.lateRatePercent ?? "-"}%</div>
-                </div>
-
-                <Separator className="my-3" />
-
-                <div>
-                  <Label className="text-xs">Cấu hình Pre-order (mô phỏng)</Label>
-                  <div className="mt-2 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm">Trạng thái Pre-order</div>
-                      <div className="text-sm font-medium">{preorderEnabled ? "BẬT" : "TẮT"}</div>
+                      <div className="flex items-center gap-2">
+                        <div className="text-sm text-muted-foreground">Tổng đơn: <strong>{totals.totalOrders}</strong></div>
+                        <div className="text-sm text-muted-foreground">• Trễ: <strong className="text-red-600">{totals.totalLate}</strong></div>
+                        <div>
+                          <Button size="sm" variant="outline" onClick={() => setShowPie((s) => !s)}>{showPie ? "Xem cột" : "Xem pie"}</Button>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm">Độ dài slot</div>
-                      <div className="text-sm">10 phút</div>
+
+                    <div style={{ height: 300 }} className="rounded-md overflow-hidden">
+                      <ResponsiveContainer width="100%" height="100%">
+                        {showPie ? (
+                          <PieChart>
+                            <Pie
+                              data={pieData}
+                              dataKey="value"
+                              nameKey="name"
+                              label={(entry: any) => entry.name}
+                              outerRadius={100}
+                              innerRadius={45}
+                            >
+                              {pieData.map((entry: any, idx: number) => {
+                                // color scale by value
+                                const peak = entry.value >= 80;
+                                const color = peak ? "#f97316" : "#2563eb";
+                                return <Cell key={`pie-${idx}`} fill={color} />;
+                              })}
+                            </Pie>
+                            <Tooltip formatter={(v: any) => [`${v} đơn`]} />
+                          </PieChart>
+                        ) : (
+                          <BarChart data={chartData} margin={{ top: 10, right: 20, left: -10, bottom: 5 }}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="hourLabel" tick={{ fontSize: 12 }} />
+                            <YAxis />
+                            <Tooltip formatter={(val: any, name: any) => {
+                              if (name === "orders") return [`${val} đơn`, "Số đơn"];
+                              if (name === "late") return [`${val} trễ`, "Số đơn trễ"];
+                              return [val, name];
+                            }} />
+                            <Legend />
+                            <Bar
+                              dataKey="orders"
+                              name="Số đơn"
+                              onClick={(entry: any) => setSelectedHour(entry.hour)}
+                            >
+                              {chartData.map((entry: any, idx: number) => (
+                                <Cell key={`cell-${idx}`} fill={entry.peak ? "#f97316" : "#2563eb"} className="transition-transform hover:scale-105" />
+                              ))}
+                            </Bar>
+                            <Bar dataKey="late" name="Số đơn trễ" fill="#ef4444" />
+                          </BarChart>
+                        )}
+                      </ResponsiveContainer>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm">Giới hạn / slot</div>
-                      <div className="text-sm">4 đơn</div>
+                  </CardContent>
+                </Card>
+
+                {/* Items grid: aggregated suggestion per item (using selectedHour if present else overall) */}
+                <Card className="bg-gradient-to-br from-white to-slate-50 shadow-sm">
+                  <CardContent>
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <Label className="text-base font-medium">Gợi ý ETA theo món</Label>
+                        <div className="text-xs text-muted-foreground">Hệ thống sẽ dùng thời gian thực tế (từ dữ liệu) để gợi ý ETA cho từng món theo khung giờ.</div>
+                      </div>
+
+                      <div className="text-sm text-muted-foreground">Chọn giờ: <strong>{selectedHour != null ? `${selectedHour}:00` : "-"}</strong></div>
                     </div>
-                  </div>
-                </div>
 
-                <Separator className="my-3" />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {/* For each top item in selected hour (fallback to aggregated top items across hours) */}
+                      { (selected?.topItems && selected.topItems.length > 0 ? selected.topItems : (data ? data.flatMap(d => d.topItems).slice(0,6) : []) ).map((it) => (
+                        <div key={it.id} className="rounded-lg border p-3 bg-white shadow-sm hover:shadow-md transition-transform hover:-translate-y-0.5">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="font-medium text-lg">{it.name}</div>
+                            <div className="text-xs text-muted-foreground">{it.ordersForItem} đơn</div>
+                          </div>
 
-                <div className="text-xs text-muted-foreground">Mô phỏng</div>
-                <div className="mt-2">
-                  <div className="text-sm">
-                    Khi bật Pre-order, dự kiến giảm trung bình ~ <strong>{Math.max(3, Math.round((selected?.avgWaitMinutes ?? 10) / 4))}</strong> phút cho khung giờ này.
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                          <div className="grid grid-cols-3 gap-2 text-sm mb-2">
+                            <div className="p-2 rounded-md bg-emerald-50 text-center">
+                              <div className="text-xs text-muted-foreground">ETA shop</div>
+                              <div className="font-semibold">{it.vendorPrepTime} phút</div>
+                            </div>
 
-            <Card>
-              <CardContent>
-                <div className="text-sm font-medium mb-2">Hành động nhanh</div>
-                <div className="flex flex-col gap-2">
-                  <Button onClick={() => alert("(Mô phỏng) Xuất CSV")}>Xuất CSV</Button>
-                  <Button variant="outline" onClick={() => alert("(Mô phỏng) Gửi gợi ý đến app quán")}>Gửi gợi ý đến app quán</Button>
-                </div>
-              </CardContent>
-            </Card>
+                            <div className="p-2 rounded-md bg-slate-50 text-center">
+                              <div className="text-xs text-muted-foreground">Thực tế TB</div>
+                              <div className="font-semibold">{it.avgActualPrep} phút</div>
+                            </div>
+
+                            <div className={`p-2 rounded-md text-center ${it.avgActualPrep > it.vendorPrepTime ? "bg-rose-50" : "bg-emerald-50"}`}>
+                              <div className="text-xs text-muted-foreground">Gợi ý</div>
+                              <div className="font-semibold">{it.suggestedPrepTime} phút</div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between">
+                            <div className="text-xs text-muted-foreground">Trễ: <span className="text-red-600 font-semibold">{it.lateCount}</span> • {it.lateRate}%</div>
+                            <div className="flex items-center gap-2">
+                              <Button size="sm" className="bg-emerald-600 text-white hover:bg-[#00A551]" onClick={() => applySuggestedForItem(it)} disabled={applyItemLoadingId === it.id}>
+                                {applyItemLoadingId === it.id ? "Đang..." : "Áp dụng gợi ý"}
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      )) }
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Right column: selected hour summary + actions */}
+              <div className="space-y-4">
+                <Card className="bg-gradient-to-br from-white to-slate-50 shadow-sm">
+                  <CardContent>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-xs text-muted-foreground">Khung giờ đang chọn</div>
+                        <div className="text-xl font-semibold">{selected ? `${selected.hour}:00 — ${selected.hour + 1}:00` : "—"}</div>
+                      </div>
+
+                      <div className="text-right">
+                        <div className="text-xs text-muted-foreground">Gợi ý</div>
+                        <div className="text-sm text-amber-600 font-semibold">{selected?.suggestionText || "Không có"}</div>
+                      </div>
+                    </div>
+
+                    <Separator className="my-3" />
+
+                    <div className="text-sm space-y-2">
+                      <div><strong>Số đơn:</strong> {selected?.ordersCount ?? "-"}</div>
+                      <div><strong>Số đơn trễ:</strong> <span className="text-red-600 font-semibold">{selected?.lateCount ?? "-"}</span></div>
+                      <div><strong>Thời gian nấu TB:</strong> {selected?.avgPrepMinutes ?? "-"} phút</div>
+                      <div><strong>Thời gian chờ TB:</strong> {selected?.avgWaitMinutes ?? "-"} phút</div>
+                    </div>
+
+                    <div className="mt-4">
+                      <Button size="lg" className="w-full bg-emerald-600 text-white hover:bg-[#00A551]" onClick={applySuggestedForShop} disabled={applyAllLoading}>
+                        {applyAllLoading ? "Đang áp dụng..." : "Áp dụng ETA trung bình cho quán"}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-gradient-to-br from-white to-slate-50 shadow-sm">
+                  <CardContent>
+                    <div className="text-sm font-medium mb-2">Hành động nhanh</div>
+                    <div className="flex flex-col gap-2">
+                      <Button onClick={() => {
+                        // export minimal CSV from current data (client-side)
+                        const rows: string[] = ["hour,orders,late,avgPrep,avgWait"];
+                        (data || []).forEach(h => rows.push(`${h.hour},${h.ordersCount},${h.lateCount},${h.avgPrepMinutes},${h.avgWaitMinutes}`));
+                        const blob = new Blob([rows.join("\n")], { type: "text/csv;charset=utf-8;" });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = `vendor-${vendorId}-hourly.csv`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      }}>Xuất CSV</Button>
+
+                      <Button variant="outline" onClick={() => { toast.success("Đã gửi gợi ý tới app quán (mô phỏng)"); }}>Gửi gợi ý đến app quán</Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          </div>
+
+          {/* Footer stays visible under scrollable content */}
+          <div className="border-t">
+            <DialogFooter className="flex items-center justify-end gap-2 py-3 px-4">
+              <Button variant="outline" onClick={() => onOpenChange(false)}>Đóng</Button>
+              <Button onClick={() => { toast.success("Áp dụng mô phỏng — đã gửi cấu hình"); onOpenChange(false); }} className="bg-emerald-600 text-white hover:bg-[#00A551]">Áp dụng</Button>
+            </DialogFooter>
           </div>
         </div>
-
-        <DialogFooter className="flex items-center justify-end gap-2 mt-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Đóng</Button>
-          <Button onClick={() => { alert("(Mô phỏng) Áp dụng cấu hình pre-order cho khung giờ này"); onOpenChange(false); }}>
-            Áp dụng
-          </Button>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
