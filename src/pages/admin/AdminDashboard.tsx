@@ -99,7 +99,7 @@ const fetchActiveVendors = async () => {
 const fetchQueueEntryCount = async () => {
   try {
     const res = await api.get<QueueEntryCountResponse>(
-      "/api/QueueEntry/queue-entry-count"
+      "/api/QueueEntry/queue-entry-week-count"
     );
 
     const totalQueueToday = res.data?.totalCount ?? 0;
