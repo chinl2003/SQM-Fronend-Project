@@ -16,6 +16,11 @@ import { Separator } from "@/components/ui/separator";
 import { Plus, Trash2, Clock, UtensilsCrossed } from "lucide-react";
 import { api, ApiResponse } from "@/lib/api";
 import { toast } from "sonner";
+import DatePicker, { registerLocale } from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
+import vi from "date-fns/locale/vi";
+
+registerLocale("vi", vi);
 
 type SettingsPreOrderProps = {
   vendorId: string;
@@ -33,6 +38,7 @@ type PreOrderConfig = {
   endTime: string;
   maxQuantity: string;
   enabled: boolean;
+  isNew?: boolean;
 };
 
 type PreOrderConfigFromApi = {
@@ -51,6 +57,25 @@ type PreOrderConfigsResponseFromApi = {
 
 const uid = () => crypto.randomUUID();
 
+function parseTimeToDate(time: string): Date | null {
+  if (!time) return null;
+  const parts = time.split(":");
+  if (parts.length < 2) return null;
+  const hours = Number(parts[0]);
+  const minutes = Number(parts[1]);
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
+  const d = new Date();
+  d.setHours(hours, minutes, 0, 0);
+  return d;
+}
+
+function formatDateToTime(date: Date | null, fallback = "08:00"): string {
+  if (!date) return fallback;
+  const h = date.getHours().toString().padStart(2, "0");
+  const m = date.getMinutes().toString().padStart(2, "0");
+  return `${h}:${m}`;
+}
+
 export default function SettingsPreOrder({ vendorId }: SettingsPreOrderProps) {
   const [enabled, setEnabled] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -58,59 +83,64 @@ export default function SettingsPreOrder({ vendorId }: SettingsPreOrderProps) {
   const [menuItems, setMenuItems] = useState<MenuItemFromApi[]>([]);
   const [configs, setConfigs] = useState<PreOrderConfig[]>([]);
 
+  const fetchData = async () => {
+    if (!vendorId) return;
+
+    try {
+      setLoading(true);
+      const token = localStorage.getItem("accessToken") || "";
+      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+
+      const resMenu = await api.get<ApiResponse<any>>(
+        `/api/menuitem/by-vendor/${vendorId}`,
+        headers
+      );
+
+      const payloadMenu = (resMenu?.data as any) ?? resMenu;
+      const dataMenu: any[] = (payloadMenu?.data as any) ?? payloadMenu;
+
+      const items: MenuItemFromApi[] =
+        dataMenu?.map((it) => ({
+          id: it.id,
+          name: it.name || "Món không tên",
+        })) || [];
+
+      setMenuItems(items);
+
+      const resPre = await api.get<ApiResponse<any>>(
+        `/api/vendor-preorder/${vendorId}/configs`,
+        headers
+      );
+
+      const payloadPre = (resPre?.data as any) ?? resPre;
+      const dataPre: PreOrderConfigsResponseFromApi =
+        (payloadPre?.data as any) ?? payloadPre;
+
+      setEnabled(!!dataPre.enabled);
+
+      const mappedConfigs: PreOrderConfig[] =
+        dataPre.configs?.map((c) => ({
+          id: c.id || uid(),
+          menuItemId: c.menuItemId,
+          startTime: c.startTime ?? "08:00",
+          endTime: c.endTime ?? "11:00",
+          maxQuantity: String(c.maxQuantity || 10),
+          enabled: c.enabled,
+          isNew: false,
+        })) || [];
+
+      setConfigs(mappedConfigs);
+    } catch (err) {
+      console.error(err);
+      toast.error("Không tải được cấu hình Đặt trước.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!vendorId) return;
-    (async () => {
-      try {
-        setLoading(true);
-        const token = localStorage.getItem("accessToken") || "";
-        const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-
-        const resMenu = await api.get<ApiResponse<any>>(
-          `/api/menuitem/by-vendor/${vendorId}`,
-          headers
-        );
-
-        const payloadMenu = (resMenu?.data as any) ?? resMenu;
-        const dataMenu: any[] = (payloadMenu?.data as any) ?? payloadMenu;
-
-        const items: MenuItemFromApi[] =
-          dataMenu?.map((it) => ({
-            id: it.id,
-            name: it.name || "Món không tên",
-          })) || [];
-
-        setMenuItems(items);
-
-        const resPre = await api.get<ApiResponse<any>>(
-          `/api/vendor-preorder/${vendorId}/configs`,
-          headers
-        );
-
-        const payloadPre = (resPre?.data as any) ?? resPre;
-        const dataPre: PreOrderConfigsResponseFromApi =
-          (payloadPre?.data as any) ?? payloadPre;
-
-        setEnabled(!!dataPre.enabled);
-
-        const mappedConfigs: PreOrderConfig[] =
-          dataPre.configs?.map((c) => ({
-            id: c.id || uid(),
-            menuItemId: c.menuItemId,
-            startTime: c.startTime ?? "08:00",
-            endTime: c.endTime ?? "11:00",
-            maxQuantity: String(c.maxQuantity || 10),
-            enabled: c.enabled,
-          })) || [];
-
-        setConfigs(mappedConfigs);
-      } catch (err) {
-        console.error(err);
-        toast.error("Không tải được cấu hình Đặt trước.");
-      } finally {
-        setLoading(false);
-      }
-    })();
+    fetchData();
   }, [vendorId]);
 
   const addConfig = () => {
@@ -127,12 +157,9 @@ export default function SettingsPreOrder({ vendorId }: SettingsPreOrderProps) {
         endTime: "11:00",
         maxQuantity: "10",
         enabled: true,
+        isNew: true,
       },
     ]);
-  };
-
-  const removeConfig = (id: string) => {
-    setConfigs((prev) => prev.filter((c) => c.id !== id));
   };
 
   const updateConfig = <K extends keyof PreOrderConfig>(
@@ -146,6 +173,33 @@ export default function SettingsPreOrder({ vendorId }: SettingsPreOrderProps) {
   };
 
   const isGlobalDisabled = !enabled;
+
+  const handleDeleteConfig = async (id: string) => {
+    const cfg = configs.find((c) => c.id === id);
+    if (!cfg) return;
+
+    if (cfg.isNew) {
+      setConfigs((prev) => prev.filter((c) => c.id !== id));
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem("accessToken") || "";
+      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+
+      await api.post<ApiResponse<any>>(
+        `/api/vendor-preorder/configs/${id}/delete`,
+        {},
+        headers
+      );
+
+      toast.success("Đã xóa cấu hình.");
+      await fetchData();
+    } catch (err) {
+      console.error(err);
+      toast.error("Xóa cấu hình thất bại.");
+    }
+  };
 
   const handleSave = async () => {
     try {
@@ -180,8 +234,8 @@ export default function SettingsPreOrder({ vendorId }: SettingsPreOrderProps) {
           enabled,
           configs: chunk.map((c) => ({
             menuItemId: c.menuItemId,
-            startTime: c.startTime, 
-            endTime: c.endTime,    
+            startTime: c.startTime,
+            endTime: c.endTime,
             maxQuantity: Number(c.maxQuantity),
             enabled: c.enabled,
           })),
@@ -197,6 +251,7 @@ export default function SettingsPreOrder({ vendorId }: SettingsPreOrderProps) {
       }
 
       toast.success("Đã lưu cấu hình Đặt trước.");
+      await fetchData();
     } catch (err) {
       console.error(err);
       toast.error("Lưu cấu hình Đặt trước thất bại.");
@@ -289,7 +344,7 @@ export default function SettingsPreOrder({ vendorId }: SettingsPreOrderProps) {
                           size="icon"
                           variant="ghost"
                           className="text-destructive"
-                          onClick={() => removeConfig(cfg.id)}
+                          onClick={() => handleDeleteConfig(cfg.id)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -321,28 +376,50 @@ export default function SettingsPreOrder({ vendorId }: SettingsPreOrderProps) {
                         </Select>
                       </div>
 
-                      <div className="space-y-1">
-                        <Label className="text-xs font-semibold">Từ giờ</Label>
-                        <Input
-                          type="time"
-                          value={cfg.startTime}
-                          disabled={disabledByToggle}
-                          onChange={(e) =>
-                            updateConfig(cfg.id, "startTime", e.target.value)
-                          }
-                        />
-                      </div>
+                      <div className="flex gap-2">
+                        <div className="flex-1 space-y-1">
+                          <Label className="text-xs font-semibold">Thời gian bắt đầu</Label>
+                          <DatePicker
+                            selected={parseTimeToDate(cfg.startTime)}
+                            onChange={(date) =>
+                              updateConfig(
+                                cfg.id,
+                                "startTime",
+                                formatDateToTime(date as Date | null, "08:00")
+                              )
+                            }
+                            showTimeSelect
+                            showTimeSelectOnly
+                            timeIntervals={5}
+                            timeFormat="HH:mm"
+                            dateFormat="HH:mm"
+                            locale="vi"
+                            disabled={disabledByToggle}
+                            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                          />
+                        </div>
 
-                      <div className="space-y-1">
-                        <Label className="text-xs font-semibold">Đến giờ</Label>
-                        <Input
-                          type="time"
-                          value={cfg.endTime}
-                          disabled={disabledByToggle}
-                          onChange={(e) =>
-                            updateConfig(cfg.id, "endTime", e.target.value)
-                          }
-                        />
+                        <div className="flex-1 space-y-1">
+                          <Label className="text-xs font-semibold">Thời gian kết thúc</Label>
+                          <DatePicker
+                            selected={parseTimeToDate(cfg.endTime)}
+                            onChange={(date) =>
+                              updateConfig(
+                                cfg.id,
+                                "endTime",
+                                formatDateToTime(date as Date | null, "11:00")
+                              )
+                            }
+                            showTimeSelect
+                            showTimeSelectOnly
+                            timeIntervals={5}
+                            timeFormat="HH:mm"
+                            dateFormat="HH:mm"
+                            locale="vi"
+                            disabled={disabledByToggle}
+                            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                          />
+                        </div>
                       </div>
 
                       <div className="space-y-1">
