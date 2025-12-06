@@ -193,29 +193,31 @@ setTotalRecords(paginated.totalRecords ?? 0);
                 </div>
               ))}
 
-              <div className="mt-6 flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">
-                  Trang {currentPage} / {totalPages} • Tổng {totalRecords} người dùng
-                </p>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={currentPage <= 1}
-                    onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-                  >
-                    Trang trước
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={currentPage >= totalPages}
-                    onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
-                  >
-                    Trang sau
-                  </Button>
-                </div>
-              </div>
+              {totalPages > 1 && (
+                <div className="mt-6 flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    Trang {currentPage} / {totalPages} • Tổng {totalRecords} người dùng
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={currentPage <= 1}
+                      onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                    >
+                      Trang trước
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={currentPage >= totalPages}
+                      onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                    >
+                      Trang sau
+                    </Button>
+                  </div>
+                </div> 
+              )}
             </div>
             )}
           </CardContent>
