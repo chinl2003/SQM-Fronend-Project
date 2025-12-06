@@ -210,15 +210,15 @@ export default function SettingsPreOrder({ vendorId }: SettingsPreOrderProps) {
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
 
       await api.post<ApiResponse<any>>(
-        `/api/vendor/${vendorId}/is-active`,
-        { isActive: value },
+        `/api/vendor/${vendorId}/is-allow-pre-order`,
+        { isAllowPreOrder: value },
         headers
       );
 
       if (value) {
-        toast.success("Quán của bạn đang được hoạt động!");
+        toast.success("Bật tính năng đặt trước thành công!");
       } else {
-        toast.success("Quán của bạn đã ngưng hoạt động!");
+        toast.success("Tắt tính năng đặt trước thành công!");
       }
     } catch (err) {
       console.error(err);
