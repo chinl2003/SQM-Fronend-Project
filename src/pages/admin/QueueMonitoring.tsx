@@ -6,8 +6,42 @@ import {
   Clock, Users, AlertCircle, X, 
   Eye, MapPin, ShoppingBag
 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { api } from "@/lib/api";
+import { getQueueEntryStatus } from "@/constaints/queueEntryStatusConst";
 
 const QueueMonitoring = () => {
+
+  interface QueueEntryCountResponse {
+  data: {
+    totalCount: number;
+  };
+  additionalData: any;
+  message: string;
+  statusCode: number;
+  code: string;
+}
+
+  const [queueToday, setQueueToday] = useState(0);
+
+  const fetchQueueEntryCount = async () => {
+    try {
+      const res = await api.get<QueueEntryCountResponse>(
+        `/api/QueueEntry/queue-entry-count?status=Waiting`
+      );
+  
+      const totalQueueToday = res.data?.totalCount ?? 0;
+  
+      setQueueToday(totalQueueToday);
+  
+    } catch (error) {
+      console.error("Error fetching total queue entry:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchQueueEntryCount();
+  }, []);
   const activeQueues = [
     {
       id: 1,
@@ -76,7 +110,7 @@ const QueueMonitoring = () => {
           <Card>
             <CardContent className="pt-6">
               <div className="text-center">
-                <div className="text-3xl font-bold text-primary">45</div>
+                <div className="text-3xl font-bold text-primary">{queueToday.toLocaleString()}</div>
                 <p className="text-muted-foreground">Hàng đợi đang hoạt động</p>
               </div>
             </CardContent>
