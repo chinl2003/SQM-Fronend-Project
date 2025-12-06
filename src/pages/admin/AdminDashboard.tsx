@@ -102,7 +102,7 @@ const PAGE_SIZE = 4;
 const fetchActiveVendors = async () => {
   try {
     const res = await api.get<VendorFilterResponse>(
-      "/api/vendor/by-status-active?Status=Active"
+      "/api/vendor/by-status-active?Status=Approved"
     );
 
     const total = res.data?.totalCount ?? 0;
