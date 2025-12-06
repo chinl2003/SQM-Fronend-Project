@@ -22,6 +22,12 @@ import { api, ApiResponse } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
+import DatePicker, { registerLocale } from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
+import vi from "date-fns/locale/vi";
+
+registerLocale("vi", vi);
+
 type MenuItemResponse = {
   id: string;
   name?: string | null;
@@ -78,6 +84,9 @@ type VendorModel = {
   averageRating?: number | null;
   queueCount?: number | null;
   logoUrl?: string | null;
+  allowPreorder?: boolean | null;
+  preOrderStartTime?: string | null;
+  preOrderEndTime?: string | null;
 };
 
 type VendorQueueSlim = {
@@ -133,6 +142,36 @@ function fmtVND(n?: number | null) {
   return n.toLocaleString("vi-VN") + "đ";
 }
 
+function normalizeTimeString(t?: string | null): string | null {
+  if (!t) return null;
+  const parts = t.split(":");
+  if (parts.length < 2) return null;
+  const h = parts[0].padStart(2, "0");
+  const m = parts[1].padStart(2, "0");
+  return `${h}:${m}`;
+}
+
+function parseTimeToDate(time?: string | null): Date | null {
+  if (!time) return null;
+  const parts = time.split(":");
+  if (parts.length < 2) return null;
+  const hours = Number(parts[0]);
+  const minutes = Number(parts[1]);
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
+  const d = new Date();
+  d.setHours(hours, minutes, 0, 0);
+  return d;
+}
+
+function formatDateToTime(date: Date | null, fallback = ""): string {
+  if (!date) return fallback;
+  const h = date.getHours().toString().padStart(2, "0");
+  const m = date.getMinutes().toString().padStart(2, "0");
+  return `${h}:${m}`;
+}
+
+type Mode = "QUEUE" | "PREORDER";
+
 export default function VendorDetailPage() {
   const { vendorId } = useParams<{ vendorId: string }>();
   const navigate = useNavigate();
@@ -147,11 +186,17 @@ export default function VendorDetailPage() {
   const [orderInfo, setOrderInfo] = useState<OrderQueueInfo | null>(null);
   const [eta, setEta] = useState<EtaResponse | null>(null);
   const [etaLoading, setEtaLoading] = useState(false);
+  const [mode, setMode] = useState<Mode>("QUEUE");
+
+  const [pickupTime, setPickupTime] = useState<string>("");
+  const [pickupDate, setPickupDate] = useState<Date | null>(null);
 
   useEffect(() => {
     const cid = localStorage.getItem("userId") || null;
     setCustomerId(cid);
   }, []);
+
+  const isPreOrderMode = mode === "PREORDER";
 
   useEffect(() => {
     let mounted = true;
@@ -160,22 +205,40 @@ export default function VendorDetailPage() {
       try {
         setLoading(true);
         const token = localStorage.getItem("accessToken") || "";
+        const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+
+        const query = isPreOrderMode ? "?isPreOrder=true" : "";
         const res = await api.get<ApiResponse<VendorWithMenuResponse>>(
-          `/api/vendor/${vendorId}`,
-          token ? { Authorization: `Bearer ${token}` } : undefined
+          `/api/vendor/${vendorId}${query}`,
+          headers
         );
+
         const outer = (res as any)?.data ?? res;
         const payload: VendorWithMenuResponse = outer?.data ?? outer ?? null;
+
         if (mounted) {
           setData(payload ?? null);
           setQty({});
-          setPaymentMethod("CASH");
+          setPaymentMethod(isPreOrderMode ? "WALLET" : "CASH");
+
+          if (isPreOrderMode) {
+            const start = normalizeTimeString(
+              payload?.vendor?.preOrderStartTime ?? undefined
+            );
+            setPickupTime(start || "");
+            setPickupDate(start ? parseTimeToDate(start) : null);
+          } else {
+            setPickupTime("");
+            setPickupDate(null);
+          }
         }
       } catch (e) {
         console.error(e);
         if (mounted) {
           setData(null);
           setQty({});
+          setPickupTime("");
+          setPickupDate(null);
         }
       } finally {
         if (mounted) setLoading(false);
@@ -185,18 +248,30 @@ export default function VendorDetailPage() {
     return () => {
       mounted = false;
     };
-  }, [vendorId]);
+  }, [vendorId, isPreOrderMode]);
 
   const vendor = data?.vendor ?? null;
 
+  const preOrderStart = normalizeTimeString(vendor?.preOrderStartTime ?? undefined);
+  const preOrderEnd = normalizeTimeString(vendor?.preOrderEndTime ?? undefined);
+
+  const effectivePickupDate = useMemo(() => {
+    if (pickupDate) return pickupDate;
+    if (isPreOrderMode && preOrderStart) return parseTimeToDate(preOrderStart);
+    return null;
+  }, [pickupDate, isPreOrderMode, preOrderStart]);
+
   const queueId = useMemo(
-    () => data?.vendorQueues?.find((q) => q.type === 1)?.id ?? null,
-    [data]
+    () => {
+      const targetType = isPreOrderMode ? 2 : 1;
+      return data?.vendorQueues?.find((q) => q.type === targetType)?.id ?? null;
+    },
+    [data, isPreOrderMode]
   );
 
   const positionMax = useMemo(() => {
-    const p = data?.vendorQueues?.find((q) => q.type === 1)?.queueCount;
-    return typeof p === "number" ? p : 0;
+    const q = data?.vendorQueues?.find((x) => x.type === 1);
+    return typeof q?.positionMax === "number" ? q.positionMax : 0;
   }, [data]);
 
   const grouped = useMemo(() => {
@@ -238,33 +313,38 @@ export default function VendorDetailPage() {
     }
     setConfirmOpen(true);
     if (!vendor?.id || !queueId) return;
+
     const items: OrderItemCreate[] = selectedItems.map(({ item, q }) => ({
       menuItemId: item.id,
       quantity: q,
       unitPrice: item.price ?? undefined,
     }));
-    (async () => {
-      try {
-        setEtaLoading(true);
-        const token = localStorage.getItem("accessToken") || "";
-        const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-        const payload = {
-          items,
-        };
-        const res = await api.post<ApiResponse<EtaResponse>>(
-          "/api/QueueEntry/get-eta?vendorId=" + vendor.id,
-          items,
-          headers
-        );
-        const outer = (res as any)?.data ?? res;
-        const data = outer?.data ?? outer ?? null;
-        setEta(data ?? null);
-      } catch (e) {
-        setEta(null);
-      } finally {
-        setEtaLoading(false);
-      }
-    })();
+
+    if (!isPreOrderMode) {
+      (async () => {
+        try {
+          setEtaLoading(true);
+          const token = localStorage.getItem("accessToken") || "";
+          const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+
+          const res = await api.post<ApiResponse<EtaResponse>>(
+            "/api/QueueEntry/get-eta?vendorId=" + vendor.id,
+            items,
+            headers
+          );
+          const outer = (res as any)?.data ?? res;
+          const data = outer?.data ?? outer ?? null;
+          setEta(data ?? null);
+        } catch (e) {
+          setEta(null);
+        } finally {
+          setEtaLoading(false);
+        }
+      })();
+    } else {
+      setEta(null);
+      setEtaLoading(false);
+    }
   };
 
   const handleConfirmJoin = async () => {
@@ -277,13 +357,32 @@ export default function VendorDetailPage() {
       return;
     }
 
+    if (isPreOrderMode) {
+      if (!pickupTime) {
+        toast.error("Vui lòng chọn thời gian nhận hàng.");
+        return;
+      }
+      if (preOrderStart && pickupTime < preOrderStart) {
+        toast.error(`Thời gian nhận hàng phải sau ${preOrderStart}.`);
+        return;
+      }
+      if (preOrderEnd && pickupTime > preOrderEnd) {
+        toast.error(`Thời gian nhận hàng phải trước ${preOrderEnd}.`);
+        return;
+      }
+    }
+
     const items: OrderItemCreate[] = selectedItems.map(({ item, q }) => ({
       menuItemId: item.id,
       quantity: q,
       unitPrice: item.price ?? undefined,
     }));
 
-    const paymentMethodEnumValue = paymentMethod === "WALLET" ? 1 : 2;
+    const paymentMethodEnumValue = isPreOrderMode
+      ? 1
+      : paymentMethod === "WALLET"
+      ? 1
+      : 2;
 
     const payload: OrderCreateRequest = {
       vendorId: vendor.id,
@@ -292,7 +391,7 @@ export default function VendorDetailPage() {
       items,
       totalPrice: totalPrice || undefined,
       paymentMethod: paymentMethodEnumValue,
-    };
+    } as any;
 
     try {
       setSubmitting(true);
@@ -335,7 +434,9 @@ export default function VendorDetailPage() {
       setConfirmOpen(false);
       setSuccessOpen(true);
       setQty({});
-      toast.success("Tham gia hàng đợi thành công!");
+      toast.success(
+        isPreOrderMode ? "Đặt trước thành công!" : "Tham gia hàng đợi thành công!"
+      );
     } catch (e: any) {
       console.error(e);
       toast.error(e?.message || "Tạo đơn hàng thất bại.");
@@ -423,13 +524,32 @@ export default function VendorDetailPage() {
               >
                 Quay lại
               </Button>
-              <Button
-                className="bg-emerald-500 hover:bg-emerald-600 text-white shadow-md"
-                onClick={openConfirm}
-                disabled={!data || loading}
-              >
-                Tham gia xếp hàng
-              </Button>
+
+              <div className="flex gap-2">
+                <Button
+                  className={cn(
+                    "bg-white/90 text-foreground border-none hover:bg-white",
+                    mode === "QUEUE" ? "ring-2 ring-emerald-500/60" : "opacity-80"
+                  )}
+                  disabled={loading}
+                  onClick={() => setMode("QUEUE")}
+                >
+                  Tham gia xếp hàng
+                </Button>
+
+                {vendor?.allowPreorder && (
+                  <Button
+                    className={cn(
+                      "bg-white/90 text-foreground border-none hover:bg-white",
+                      mode === "PREORDER" ? "ring-2 ring-emerald-500/60" : "opacity-80"
+                    )}
+                    disabled={loading}
+                    onClick={() => setMode("PREORDER")}
+                  >
+                    Đặt trước
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         </section>
@@ -569,7 +689,7 @@ export default function VendorDetailPage() {
           <aside className="sticky top-20 space-y-3">
             <div className="rounded-2xl border bg-card/80 backdrop-blur-sm p-4 shadow-sm">
               <h2 className="text-base font-semibold mb-3">
-                Đơn của bạn
+                {isPreOrderMode ? "Đơn đặt trước của bạn" : "Đơn của bạn"}
               </h2>
               <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
                 {selectedItems.length === 0 ? (
@@ -608,7 +728,7 @@ export default function VendorDetailPage() {
                 onClick={openConfirm}
                 disabled={totalCount === 0}
               >
-                Tham gia xếp hàng
+                {isPreOrderMode ? "Đặt trước" : "Tham gia xếp hàng"}
               </Button>
             </div>
           </aside>
@@ -618,7 +738,9 @@ export default function VendorDetailPage() {
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Xác nhận xếp hàng</DialogTitle>
+            <DialogTitle>
+              {isPreOrderMode ? "Xác nhận đặt trước" : "Xác nhận xếp hàng"}
+            </DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4">
@@ -627,13 +749,15 @@ export default function VendorDetailPage() {
                 {vendor?.name ?? "—"}
               </div>
 
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Users className="w-4 h-4" />
-                Vị trí hiện tại:{" "}
-                <span className="font-medium text-foreground">
-                  {eta?.positionInQueue}
-                </span>
-              </div>
+              {!isPreOrderMode && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Users className="w-4 h-4" />
+                  Vị trí hiện tại:{" "}
+                  <span className="font-medium text-foreground">
+                    {eta?.positionInQueue}
+                  </span>
+                </div>
+              )}
 
               <div className="flex items-start gap-2 text-sm">
                 <MapPin className="w-4 h-4 text-muted-foreground mt-0.5" />
@@ -674,20 +798,69 @@ export default function VendorDetailPage() {
                   {fmtVND(totalPrice)}
                 </span>
               </div>
-              <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-                <div className="text-muted-foreground">Ước tính thời gian nhận</div>
-                <div className="text-right">
-                  {etaLoading ? "Đang tính..." : fmtTime(eta?.estimatedPickupTime)}
+
+              {!isPreOrderMode ? (
+                <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                  <div className="text-muted-foreground">Ước tính thời gian nhận</div>
+                  <div className="text-right">
+                    {etaLoading ? "Đang tính..." : fmtTime(eta?.estimatedPickupTime)}
+                  </div>
+                  <div className="text-muted-foreground">Ước tính thời gian đợi</div>
+                  <div className="text-right">
+                    {etaLoading
+                      ? "Đang tính..."
+                      : eta?.estimatedWaitMinutes != null
+                      ? `${eta.estimatedWaitMinutes} phút`
+                      : "—"}
+                  </div>
                 </div>
-                <div className="text-muted-foreground">Ước tính thời gian đợi</div>
-                <div className="text-right">
-                  {etaLoading
-                    ? "Đang tính..."
-                    : eta?.estimatedWaitMinutes != null
-                    ? `${eta.estimatedWaitMinutes} phút`
-                    : "—"}
+              ) : (
+                <div className="mt-3 space-y-2 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">
+                      Thời gian cho phép đặt trước
+                    </span>
+                    <span className="font-medium">
+                      {preOrderStart && preOrderEnd
+                        ? `${preOrderStart} - ${preOrderEnd}`
+                        : "Theo cấu hình quán"}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 items-center">
+                    <span className="text-muted-foreground">
+                      Thời gian nhận đơn
+                    </span>
+                    <div className="flex justify-end">
+                      <DatePicker
+                        selected={effectivePickupDate}
+                        onChange={(date) => {
+                          const d = date as Date | null;
+                          setPickupDate(d);
+                          setPickupTime(formatDateToTime(d, ""));
+                        }}
+                        showTimeSelect
+                        showTimeSelectOnly
+                        timeIntervals={5}
+                        timeFormat="HH:mm"
+                        dateFormat="HH:mm"
+                        locale="vi"
+                        minTime={
+                          preOrderStart
+                            ? parseTimeToDate(preOrderStart) ?? undefined
+                            : undefined
+                        }
+                        maxTime={
+                          preOrderEnd
+                            ? parseTimeToDate(preOrderEnd) ?? undefined
+                            : undefined
+                        }
+                        placeholderText="Chọn thời gian nhận"
+                        className="w-full max-w-[160px] rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      />
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
             <div className="rounded-xl border p-4 space-y-2">
@@ -712,24 +885,26 @@ export default function VendorDetailPage() {
                 Ví của bạn
               </button>
 
-              <button
-                type="button"
-                onClick={() => setPaymentMethod("CASH")}
-                className={cn(
-                  "w-full flex items-center gap-2 rounded-lg border px-3 py-2 text-left",
-                  paymentMethod === "CASH"
-                    ? "border-primary ring-2 ring-primary/20"
-                    : "hover:bg-muted/50"
-                )}
-              >
-                <span
+              {!isPreOrderMode && (
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod("CASH")}
                   className={cn(
-                    "w-4 h-4 rounded-full border",
-                    paymentMethod === "CASH" && "bg-primary border-primary"
+                    "w-full flex items-center gap-2 rounded-lg border px-3 py-2 text-left",
+                    paymentMethod === "CASH"
+                      ? "border-primary ring-2 ring-primary/20"
+                      : "hover:bg-muted/50"
                   )}
-                />
-                Thanh toán tiền mặt
-              </button>
+                >
+                  <span
+                    className={cn(
+                      "w-4 h-4 rounded-full border",
+                      paymentMethod === "CASH" && "bg-primary border-primary"
+                    )}
+                  />
+                  Thanh toán tiền mặt
+                </button>
+              )}
             </div>
 
             <div className="flex justify-end gap-2 pt-1">
@@ -746,7 +921,11 @@ export default function VendorDetailPage() {
                 className="flex items-center gap-1"
               >
                 <CheckCircle className="w-4 h-4" />
-                {submitting ? "Đang xử lý..." : "Xác nhận"}
+                {submitting
+                  ? "Đang xử lý..."
+                  : isPreOrderMode
+                  ? "Xác nhận đặt trước"
+                  : "Xác nhận"}
               </Button>
             </div>
           </div>
@@ -761,14 +940,16 @@ export default function VendorDetailPage() {
                 <CheckCircle className="w-10 h-10 text-emerald-500" />
               </div>
 
-              <h2 className="text-xl font-bold">Đặt hàng thành công</h2>
+              <h2 className="text-xl font-bold">
+                {isPreOrderMode ? "Đặt trước thành công" : "Đặt hàng thành công"}
+              </h2>
 
               <p className="text-sm text-muted-foreground">
-                Đơn hàng{" "}
+                Đơn{" "}
                 <span className="font-semibold">
                   {orderInfo?.orderCode || orderInfo?.orderId || "—"}
                 </span>{" "}
-                của bạn đã đặt thành công.
+                của bạn đã được tạo.
               </p>
             </div>
 
