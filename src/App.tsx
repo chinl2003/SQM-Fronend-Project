@@ -26,6 +26,7 @@ import Notifications from "./pages/admin/Notifications";
 import SystemSettings from "./pages/admin/SystemSettings";
 import Wallet from "./pages/customer/Wallet";
 import VendorDetailPage from "./pages/vendor/VendorDetailPage";
+import PaymentRevenue from "./pages/admin/PaymentRevenue";
 // import Profile from "./pages/Profile";
 
 const queryClient = new QueryClient();
@@ -55,7 +56,7 @@ const App = () => (
           <Route path="/customer/active-queue" element={<ActiveQueue />} />
           <Route path="/customer/wallet" element={<Wallet />} />
           <Route path="/customer/vendors/:vendorId" element={<VendorDetailPage />} />
-          <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/admin/dashboard" element={<AdminDashboard />} />
           <Route
             path="/admin/vendor-management"
             element={<VendorManagement />}
@@ -67,7 +68,7 @@ const App = () => (
           <Route path="/admin/queue-management" element={<QueueMonitoring />} />
           <Route path="/admin/reviews" element={<ReviewModeration />} />
 
-          <Route path="/admin/payments" element={<AdminDashboard />} />
+          <Route path="/admin/payments" element={<PaymentRevenue />} />
           <Route path="/vendor" element={<VendorDashboard />} />
           <Route
             path="/admin/user-management"

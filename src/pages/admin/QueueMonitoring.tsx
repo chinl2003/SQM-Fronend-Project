@@ -9,39 +9,83 @@ import {
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { getQueueEntryStatus } from "@/constaints/queueEntryStatusConst";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
+import { format } from "date-fns";
+import { Calendar } from "lucide-react";
 
 const QueueMonitoring = () => {
 
   interface QueueEntryCountResponse {
-  data: {
-    totalCount: number;
-  };
-  additionalData: any;
-  message: string;
-  statusCode: number;
-  code: string;
-}
+    data: {
+      totalCount: number;
+    };
+    additionalData: any;
+    message: string;
+    statusCode: number;
+    code: string;
+  }
+
+  interface CustomerQueueEntryCountResponse {
+    data: {
+      totalCount: number;
+    };
+    additionalData: any;
+    message: string;
+    statusCode: number;
+    code: string;
+  }
 
   const [queueToday, setQueueToday] = useState(0);
+  const [queueCustomerToday, setQueueCustomerToday] = useState(0);
 
-  const fetchQueueEntryCount = async () => {
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+
+  const formatToLocalDateString = (date: Date) => {
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, "0");
+    const dd = String(date.getDate()).padStart(2, "0");
+
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  const fetchQueueEntryCount = async (dateString: string) => {
+    try {
+      const res = await api.get<CustomerQueueEntryCountResponse>(
+        `/api/User/customer-waiting-count?date=${encodeURIComponent(dateString)}`
+      );
+      const totalCustomerQueueToday = res.data?.totalCount ?? 0;
+      setQueueCustomerToday(totalCustomerQueueToday);
+    } catch (error) {
+      console.error("Error fetching total customer queue entry:", error);
+    }
+  };
+
+  const fetchCustomerQueueEntryCount = async (dateString: string) => {
     try {
       const res = await api.get<QueueEntryCountResponse>(
-        `/api/QueueEntry/queue-entry-count?status=Waiting`
+        `/api/QueueEntry/queue-entry-count?date=${encodeURIComponent(dateString)}`
       );
-  
       const totalQueueToday = res.data?.totalCount ?? 0;
-  
       setQueueToday(totalQueueToday);
-  
     } catch (error) {
       console.error("Error fetching total queue entry:", error);
     }
   };
 
+  const handleDateChange = (date: Date | null) => {
+    if (!date) return;
+    setSelectedDate(date);
+    fetchQueueEntryCount(formatToLocalDateString(date));
+    fetchCustomerQueueEntryCount(formatToLocalDateString(date));
+
+  };
+
   useEffect(() => {
-    fetchQueueEntryCount();
+    fetchQueueEntryCount(formatToLocalDateString(selectedDate));
+    fetchCustomerQueueEntryCount(formatToLocalDateString(selectedDate));
   }, []);
+
   const activeQueues = [
     {
       id: 1,
@@ -105,7 +149,20 @@ const QueueMonitoring = () => {
   return (
     <AdminLayout title="Giám sát hàng đợi">
       <div className="space-y-6">
-        {/* Thống kê tổng quan */}
+
+        <div className="mb-4 flex items-center gap-2">
+        <label htmlFor="queueDate" className="font-medium">Chọn ngày:</label>
+        <DatePicker
+          id="queueDate"
+          selected={selectedDate}
+          onChange={handleDateChange}
+          dateFormat="yyyy-MM-dd"
+          className="border rounded px-2 py-1"
+        />
+        <Calendar className="w-5 h-5 text-gray-500" />
+      </div>
+
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Card>
             <CardContent className="pt-6">
@@ -118,7 +175,7 @@ const QueueMonitoring = () => {
           <Card>
             <CardContent className="pt-6">
               <div className="text-center">
-                <div className="text-3xl font-bold text-warning">234</div>
+                <div className="text-3xl font-bold text-primary">{queueCustomerToday.toLocaleString()}</div>
                 <p className="text-muted-foreground">Khách đang chờ</p>
               </div>
             </CardContent>
