@@ -94,6 +94,8 @@ type VendorQueueSlim = {
   type: number;
   status: number;
   positionMax?: number | null;
+  startTime?: string | null;
+  endTime?: string | null;
 };
 
 type VendorWithMenuResponse = {
@@ -222,9 +224,9 @@ export default function VendorDetailPage() {
           setPaymentMethod(isPreOrderMode ? "WALLET" : "CASH");
 
           if (isPreOrderMode) {
-            const start = normalizeTimeString(
-              payload?.vendor?.preOrderStartTime ?? undefined
-            );
+            const preQueue = payload?.vendorQueues?.find((q) => q.type === 2);
+            const start = normalizeTimeString(preQueue?.startTime ?? undefined);
+
             setPickupTime(start || "");
             setPickupDate(start ? parseTimeToDate(start) : null);
           } else {
@@ -252,8 +254,10 @@ export default function VendorDetailPage() {
 
   const vendor = data?.vendor ?? null;
 
-  const preOrderStart = normalizeTimeString(vendor?.preOrderStartTime ?? undefined);
-  const preOrderEnd = normalizeTimeString(vendor?.preOrderEndTime ?? undefined);
+  const preOrderQueue = data?.vendorQueues?.find((q) => q.type === 2);
+
+  const preOrderStart = normalizeTimeString(preOrderQueue?.startTime ?? undefined);
+  const preOrderEnd = normalizeTimeString(preOrderQueue?.endTime ?? undefined);
 
   const effectivePickupDate = useMemo(() => {
     if (pickupDate) return pickupDate;
