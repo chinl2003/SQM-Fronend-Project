@@ -1,3 +1,4 @@
+// src/components/vendor/SettingsMenu.tsx
 import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,36 +21,38 @@ import {
   Trash2,
   Save,
   Image as ImageIcon,
+  BarChart as BarChartIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { api, ApiResponse } from "@/lib/api";
+import VendorItemReportModal from "./VendorItemReportModal";
+import VendorReportModal from "./VendorReportModal";
 
 type SettingsMenuProps = {
   vendorId: string;
 };
 
 type MenuItem = {
-  id: string;               // id thật từ server (nếu có) hoặc id tạm thời client
+  id: string;
   name: string;
-  price: string;            // hiển thị dạng "120,000.50"
-  prepMinutes: string;      // phút (string cho dễ gõ)
-  image?: File | null;      // file mới chọn
-  imageUrl?: string | null; // ảnh đang có từ server (preview)
-  dailyQuantity: string;    // hiển thị dạng "50" hoặc "1,000"
+  price: string;
+  prepMinutes: string;
+  image?: File | null;
+  imageUrl?: string | null;
+  dailyQuantity: string;
   description?: string;
-  isNew?: boolean;          // true nếu là item mới tạo trên client, sẽ POST create
+  isNew?: boolean;
 };
 
 type Category = {
   id: string;
-  name: string;     // TypeOfFood
+  name: string;
   items: MenuItem[];
 };
 
 const uid = () => crypto.randomUUID();
 
-// Build ảnh tuyệt đối (tương tự VendorDetail)
 function buildMediaUrl(path?: string | null) {
   if (!path) return "";
   if (path.startsWith("http")) return path;
@@ -57,10 +60,8 @@ function buildMediaUrl(path?: string | null) {
   return `${base}/${path.replace(/^\/+/, "")}`;
 }
 
-// ---- helpers số ----
 function formatNumberForDisplay(n?: number | null): string {
   if (n == null || Number.isNaN(n)) return "";
-  // tối đa 2 số thập phân
   const [i, d] = n.toString().split(".");
   const intPretty = i.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   return d ? `${intPretty}.${d.slice(0, 2)}` : intPretty;
@@ -88,16 +89,15 @@ function toInt(n: string): number {
   return Number.isFinite(f) ? Math.floor(f) : NaN;
 }
 
-// --- build FormData đúng schema [FromForm] MenuItemRequest ---
 function buildMenuItemForm(
   body: {
     vendorId: string;
     name: string;
     description: string | null;
     code?: string | undefined;
-    price: number;     // decimal
-    quantity: number;  // int
-    prepTime: number;  // phút
+    price: number;
+    quantity: number;
+    prepTime: number;
     typeOfFood: string;
     status: boolean;
   },
@@ -110,7 +110,7 @@ function buildMenuItemForm(
   if (body.code != null) fd.append("Code", body.code);
   fd.append("Price", body.price.toString());
   fd.append("Quantity", body.quantity.toString());
-  fd.append("PrepTime", body.prepTime.toString()); // minutes
+  fd.append("PrepTime", body.prepTime.toString());
   fd.append("TypeOfFood", body.typeOfFood);
   fd.append("Status", body.status ? "true" : "false");
   if (image) {
@@ -123,16 +123,22 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // dialog thêm danh mục
   const [addCatOpen, setAddCatOpen] = useState(false);
   const [newCatNames, setNewCatNames] = useState<string[]>([""]);
-
-  // submitting
   const [submitting, setSubmitting] = useState(false);
-
   const canSubmit = useMemo(() => categories.length > 0, [categories]);
 
-  // ====== FETCH EXISTING ITEMS BY VENDOR ======
+  // report modal (global) not per-item
+  const [reportOpen, setReportOpen] = useState(false);
+
+  // per-item report modal
+  const [itemReportOpen, setItemReportOpen] = useState(false);
+  const [reportingItem, setReportingItem] = useState<{
+    itemId: string;
+    name: string;
+    prepMinutes: number;
+  } | null>(null);
+
   useEffect(() => {
     async function fetchMenu() {
       if (!vendorId) return;
@@ -146,20 +152,9 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
           headers
         );
 
-        // payload có thể là BaseResponseModel
         const payload = (res?.data as any) ?? res;
-        const data: Array<{
-          id: string;
-          name?: string;
-          description?: string;
-          price?: number | null;
-          quantity?: number | null;
-          prepTime?: number | null; // minutes
-          typeOfFood?: string | null;
-          imageUrl?: string | null;
-        }> = (payload?.data as any) ?? payload;
+        const data: Array<any> = (payload?.data as any) ?? payload;
 
-        // group theo typeOfFood
         const map = new Map<string, Category>();
         for (const it of data ?? []) {
           const catName = (it.typeOfFood || "Khác").trim();
@@ -185,7 +180,6 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
         }
 
         setCategories(Array.from(map.values()));
-        // nếu vendor chưa có món, để mảng rỗng (UI sẽ hiện hướng dẫn)
         if (!data || data.length === 0) {
           setCategories([]);
         }
@@ -200,7 +194,6 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
     fetchMenu();
   }, [vendorId]);
 
-  // ====== category handlers ======
   const openAddCategory = () => {
     setNewCatNames([""]);
     setAddCatOpen(true);
@@ -229,28 +222,27 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
     setCategories((prev) => prev.filter((c) => c.id !== catId));
   };
 
-  // ====== item handlers ======
   const addItem = (catId: string) => {
     setCategories((prev) =>
       prev.map((c) =>
         c.id === catId
           ? {
-            ...c,
-            items: [
-              ...c.items,
-              {
-                id: `new-${uid()}`,
-                name: "",
-                price: "",
-                prepMinutes: "",
-                image: null,
-                imageUrl: null,
-                dailyQuantity: "",
-                description: "",
-                isNew: true,
-              },
-            ],
-          }
+              ...c,
+              items: [
+                ...c.items,
+                {
+                  id: `new-${uid()}`,
+                  name: "",
+                  price: "",
+                  prepMinutes: "",
+                  image: null,
+                  imageUrl: null,
+                  dailyQuantity: "",
+                  description: "",
+                  isNew: true,
+                },
+              ],
+            }
           : c
       )
     );
@@ -259,9 +251,7 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
   const removeItem = (catId: string, itemId: string) => {
     setCategories((prev) =>
       prev.map((c) =>
-        c.id === catId
-          ? { ...c, items: c.items.filter((i) => i.id !== itemId) }
-          : c
+        c.id === catId ? { ...c, items: c.items.filter((i) => i.id !== itemId) } : c
       )
     );
   };
@@ -276,17 +266,14 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
       prev.map((c) =>
         c.id === catId
           ? {
-            ...c,
-            items: c.items.map((i) =>
-              i.id === itemId ? { ...i, [key]: value } : i
-            ),
-          }
+              ...c,
+              items: c.items.map((i) => (i.id === itemId ? { ...i, [key]: value } : i)),
+            }
           : c
       )
     );
   };
 
-  // ====== save (create new only) ======
   const handleSave = async () => {
     if (!vendorId) {
       toast.error("Thiếu VendorId. Vui lòng tải lại trang hoặc đăng nhập lại.");
@@ -296,7 +283,6 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
     const forms: FormData[] = [];
     const errors: string[] = [];
 
-    // chỉ tạo những món mới (isNew === true)
     categories.forEach((cat) => {
       cat.items
         .filter((item) => item.isNew)
@@ -306,16 +292,13 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
           if (!item.name?.trim()) errors.push(`${path}: thiếu Tên món`);
 
           const price = unformatNumber(item.price);
-          if (!Number.isFinite(price))
-            errors.push(`${path}: Giá bán không hợp lệ`);
+          if (!Number.isFinite(price)) errors.push(`${path}: Giá bán không hợp lệ`);
 
           const qty = toInt(item.dailyQuantity);
-          if (!Number.isFinite(qty))
-            errors.push(`${path}: Số lượng mỗi ngày không hợp lệ`);
+          if (!Number.isFinite(qty)) errors.push(`${path}: Số lượng mỗi ngày không hợp lệ`);
 
           const prep = toInt(item.prepMinutes);
-          if (!Number.isFinite(prep))
-            errors.push(`${path}: Thời gian chế biến (phút) không hợp lệ`);
+          if (!Number.isFinite(prep)) errors.push(`${path}: Thời gian chế biến (phút) không hợp lệ`);
 
           if (errors.length === 0) {
             const body = {
@@ -325,7 +308,7 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
               code: undefined,
               price: Number(price.toFixed(2)),
               quantity: qty,
-              prepTime: prep, // phút
+              prepTime: prep,
               typeOfFood: cat.name,
               status: true,
             };
@@ -360,25 +343,17 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
       const token = localStorage.getItem("accessToken") || "";
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
 
-      // ĐỪNG set Content-Type ở đây (để XHR tự set kèm boundary)
-      const results = await Promise.allSettled(
-        forms.map((fd) => api.post<ApiResponse<any>>("/api/menuitem", fd, headers))
-      );
+      const results = await Promise.allSettled(forms.map((fd) => api.post<ApiResponse<any>>("/api/menuitem", fd, headers)));
 
       const ok = results.filter((r) => r.status === "fulfilled").length;
       const fail = results.length - ok;
 
       if (ok > 0 && fail === 0) {
         toast.success(`Đã tạo ${ok} món thành công!`);
-        // reload danh sách sau khi tạo
-        // => cách nhanh: fetch lại
         try {
           const token2 = localStorage.getItem("accessToken") || "";
           const headers2 = token2 ? { Authorization: `Bearer ${token2}` } : undefined;
-          const res2 = await api.get<ApiResponse<any>>(
-            `/api/menuitem/by-vendor/${vendorId}`,
-            headers2
-          );
+          const res2 = await api.get<ApiResponse<any>>(`/api/menuitem/by-vendor/${vendorId}`, headers2);
           const payload2 = (res2?.data as any) ?? res2;
           const data2: any[] = (payload2?.data as any) ?? payload2;
 
@@ -403,7 +378,7 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
           }
           setCategories(Array.from(map2.values()));
         } catch {
-          // không reload được thì thôi
+          // ignore
         }
       } else if (ok > 0 && fail > 0) {
         toast.warning(`Một phần thành công: ${ok} món tạo OK, ${fail} món lỗi.`);
@@ -418,70 +393,78 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
     }
   };
 
+  // mở modal báo cáo cho từng món
+  const openItemReport = (itemId: string, name: string, prepMinutesStr: string) => {
+    setReportingItem({ itemId, name, prepMinutes: Number(unformatNumber(prepMinutesStr) || 0) });
+    setItemReportOpen(true);
+  };
+
+  // handler khi nhấn "Áp dụng" trong item report modal
+  const handleApplyItemReport = async (menuItemId: string, newPrepMinutes: number) => {
+    // cập nhật UI ngay
+    setCategories((prev) =>
+      prev.map((c) => ({
+        ...c,
+        items: c.items.map((it) => (it.id === menuItemId ? { ...it, prepMinutes: String(Math.floor(newPrepMinutes)) } : it)),
+      }))
+    );
+
+    // gọi API để cập nhật backend (ví dụ PUT /api/menuitem/{id} body { prepTime })
+    try {
+      const token = localStorage.getItem("accessToken") || "";
+      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+      await api.put<ApiResponse<any>>(`/api/menuitem/${menuItemId}`, { prepTime: newPrepMinutes }, headers);
+      toast.success("Áp dụng ETA thành công.");
+    } catch (e) {
+      console.error(e);
+      toast.error("Không lưu được ETA lên server. Thay đổi chỉ áp dụng trên giao diện.");
+    } finally {
+      setItemReportOpen(false);
+      setReportingItem(null);
+    }
+  };
+
   return (
     <>
       <Card className="shadow-md">
         <CardHeader className="flex flex-row items-center justify-between border-b border-border px-4 py-3 bg-muted/30 rounded-t-xl">
-          <CardTitle className="text-xl font-semibold text-foreground">
-            Quản lý thực đơn
-          </CardTitle>
+          <CardTitle className="text-xl font-semibold text-foreground">Quản lý thực đơn</CardTitle>
 
-          <Button
-            variant="default"
-            onClick={openAddCategory}
-            className="shadow-sm bg-primary text-primary-foreground hover:bg-primary/90 transition-all"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Thêm danh mục
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setReportOpen(true)} className="shadow-sm">
+              Báo cáo
+            </Button>
+
+            <Button variant="default" onClick={openAddCategory} className="shadow-sm bg-primary text-primary-foreground hover:bg-primary/90 transition-all">
+              <Plus className="h-4 w-4 mr-2" />
+              Thêm danh mục
+            </Button>
+          </div>
         </CardHeader>
 
         <CardContent className="space-y-6 pt-4">
           {loading && (
-            <div className="h-24 rounded-lg border flex items-center justify-center text-muted-foreground">
-              Đang tải menu...
-            </div>
+            <div className="h-24 rounded-lg border flex items-center justify-center text-muted-foreground">Đang tải menu...</div>
           )}
 
           {!loading && categories.length === 0 && (
             <div className="h-48 rounded-lg border border-dashed flex items-center justify-center text-muted-foreground">
-              <Package className="mr-2 h-5 w-5" /> Chưa có danh mục / món. Hãy bấm
-              “Thêm danh mục” rồi “Thêm món”.
+              <Package className="mr-2 h-5 w-5" /> Chưa có danh mục / món. Hãy bấm “Thêm danh mục” rồi “Thêm món”.
             </div>
           )}
 
-          {/* Danh mục */}
           {categories.map((cat) => (
-            <div
-              key={cat.id}
-              className={cn(
-                "rounded-xl border bg-card",
-                "shadow-sm hover:shadow-md transition-shadow"
-              )}
-            >
-              {/* Header danh mục */}
+            <div key={cat.id} className={cn("rounded-xl border bg-card", "shadow-sm hover:shadow-md transition-shadow")}>
               <div className="flex items-center justify-between px-4 py-3">
                 <div className="flex items-center gap-2">
                   <SettingsIcon className="h-4 w-4 text-muted-foreground" />
                   <h3 className="font-semibold">{cat.name}</h3>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => addItem(cat.id)}
-                    className="transition-all hover:bg-green-500 hover:text-white"
-                  >
-                    <Plus className="h-4 w-4" />
-                    Thêm món
+                  <Button size="sm" variant="secondary" onClick={() => addItem(cat.id)} className="transition-all hover:bg-green-500 hover:text-white">
+                    <Plus className="h-4 w-4" /> Thêm món
                   </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="text-destructive"
-                    onClick={() => removeCategory(cat.id)}
-                    title="Xóa danh mục"
-                  >
+                  <Button size="icon" variant="ghost" className="text-destructive" onClick={() => removeCategory(cat.id)} title="Xóa danh mục">
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
@@ -489,12 +472,9 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
 
               <Separator />
 
-              {/* Items */}
-              <div className="p-4">
+              <div className="p-3">
                 {cat.items.length === 0 && (
-                  <div className="rounded-md border border-dashed px-4 py-8 text-sm text-muted-foreground flex items-center justify-center">
-                    Danh mục này chưa có món. Bấm “Thêm món”.
-                  </div>
+                  <div className="rounded-md border border-dashed px-4 py-8 text-sm text-muted-foreground flex items-center justify-center">Danh mục này chưa có món. Bấm “Thêm món”.</div>
                 )}
 
                 {cat.items.length > 0 && (
@@ -503,138 +483,53 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
                       const inputId = `image-${cat.id}-${item.id}`;
 
                       return (
-                        <div
-                          key={item.id}
-                          className={cn(
-                            "relative flex flex-col gap-2 rounded-lg border bg-background p-3",
-                            "hover:ring-1 hover:ring-primary/20 hover:shadow-sm transition-all"
-                          )}
-                        >
-                          {/* Nút xóa góc phải */}
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="absolute right-2 top-2 text-destructive"
-                            onClick={() => removeItem(cat.id, item.id)}
-                            title="Xóa món"
-                          >
+                        <div key={item.id} className={cn(
+                          // rút gọn chiều cao card: giảm padding + min-h của image
+                          "relative flex flex-col gap-2 rounded-lg border bg-background p-2",
+                          "hover:ring-1 hover:ring-primary/20 hover:shadow-sm transition-all"
+                        )}>
+                          <Button size="icon" variant="ghost" className="absolute right-2 top-2 text-destructive" onClick={() => removeItem(cat.id, item.id)} title="Xóa món">
                             <Trash2 className="h-4 w-4" />
                           </Button>
 
-                          {/* Khung ảnh upload (đặt ở đầu card) */}
                           <div className="space-y-1">
-                            <Label className="font-semibold">Hình ảnh</Label>
-                            <label
-                              htmlFor={inputId}
-                              className={cn(
-                                "group relative flex cursor-pointer items-center justify-center",
-                                "rounded-md border-2 border-dashed border-muted-foreground/40",
-                                "bg-muted/40 px-3 py-3 text-sm text-muted-foreground",
-                                "hover:border-primary/60 hover:bg-muted/70 transition-colors",
-                                "overflow-hidden min-h-[110px]"
-                              )}
-                            >
+                            <Label className="font-semibold text-sm">Hình ảnh</Label>
+                            <label htmlFor={inputId} className={cn(
+                              "group relative flex cursor-pointer items-center justify-center",
+                              "rounded-md border-2 border-dashed border-muted-foreground/30",
+                              "bg-muted/20 px-2 py-2 text-sm text-muted-foreground",
+                              "hover:border-primary/60 hover:bg-muted/70 transition-colors",
+                              "overflow-hidden min-h-[20px]"
+                            )}>
                               {item.image || item.imageUrl ? (
-                                <img
-                                  src={
-                                    item.image
-                                      ? URL.createObjectURL(item.image)
-                                      : item.imageUrl || ""
-                                  }
-                                  alt={item.name || "image"}
-                                  className="h-full w-full object-cover"
-                                />
+                                <img src={item.image ? URL.createObjectURL(item.image) : item.imageUrl || ""} alt={item.name || "image"} className="h-full w-full object-cover" />
                               ) : (
-                                <div className="flex flex-col items-center gap-1">
-                                  <ImageIcon className="h-5 w-5" />
-                                  <span className="text-xs">Nhấn để tải ảnh lên</span>
+                                <div className="flex flex-col items-center gap-1 text-xs">
+                                  <ImageIcon className="h-4 w-4" />
+                                  <span>Nhấn để tải ảnh</span>
                                 </div>
                               )}
                             </label>
-                            <input
-                              id={inputId}
-                              type="file"
-                              accept="image/*"
-                              className="hidden"
-                              onChange={(e) =>
-                                updateItem(
-                                  cat.id,
-                                  item.id,
-                                  "image",
-                                  e.target.files?.[0] ?? null
-                                )
-                              }
-                            />
+                            <input id={inputId} type="file" accept="image/*" className="hidden" onChange={(e) => updateItem(cat.id, item.id, "image", e.target.files?.[0] ?? null)} />
                           </div>
 
-                          {/* Thông tin món – mỗi thông tin một hàng */}
-                          <div className="flex flex-col gap-2">
-                            {/* Tên món */}
+                          <div className="flex flex-col gap-1">
                             <div className="space-y-1">
-                              <Label className="font-semibold">
-                                Tên món <span className="text-destructive">*</span>
-                              </Label>
-                              <Input
-                                placeholder="Tên món"
-                                value={item.name}
-                                onChange={(e) =>
-                                  updateItem(cat.id, item.id, "name", e.target.value)
-                                }
-                              />
+                              <Label className="font-semibold text-sm">Tên món <span className="text-destructive">*</span></Label>
+                              <Input placeholder="Tên món" value={item.name} onChange={(e) => updateItem(cat.id, item.id, "name", e.target.value)} />
                             </div>
 
-                            {/* Giá bán */}
-                            <div className="space-y-1">
-                              <Label className="font-semibold">
-                                Giá bán (VND) <span className="text-destructive">*</span>
-                              </Label>
-                              <Input
-                                inputMode="decimal"
-                                placeholder="VD: 120000"
-                                value={item.price}
-                                onChange={(e) => {
-                                  const pretty = sanitizeNumeric(e.target.value);
-                                  updateItem(cat.id, item.id, "price", pretty);
-                                }}
-                                onKeyDown={(e) => {
-                                  const allowedKeys = [
-                                    "Backspace",
-                                    "Delete",
-                                    "ArrowLeft",
-                                    "ArrowRight",
-                                    "ArrowUp",
-                                    "ArrowDown",
-                                    "Tab",
-                                    "Home",
-                                    "End",
-                                    ".",
-                                  ];
-                                  if (
-                                    !allowedKeys.includes(e.key) &&
-                                    !(e.key >= "0" && e.key <= "9")
-                                  ) {
-                                    e.preventDefault();
-                                  }
-                                }}
-                              />
-                            </div>
+                            <div className="flex gap-2">
+                              <div className="flex-1">
+                                <Label className="font-semibold text-sm">Giá bán(VND) <span className="text-destructive">*</span></Label>
+                                <Input inputMode="decimal" placeholder="VD: 120000" value={item.price} onChange={(e) => updateItem(cat.id, item.id, "price", sanitizeNumeric(e.target.value))} />
+                              </div>
 
-                            {/* Thời gian chế biến */}
-                            <div className="space-y-1">
-                              <Label className="font-semibold">
-                                Thời gian chế biến (phút){" "}
-                                <span className="text-destructive">*</span>
-                              </Label>
-                              <Input
-                                inputMode="numeric"
-                                placeholder="VD: 15"
-                                value={item.prepMinutes}
-                                onChange={(e) =>
-                                  updateItem(cat.id, item.id, "prepMinutes", e.target.value)
-                                }
-                              />
+                              <div style={{ width: 120 }}>
+                                <Label className="font-semibold text-sm">Chuẩn bị(phút) <span className="text-destructive">*</span></Label>
+                                <Input inputMode="numeric" placeholder="VD: 15" value={item.prepMinutes} onChange={(e) => updateItem(cat.id, item.id, "prepMinutes", e.target.value)} />
+                              </div>
                             </div>
-
                             {/* Số lượng mỗi ngày */}
                             <div className="space-y-1">
                               <Label className="font-semibold">
@@ -671,8 +566,7 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
                                 }}
                               />
                             </div>
-
-                            {/* Mô tả */}
+                              {/* Mô tả */}
                             <div className="space-y-1">
                               <Label className="font-semibold">Mô tả</Label>
                               <Textarea
@@ -684,26 +578,26 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
                                 }
                               />
                             </div>
+                            <div className="mt-auto flex justify-end pt-2">
+                              <Button
+                                size="sm"
+                                onClick={() => openItemReport(item.id, item.name, item.prepMinutes)}
+                              >
+                                <BarChartIcon className="h-4 w-4 mr-2" /> Báo cáo
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       );
                     })}
                   </div>
                 )}
-
               </div>
-
             </div>
           ))}
 
-          {/* Footer actions */}
           <div className="flex items-center justify-end">
-            <Button
-              className="gap-2 shadow-sm"
-              size="lg"
-              onClick={handleSave}
-              disabled={!canSubmit || submitting}
-            >
+            <Button className="gap-2 shadow-sm" size="lg" onClick={handleSave} disabled={!canSubmit || submitting}>
               <Save className="h-4 w-4" />
               {submitting ? "Đang lưu..." : "Cập nhật"}
             </Button>
@@ -711,7 +605,6 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
         </CardContent>
       </Card>
 
-      {/* Dialog thêm danh mục */}
       <Dialog open={addCatOpen} onOpenChange={setAddCatOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -722,31 +615,15 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
             <div className="space-y-3 py-1">
               {newCatNames.map((name, idx) => (
                 <div key={idx} className="flex items-center gap-2">
-                  <Input
-                    placeholder={`Tên danh mục #${idx + 1}`}
-                    value={name}
-                    onChange={(e) => changeCatRow(idx, e.target.value)}
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="text-destructive"
-                    onClick={() => removeCatRow(idx)}
-                    disabled={newCatNames.length === 1}
-                    title="Xóa dòng"
-                  >
+                  <Input placeholder={`Tên danh mục #${idx + 1}`} value={name} onChange={(e) => changeCatRow(idx, e.target.value)} />
+                  <Button type="button" variant="ghost" className="text-destructive" onClick={() => removeCatRow(idx)} disabled={newCatNames.length === 1} title="Xóa dòng">
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
               ))}
 
               <div>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={addMoreCatRow}
-                  className="w-full"
-                >
+                <Button type="button" variant="secondary" onClick={addMoreCatRow} className="w-full">
                   <Plus className="h-4 w-4 mr-2" />
                   Thêm dòng
                 </Button>
@@ -762,6 +639,23 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <VendorReportModal
+        open={reportOpen}
+        onOpenChange={(v) => setReportOpen(v)}
+        vendorId={vendorId}
+      />
+      <VendorItemReportModal
+        open={itemReportOpen}
+        onOpenChange={(v) => {
+          setItemReportOpen(v);
+          if (!v) setReportingItem(null);
+        }}
+        vendorId={vendorId}
+        menuItemId={reportingItem?.itemId ?? ""}
+        menuItemName={reportingItem?.name ?? ""}
+        currentPrepMinutes={reportingItem?.prepMinutes ?? 0}
+        onApply={(menuItemId, newPrepMinutes) => handleApplyItemReport(menuItemId, newPrepMinutes)}
+      />
     </>
   );
 }
