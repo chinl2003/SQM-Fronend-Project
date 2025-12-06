@@ -201,6 +201,32 @@ export default function SettingsPreOrder({ vendorId }: SettingsPreOrderProps) {
     }
   };
 
+  const handleToggleEnabled = async (value: boolean) => {
+    const previous = enabled;
+    setEnabled(value);
+
+    try {
+      const token = localStorage.getItem("accessToken") || "";
+      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+
+      await api.post<ApiResponse<any>>(
+        `/api/vendor/${vendorId}/is-active`,
+        { isActive: value },
+        headers
+      );
+
+      if (value) {
+        toast.success("Quán của bạn đang được hoạt động!");
+      } else {
+        toast.success("Quán của bạn đã ngưng hoạt động!");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Cập nhật trạng thái quán thất bại.");
+      setEnabled(previous);
+    }
+  };
+
   const handleSave = async () => {
     try {
       setSaving(true);
@@ -278,7 +304,7 @@ export default function SettingsPreOrder({ vendorId }: SettingsPreOrderProps) {
             <Label className="text-xs text-muted-foreground">
               {enabled ? "Đang bật" : "Đang tắt"}
             </Label>
-            <Switch checked={enabled} onCheckedChange={setEnabled} />
+            <Switch checked={enabled} onCheckedChange={handleToggleEnabled} />
           </div>
         </CardHeader>
       </Card>
@@ -378,7 +404,9 @@ export default function SettingsPreOrder({ vendorId }: SettingsPreOrderProps) {
 
                       <div className="flex gap-2">
                         <div className="flex-1 space-y-1">
-                          <Label className="text-xs font-semibold">Thời gian bắt đầu</Label>
+                          <Label className="text-xs font-semibold">
+                            Thời gian bắt đầu
+                          </Label>
                           <DatePicker
                             selected={parseTimeToDate(cfg.startTime)}
                             onChange={(date) =>
@@ -399,8 +427,10 @@ export default function SettingsPreOrder({ vendorId }: SettingsPreOrderProps) {
                           />
                         </div>
 
-                        <div className="flex-1 space-y-1">
-                          <Label className="text-xs font-semibold">Thời gian kết thúc</Label>
+                        <div className="flex-1 spacey-1">
+                          <Label className="text-xs font-semibold">
+                            Thời gian kết thúc
+                          </Label>
                           <DatePicker
                             selected={parseTimeToDate(cfg.endTime)}
                             onChange={(date) =>
