@@ -35,6 +35,20 @@ type PreOrderConfig = {
   enabled: boolean;
 };
 
+type PreOrderConfigFromApi = {
+  id: string;
+  menuItemId: string;
+  startTime: string | null;
+  endTime: string | null;
+  maxQuantity: number;
+  enabled: boolean;
+};
+
+type PreOrderConfigsResponseFromApi = {
+  enabled: boolean;
+  configs: PreOrderConfigFromApi[];
+};
+
 const uid = () => crypto.randomUUID();
 
 export default function SettingsPreOrder({ vendorId }: SettingsPreOrderProps) {
@@ -51,23 +65,48 @@ export default function SettingsPreOrder({ vendorId }: SettingsPreOrderProps) {
         setLoading(true);
         const token = localStorage.getItem("accessToken") || "";
         const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-        const res = await api.get<ApiResponse<any>>(
+
+        const resMenu = await api.get<ApiResponse<any>>(
           `/api/menuitem/by-vendor/${vendorId}`,
           headers
         );
 
-        const payload = (res?.data as any) ?? res;
-        const data: any[] = (payload?.data as any) ?? payload;
+        const payloadMenu = (resMenu?.data as any) ?? resMenu;
+        const dataMenu: any[] = (payloadMenu?.data as any) ?? payloadMenu;
 
         const items: MenuItemFromApi[] =
-          data?.map((it) => ({
+          dataMenu?.map((it) => ({
             id: it.id,
             name: it.name || "Món không tên",
           })) || [];
 
         setMenuItems(items);
-      } catch {
-        toast.error("Không tải được danh sách món.");
+
+        const resPre = await api.get<ApiResponse<any>>(
+          `/api/vendor-preorder/${vendorId}/configs`,
+          headers
+        );
+
+        const payloadPre = (resPre?.data as any) ?? resPre;
+        const dataPre: PreOrderConfigsResponseFromApi =
+          (payloadPre?.data as any) ?? payloadPre;
+
+        setEnabled(!!dataPre.enabled);
+
+        const mappedConfigs: PreOrderConfig[] =
+          dataPre.configs?.map((c) => ({
+            id: c.id || uid(),
+            menuItemId: c.menuItemId,
+            startTime: c.startTime ?? "08:00",
+            endTime: c.endTime ?? "11:00",
+            maxQuantity: String(c.maxQuantity || 10),
+            enabled: c.enabled,
+          })) || [];
+
+        setConfigs(mappedConfigs);
+      } catch (err) {
+        console.error(err);
+        toast.error("Không tải được cấu hình Đặt trước.");
       } finally {
         setLoading(false);
       }
