@@ -499,7 +499,7 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
                               "rounded-md border-2 border-dashed border-muted-foreground/30",
                               "bg-muted/20 px-2 py-2 text-sm text-muted-foreground",
                               "hover:border-primary/60 hover:bg-muted/70 transition-colors",
-                              "overflow-hidden min-h-[70px]" // rút gọn từ 110 -> 70
+                              "overflow-hidden min-h-[20px]"
                             )}>
                               {item.image || item.imageUrl ? (
                                 <img src={item.image ? URL.createObjectURL(item.image) : item.imageUrl || ""} alt={item.name || "image"} className="h-full w-full object-cover" />
@@ -515,28 +515,76 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
 
                           <div className="flex flex-col gap-1">
                             <div className="space-y-1">
-                              <Label className="font-semibold text-sm">Tên món</Label>
+                              <Label className="font-semibold text-sm">Tên món <span className="text-destructive">*</span></Label>
                               <Input placeholder="Tên món" value={item.name} onChange={(e) => updateItem(cat.id, item.id, "name", e.target.value)} />
                             </div>
 
                             <div className="flex gap-2">
                               <div className="flex-1">
-                                <Label className="font-semibold text-sm">Giá (VND)</Label>
+                                <Label className="font-semibold text-sm">Giá bán(VND) <span className="text-destructive">*</span></Label>
                                 <Input inputMode="decimal" placeholder="VD: 120000" value={item.price} onChange={(e) => updateItem(cat.id, item.id, "price", sanitizeNumeric(e.target.value))} />
                               </div>
 
                               <div style={{ width: 120 }}>
-                                <Label className="font-semibold text-sm">Prep (phút)</Label>
+                                <Label className="font-semibold text-sm">Chuẩn bị(phút) <span className="text-destructive">*</span></Label>
                                 <Input inputMode="numeric" placeholder="VD: 15" value={item.prepMinutes} onChange={(e) => updateItem(cat.id, item.id, "prepMinutes", e.target.value)} />
                               </div>
                             </div>
-
-                            <div className="flex items-center justify-between mt-2 gap-2">
-                              <Button size="sm" variant="ghost" onClick={() => openItemReport(item.id, item.name, item.prepMinutes)}>
+                            {/* Số lượng mỗi ngày */}
+                            <div className="space-y-1">
+                              <Label className="font-semibold">
+                                Số lượng mỗi ngày{" "}
+                                <span className="text-destructive">*</span>
+                              </Label>
+                              <Input
+                                inputMode="decimal"
+                                placeholder="VD: 50"
+                                value={item.dailyQuantity}
+                                onChange={(e) => {
+                                  const pretty = sanitizeNumeric(e.target.value);
+                                  updateItem(cat.id, item.id, "dailyQuantity", pretty);
+                                }}
+                                onKeyDown={(e) => {
+                                  const allowedKeys = [
+                                    "Backspace",
+                                    "Delete",
+                                    "ArrowLeft",
+                                    "ArrowRight",
+                                    "ArrowUp",
+                                    "ArrowDown",
+                                    "Tab",
+                                    "Home",
+                                    "End",
+                                    ".",
+                                  ];
+                                  if (
+                                    !allowedKeys.includes(e.key) &&
+                                    !(e.key >= "0" && e.key <= "9")
+                                  ) {
+                                    e.preventDefault();
+                                  }
+                                }}
+                              />
+                            </div>
+                              {/* Mô tả */}
+                            <div className="space-y-1">
+                              <Label className="font-semibold">Mô tả</Label>
+                              <Textarea
+                                placeholder="Mô tả món…"
+                                value={item.description || ""}
+                                className="min-h-[70px]"
+                                onChange={(e) =>
+                                  updateItem(cat.id, item.id, "description", e.target.value)
+                                }
+                              />
+                            </div>
+                            <div className="mt-auto flex justify-end pt-2">
+                              <Button
+                                size="sm"
+                                onClick={() => openItemReport(item.id, item.name, item.prepMinutes)}
+                              >
                                 <BarChartIcon className="h-4 w-4 mr-2" /> Báo cáo
                               </Button>
-
-                              <div className="text-xs text-muted-foreground">Số lượng/ngày: {item.dailyQuantity || "-"}</div>
                             </div>
                           </div>
                         </div>
