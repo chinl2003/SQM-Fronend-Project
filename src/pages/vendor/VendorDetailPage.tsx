@@ -63,6 +63,12 @@ type OrderQueueInfo = {
   vendorAddress?: string | null;
 };
 
+type EtaResponse = {
+  estimatedPickupTime?: string | null;
+  estimatedWaitMinutes?: number | null;
+  positionInQueue?: number | null;
+};
+
 type VendorModel = {
   id: string;
   name?: string | null;
@@ -139,6 +145,8 @@ export default function VendorDetailPage() {
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [successOpen, setSuccessOpen] = useState(false);
   const [orderInfo, setOrderInfo] = useState<OrderQueueInfo | null>(null);
+  const [eta, setEta] = useState<EtaResponse | null>(null);
+  const [etaLoading, setEtaLoading] = useState(false);
 
   useEffect(() => {
     const cid = localStorage.getItem("userId") || null;
@@ -187,7 +195,7 @@ export default function VendorDetailPage() {
   );
 
   const positionMax = useMemo(() => {
-    const p = data?.vendorQueues?.find((q) => q.type === 1)?.positionMax;
+    const p = data?.vendorQueues?.find((q) => q.type === 1)?.queueCount;
     return typeof p === "number" ? p : 0;
   }, [data]);
 
@@ -229,6 +237,34 @@ export default function VendorDetailPage() {
       return;
     }
     setConfirmOpen(true);
+    if (!vendor?.id || !queueId) return;
+    const items: OrderItemCreate[] = selectedItems.map(({ item, q }) => ({
+      menuItemId: item.id,
+      quantity: q,
+      unitPrice: item.price ?? undefined,
+    }));
+    (async () => {
+      try {
+        setEtaLoading(true);
+        const token = localStorage.getItem("accessToken") || "";
+        const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+        const payload = {
+          items,
+        };
+        const res = await api.post<ApiResponse<EtaResponse>>(
+          "/api/QueueEntry/get-eta?vendorId=" + vendor.id,
+          items,
+          headers
+        );
+        const outer = (res as any)?.data ?? res;
+        const data = outer?.data ?? outer ?? null;
+        setEta(data ?? null);
+      } catch (e) {
+        setEta(null);
+      } finally {
+        setEtaLoading(false);
+      }
+    })();
   };
 
   const handleConfirmJoin = async () => {
@@ -595,7 +631,7 @@ export default function VendorDetailPage() {
                 <Users className="w-4 h-4" />
                 Vị trí hiện tại:{" "}
                 <span className="font-medium text-foreground">
-                  {positionMax + 1}
+                  {eta?.positionInQueue}
                 </span>
               </div>
 
@@ -637,6 +673,20 @@ export default function VendorDetailPage() {
                 <span className="font-semibold text-emerald-600">
                   {fmtVND(totalPrice)}
                 </span>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                <div className="text-muted-foreground">Ước tính thời gian nhận</div>
+                <div className="text-right">
+                  {etaLoading ? "Đang tính..." : fmtTime(eta?.estimatedPickupTime)}
+                </div>
+                <div className="text-muted-foreground">Ước tính thời gian đợi</div>
+                <div className="text-right">
+                  {etaLoading
+                    ? "Đang tính..."
+                    : eta?.estimatedWaitMinutes != null
+                    ? `${eta.estimatedWaitMinutes} phút`
+                    : "—"}
+                </div>
               </div>
             </div>
 

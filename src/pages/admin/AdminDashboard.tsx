@@ -3,6 +3,7 @@ import StatCard from "@/components/admin/StatCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { getVendorStatusLabel, getVendorStatusBadge } from "@/constaints/statusVendorConsts";
 import {
 Users, ShoppingBag, Clock, DollarSign,
 TrendingUp, AlertTriangle, CheckCircle,
@@ -47,6 +48,36 @@ statusCode: number;
 code: string;
 }
 
+
+interface VendorForMonthResponse
+{
+    data: {
+        totalRecords: number;
+        pageNumber: number;
+        pageSize: number;
+        totalPages: number;
+        hasPreviousPage: boolean;
+        hasNextPage: boolean;
+        data: Vendor[];
+      };
+additionalData: any;
+message: string;
+statusCode: number;
+code: string;
+}
+
+interface Vendor
+{
+    id: string;
+  address: string;
+  name: string;
+  logoUrl: string;
+  businessTypeId: string;
+  businessTypeName: string;
+  status: number;
+  amount: number
+}
+
 const [activeVendorCount, setActiveVendorCount] = useState(0);
 const [todayVendorCount, setTodayVendorCount] = useState(0);
 const [changeSign, setChangeSign] = useState("+");
@@ -61,11 +92,17 @@ const [orderCancleToday, setOrderCancleToday] = useState(0);
 const [orderCanclePercent, setOrderCanclePercent] = useState(0);
 const [orderCancleChangeType, setOrderCancleChangeType] =
   useState<"increase" | "decrease">("increase");
-  
+const [vendor, setVendors] = useState<Vendor[]>([]);
+const [loading, setLoading] = useState(true);
+const [pageNumber, setPageNumber] = useState(1);
+const [totalPages, setTotalPages] = useState(1);
+const [totalRecords, setTotalRecords] = useState(0);
+const PAGE_SIZE = 4;
+
 const fetchActiveVendors = async () => {
   try {
     const res = await api.get<VendorFilterResponse>(
-      "/api/vendor/by-status-active?Status=Active"
+      "/api/vendor/by-status-active?Status=Approved"
     );
 
     const total = res.data?.totalCount ?? 0;
@@ -76,8 +113,8 @@ const fetchActiveVendors = async () => {
     let type: "increase" | "decrease";
     let sign: string;
 
-    if (increaseCount > decreaseCount) {
-      todayCount = increaseCount - decreaseCount;
+    if (increaseCount >= decreaseCount) {
+      todayCount = 0;
       type = "increase";
       sign = "+";
     } else {
@@ -178,7 +215,28 @@ useEffect(() => {
   fetchActiveVendors();
   fetchQueueEntryCount();
   fetchOrderCancleCount();
-}, []);
+  fetchVendorsForMonth(pageNumber);
+}, [pageNumber]);
+
+const fetchVendorsForMonth = async (page: number = 1) => {
+  try {
+    setLoading(true);
+
+    const res = await api.get<VendorForMonthResponse>(
+      `/api/vendor/get-vendor-for-one-month?PageNumber=${page}&PageSize=${PAGE_SIZE}`
+    );
+
+    const response = res.data;
+
+    setVendors(response.data ?? []);
+    setTotalPages(response.totalPages ?? 1);
+    setTotalRecords(response.totalRecords ?? 0);
+  } catch (error) {
+    console.error("Error fetching vendors:", error);
+  } finally {
+    setLoading(false);
+  }
+};
 
 
 const stats = [
@@ -292,51 +350,75 @@ return ( <AdminLayout title="Tổng quan hệ thống"> <div className="space-y-
 <StatCard key={index} {...stat} />
 ))} </div>
 
-```
     <div className="grid lg:grid-cols-3 gap-6">
       <Card className="lg:col-span-2">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Đơn đăng ký nhà cung cấp gần đây</CardTitle>
-          <Button variant="outline" size="sm">
-            <Eye className="w-4 h-4 mr-2" />
-            Xem tất cả
-          </Button>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {recentVendors.map((vendor) => (
-              <div key={vendor.id} className="flex items-center justify-between p-3 border rounded-lg">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-                    <ShoppingBag className="w-5 h-5 text-primary" />
-                  </div>
-                  <div>
-                    <p className="font-medium">{vendor.name}</p>
-                    <p className="text-sm text-muted-foreground">{vendor.type}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="text-right">
-                    <p className="font-medium">{vendor.revenue}</p>
-                    <Badge 
-                      variant={
-                        vendor.status === "đã duyệt" ? "default" : 
-                        vendor.status === "đang chờ duyệt" ? "secondary" : "destructive"
-                      }
-                      className="text-xs"
-                    >
-                      {vendor.status}
-                    </Badge>
-                  </div>
-                  <Button variant="ghost" size="sm">
-                    <MoreHorizontal className="w-4 h-4" />
-                  </Button>
-                </div>
+  <CardHeader className="flex flex-row items-center justify-between">
+    <CardTitle>Đơn đăng ký nhà cung cấp gần đây</CardTitle>
+  </CardHeader>
+
+  <CardContent>
+    {loading ? (
+      <p>Đang tải...</p>
+    ) : vendor.length === 0 ? (
+      <p>Không có nhà cung cấp nào trong tháng này.</p>
+    ) : (
+      <div className="space-y-4">
+        {vendor.map((vendor) => (
+          <div 
+            key={vendor.id} 
+            className="flex items-center justify-between p-3 border rounded-lg"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                <ShoppingBag className="w-5 h-5 text-primary" />
               </div>
-            ))}
+
+              <div>
+                <p className="font-medium">{vendor.name}</p>
+                <p className="text-sm text-muted-foreground">
+                  {vendor.businessTypeName}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3"> <div className="text-right"> <p className="font-medium">{vendor.amount.toLocaleString()}</p> 
+              <Badge className={`text-xs ${getVendorStatusBadge(vendor.status)}`}> 
+                {getVendorStatusLabel(vendor.status)} 
+              </Badge> 
+
+            </div> 
+            </div>
           </div>
-        </CardContent>
-      </Card>
+        ))}
+
+        <div className="flex justify-between mt-4">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={pageNumber <= 1}
+            onClick={() => setPageNumber((prev) => prev - 1)}
+          >
+            Trang trước
+          </Button>
+
+          <p className="text-sm text-muted-foreground">
+            Trang {pageNumber} / {totalPages}
+          </p>
+
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={pageNumber >= totalPages}
+            onClick={() => setPageNumber((prev) => prev + 1)}
+          >
+            Trang sau
+          </Button>
+        </div>
+      </div>
+    )}
+  </CardContent>
+</Card>
+
 
       <Card>
         <CardHeader>
