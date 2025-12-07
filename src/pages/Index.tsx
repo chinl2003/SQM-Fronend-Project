@@ -102,6 +102,7 @@ export default function Index() {
         const params = new URLSearchParams({
           filter: "NearestMe",
           radiusKm: radiusKm.toString(),
+          status: "Approved",
         });
 
         // Add location if available
@@ -111,7 +112,7 @@ export default function Index() {
         }
 
         const res = await api.get<ApiResponse<ApiVendor[]>>(
-          `/api/Vendor/filter?${params.toString()}`,
+          `/api/Vendor?${params.toString()}`,
           headers
         );
         const list = extractVendorsFromResponse(res);
