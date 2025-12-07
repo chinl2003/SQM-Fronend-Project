@@ -117,6 +117,8 @@ type OrderCreateRequest = {
   queueId: string;
   totalPrice?: number | null;
   paymentMethod?: number | null;
+  pickupTime?: string | null;
+  position?: number | null;
 };
 
 function fmtTime(t?: string | null) {
@@ -388,6 +390,10 @@ export default function VendorDetailPage() {
       ? 1
       : 2;
 
+    const preOrderPosition = isPreOrderMode
+      ? (preOrderQueue?.positionMax ?? 0) + 1
+      : undefined;
+
     const payload: OrderCreateRequest = {
       vendorId: vendor.id,
       customerId,
@@ -395,14 +401,18 @@ export default function VendorDetailPage() {
       items,
       totalPrice: totalPrice || undefined,
       paymentMethod: paymentMethodEnumValue,
-    } as any;
+      pickupTime: isPreOrderMode ? pickupTime : undefined,
+      position: preOrderPosition ?? null,
+    };
 
     try {
       setSubmitting(true);
       const token = localStorage.getItem("accessToken") || "";
-      const url = `/api/order/checkout${
-        queueId ? `?queueId=${encodeURIComponent(queueId)}` : ""
-      }`;
+      const url = isPreOrderMode
+        ? "/api/order/preorder-checkout"
+        : `/api/order/checkout${
+            queueId ? `?queueId=${encodeURIComponent(queueId)}` : ""
+          }`;
 
       const checkoutRes = await api.post<ApiResponse<OrderCheckoutResponse>>(
         url,
