@@ -17,7 +17,7 @@ export default function SettingsTab({ vendor }: any) {
         {/* THAY Thực đơn bằng Pre-order */}
         <TabsTrigger value="preorder">Đặt trước</TabsTrigger>
         <TabsTrigger value="debt">Công nợ</TabsTrigger>
-        <TabsTrigger value="account">Tài khoản</TabsTrigger>
+        <TabsTrigger value="account">Quán của bạn</TabsTrigger>
       </TabsList>
 
       <TabsContent value="registration">
@@ -38,7 +38,11 @@ export default function SettingsTab({ vendor }: any) {
       </TabsContent>
 
       <TabsContent value="account">
-        <SettingsAccount />
+        {vendor?.id ? (
+          <SettingsAccount vendorId={vendor.id} />
+        ) : (
+          <p>Chưa tải được quán.</p>
+        )}
       </TabsContent>
     </Tabs>
   );
