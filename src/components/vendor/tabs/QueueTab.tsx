@@ -1,5 +1,5 @@
 // src/components/vendor/tabs/QueueTab.tsx
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Select,
@@ -8,6 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import * as Popover from "@radix-ui/react-popover";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -18,6 +19,8 @@ import {
   Clock,
   Hourglass,
   CalendarDays,
+  Loader2,
+  AlertTriangle,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { unwrapOrders } from "../utils";
@@ -98,13 +101,24 @@ function QueueList({
   const [hasNextPage, setHasNextPage] = useState<boolean>(false);
   const [hasPreviousPage, setHasPreviousPage] = useState<boolean>(false);
 
-  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [updatingIds, setUpdatingIds] = useState<Set<string>>(new Set());
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmOrderId, setConfirmOrderId] = useState<string | null>(null);
   const [isOnTime, setIsOnTime] = useState(true);
   const [delayMinutes, setDelayMinutes] = useState<number>(0);
   const [delayReason, setDelayReason] = useState("");
   const [confirmSubmitting, setConfirmSubmitting] = useState(false);
+  const [confirmItemIds, setConfirmItemIds] = useState<string[]>([]);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [delayUiOrderId, setDelayUiOrderId] = useState<string | null>(null);
+  const [delayUiItemIds, setDelayUiItemIds] = useState<string[]>([]);
+  const [delayUiMinutes, setDelayUiMinutes] = useState<number>(5);
+  const [delayUiSubmitting, setDelayUiSubmitting] = useState(false);
+  const [delayDialogOpen, setDelayDialogOpen] = useState(false);
+  const [delayUiReason, setDelayUiReason] = useState("");
+  const [delayUiType, setDelayUiType] = useState<number>(1);
+  const [delayMenuItems, setDelayMenuItems] = useState<Array<{ id: string; menuItemId: string; menuItemName: string; quantity: number; unitPrice: number }>>([]);
+  const [delayMenuLoading, setDelayMenuLoading] = useState(false);
 
   const parseResponse = (res: any): OrderWithDetailsDto[] => {
     try {
@@ -149,25 +163,24 @@ function QueueList({
       const arr = parseResponse(res);
       const orders =
         arr.length > 0 ? arr : unwrapOrders<OrderWithDetailsDto>(res) ?? [];
-
       const outer = (res as any)?.data ?? res;
-      const pag = outer?.data ?? outer ?? null;
+      console.log(outer);
 
-      const total =
-        Number(pag?.totalRecords ?? pag?.total ?? 0) || orders.length;
+      const pag = outer ?? null;
+
+      const total = Number(pag?.totalRecords ?? pag?.total ?? 0) || orders.length;
       const pageFromResp = Number(pag?.page ?? p) || p;
       const pageSzFromResp = Number(pag?.pageSize ?? pageSize) || pageSize;
-      const hasNext = Boolean(
-        pag?.hasNextPage ?? orders.length === pageSzFromResp
-      );
-      const hasPrev = Boolean(pag?.hasPreviousPage ?? pageFromResp > 1);
+      const computedHasNext = total > pageFromResp * pageSzFromResp;
+      const computedHasPrev = pageFromResp > 1;
+      const hasNext = typeof pag?.hasNextPage === "boolean" ? pag.hasNextPage : computedHasNext;
+      const hasPrev = typeof pag?.hasPreviousPage === "boolean" ? pag.hasPreviousPage : computedHasPrev;
 
       setItems(orders);
       setTotalRecords(total);
       setHasNextPage(hasNext);
       setHasPreviousPage(hasPrev);
-      setPage(pageFromResp);
-
+      setPage(p);
       onCountChange?.(total);
     } catch (err) {
       console.error("[QueueTab] load error", err);
@@ -185,6 +198,10 @@ function QueueList({
   useEffect(() => {
     void load(page);
   }, [vendorId, queueType, page, statusFilter]);
+
+  useEffect(() => {
+    containerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [page]);
 
   const formatDate = (iso?: string | null) => {
     if (!iso) return "—";
@@ -237,20 +254,22 @@ function QueueList({
 
   const mapOrderStatus = (s?: number | null) => {
     switch (s) {
+      case 0:
+        return "Chờ xác nhận";
       case 4:
-        return "Chế biến";
+        return "Đã xác nhận";
+      case 1:
+        return "Đang xử lý";
       case 5:
-        return "Sẵn sàng";
+        return "Đang chế biến";
       case 6:
+        return "Sẵn sàng";
       case 2:
         return "Hoàn tất";
       case 3:
         return "Đã hủy";
-      case 0:
-        return "Xác nhận";
-      case 1:
       default:
-        return "Xác nhận";
+        return "—";
     }
   };
 
@@ -271,7 +290,11 @@ function QueueList({
     newStatus: number
   ) => {
     try {
-      setUpdatingId(order.id);
+      setUpdatingIds((prev) => {
+        const next = new Set(prev);
+        next.add(order.id);
+        return next;
+      });
       const token = localStorage.getItem("accessToken") || "";
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
 
@@ -306,7 +329,11 @@ function QueueList({
       console.error("[QueueTab] updateOrderStatus error", err);
       toast.error("Cập nhật trạng thái đơn hàng thất bại.");
     } finally {
-      setUpdatingId(null);
+      setUpdatingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(order.id);
+        return next;
+      });
     }
   };
 
@@ -314,18 +341,86 @@ function QueueList({
   const endRecord =
     totalRecords === 0 ? 0 : Math.min(page * pageSize, totalRecords);
 
+  const submitVendorConfirm = async () => {
+    if (!confirmOrderId) return;
+    try {
+      setConfirmSubmitting(true);
+      const token = localStorage.getItem("accessToken") || "";
+      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+      const current = filtered.find((o) => o.id === confirmOrderId);
+      const delayType = Number(current?.status) === 5 ? 2 : 1;
+      const payload: { isOnTime: boolean; delayMinutes?: number; reason?: string; orderDetailIds?: string[]; delayType?: number } = {
+        isOnTime,
+      };
+      if (!isOnTime) {
+        const d = Math.max(0, Math.min(30, Number.isFinite(delayMinutes) ? delayMinutes : 0));
+        payload.delayMinutes = d;
+        if (delayReason && delayReason.trim()) payload.reason = delayReason.trim();
+        payload.delayType = delayType;
+        if (delayType === 2 && Array.isArray(confirmItemIds) && confirmItemIds.length > 0) {
+          payload.orderDetailIds = confirmItemIds;
+        }
+      }
+      await api.post(`/api/Order/${confirmOrderId}/cooking-confirm`, payload, headers);
+      toast.success(isOnTime ? "Đã xác nhận kịp ETA" : "Đã báo trễ ETA");
+      setConfirmOpen(false);
+      setConfirmOrderId(null);
+      setDelayMinutes(0);
+      setDelayReason("");
+      setConfirmItemIds([]);
+      await load(page);
+    } catch (err) {
+      console.error("[QueueTab] confirm-cooking error", err);
+      toast.error("Xác nhận tiến độ thất bại.");
+    } finally {
+      setConfirmSubmitting(false);
+    }
+  };
+
+  const submitDelayForOrder = async (order: OrderWithDetailsDto) => {
+    try {
+      setDelayUiSubmitting(true);
+      const token = localStorage.getItem("accessToken") || "";
+      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+      const payload: { isOnTime: boolean; delayMinutes: number; orderDetailIds?: string[]; reason?: string; delayType?: number } = {
+        isOnTime: false,
+        delayMinutes: Math.max(1, Math.min(30, delayUiMinutes)),
+      };
+      payload.delayType = delayUiType;
+      if (delayUiType === 2 && Array.isArray(delayUiItemIds) && delayUiItemIds.length > 0) {
+        payload.orderDetailIds = delayUiItemIds;
+      }
+      if (delayUiReason && delayUiReason.trim()) payload.reason = delayUiReason.trim();
+      await api.post(`/api/order/${order.id}/cooking-confirm`, payload, headers);
+      toast.success("Đã báo trễ đơn hàng");
+      setDelayUiOrderId(null);
+      setDelayUiItemIds([]);
+      setDelayUiMinutes(5);
+      setDelayUiReason("");
+      setDelayUiType(1);
+      setDelayDialogOpen(false);
+      await load(page);
+    } catch (err) {
+      console.error("[QueueTab] submitDelayForOrder error", err);
+      toast.error("Báo trễ thất bại.");
+    } finally {
+      setDelayUiSubmitting(false);
+    }
+  };
+
   return (
-    <div>
+    <div ref={containerRef}>
       <div className="flex items-center gap-2 justify-end mb-3">
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
+        <Select value={String(statusFilter || "all")} onValueChange={(v) => setStatusFilter(v)}>
           <SelectTrigger className="w-48">
             <SelectValue placeholder="Lọc theo trạng thái" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tất cả trạng thái</SelectItem>
-            <SelectItem value="0">Xác nhận</SelectItem>
-            <SelectItem value="4">Chế biến</SelectItem>
-            <SelectItem value="5">Sẵn sàng</SelectItem>
+            <SelectItem value="0">Chờ xác nhận</SelectItem>
+            <SelectItem value="4">Xác nhận</SelectItem>
+            <SelectItem value="5">Chế biến</SelectItem>
+            <SelectItem value="6">Sẵn sàng</SelectItem>
             <SelectItem value="2">Hoàn tất</SelectItem>
             <SelectItem value="3">Đã hủy</SelectItem>
           </SelectContent>
@@ -334,7 +429,7 @@ function QueueList({
         <Button
           variant="outline"
           size="icon"
-          onClick={() => load(1)}
+          onClick={() => setPage(1)}
           disabled={loading}
         >
           <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
@@ -342,7 +437,12 @@ function QueueList({
       </div>
 
       <div className="space-y-3">
-        {filtered.length === 0 ? (
+        {loading ? (
+          <div className="flex items-center justify-center py-16 text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin mr-2" />
+            Đang tải...
+          </div>
+        ) : filtered.length === 0 ? (
           <p className="text-sm text-muted-foreground">Chưa có đơn nào.</p>
         ) : (
           filtered.map((it) => {
@@ -362,6 +462,17 @@ function QueueList({
                 : "—";
             const rawStatus = Number(it.status ?? -1);
 
+            const firstNotified = Boolean(
+              (it as any)?.FirstNotified ?? (it as any)?.firstNotified ?? it.queueEntry?.FirstNotified ?? it.queueEntry?.firstNotified ?? false
+            );
+            const lastNotified = Boolean(
+              (it as any)?.LastNotified ?? (it as any)?.lastNotified ?? it.queueEntry?.LastNotified ?? it.queueEntry?.lastNotified ?? false
+            );
+            const delayDetach = Boolean(
+              (it as any)?.delayDetach ?? it.queueEntry?.delayDetach ?? false
+            );
+            const hasDelay = Number(((it as any)?.delayMinutes ?? (it as any)?.DelayMinutes ?? it.queueEntry?.delayMinutes ?? (it.queueEntry as any)?.DelayMinutes ?? 0)) > 0;
+
             let buttonLabel = statusText;
             let nextStatus: number | null = null;
 
@@ -375,14 +486,13 @@ function QueueList({
               buttonLabel = "Hoàn tất";
               nextStatus = 2;
             } else if (rawStatus === 0) {
-              buttonLabel = "Xác Nhận";
+              buttonLabel = "Xác nhận";
               nextStatus = 4;
-            }else if (rawStatus === 2) {
-              buttonLabel = "Hoàn tất";
+            } else if (rawStatus === 2 || rawStatus === 3) {
               nextStatus = null;
             }
 
-            const isUpdating = updatingId === it.id;
+            const isUpdating = updatingIds.has(it.id);
             const canClick = !!nextStatus && !isUpdating && !loading;
 
             return (
@@ -424,7 +534,7 @@ function QueueList({
                           <span>{waitText}</span>
                         </div>
 
-                        <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2">
                           <Clock className="h-4 w-4 text-sky-600" />
                           <span className="font-semibold text-foreground">
                             Thời gian nhận hàng dự kiến:
@@ -433,12 +543,26 @@ function QueueList({
                         </div>
                       </div>
 
+                      {rawStatus === 4 && firstNotified && (
+                        <div className="mt-3 border border-amber-300 bg-amber-50 text-amber-700 rounded p-2 flex items-center gap-2">
+                          <AlertTriangle className="h-4 w-4" />
+                          <span>Đơn có nguy cơ trễ.</span>
+                        </div>
+                      )}
+
+                      {rawStatus === 5 && lastNotified && delayDetach && (
+                        <div className="mt-3 border border-rose-300 bg-rose-50 text-rose-700 rounded p-2 flex items-center gap-2">
+                          <AlertTriangle className="h-4 w-4" />
+                          <span>Đơn đang trễ</span>
+                        </div>
+                      )}
+
                       <div className="flex flex-wrap gap-1 mt-3">
                         {it.details.map((d) => (
                           <span
                             key={d.id}
                             className="text-xs bg-muted px-2 py-1 rounded border border-border shadow-sm"
-                          >
+                            >
                             {d.quantity} x {d.menuItemName}
                           </span>
                         ))}
@@ -464,19 +588,39 @@ function QueueList({
                         buttonLabel
                       )}
                     </Button>
-                    {queueType === 2 && rawStatus === 5 && (
+                    {/* Removed Xác nhận ETA button per request */}
+                    {rawStatus === 4 && firstNotified && !hasDelay && (
                       <Button
-                        variant="outline"
-                        className="ml-2"
+                        variant="default"
+                        className="ml-2 bg-amber-500 hover:bg-amber-600 text-white"
                         onClick={() => {
-                          setIsOnTime(true);
-                          setDelayMinutes(0);
-                          setDelayReason("");
-                          setConfirmOrderId(it.id);
-                          setConfirmOpen(true);
+                          setDelayUiOrderId(it.id);
+                          setDelayUiItemIds([]);
+                          setDelayUiMinutes(5);
+                          setDelayUiReason("");
+                          setDelayMenuItems(it.details);
+                          setDelayUiType(1);
+                          setDelayDialogOpen(true);
                         }}
                       >
-                        Xác nhận thời gian
+                        Báo trễ
+                      </Button>
+                    )}
+                    {rawStatus === 5 && lastNotified && !hasDelay && (
+                      <Button
+                        variant="default"
+                        className="ml-2 bg-amber-500 hover:bg-amber-600 text-white"
+                        onClick={() => {
+                          setDelayUiOrderId(it.id);
+                          setDelayUiItemIds([]);
+                          setDelayUiMinutes(5);
+                          setDelayUiReason("");
+                          setDelayMenuItems(it.details);
+                          setDelayUiType(2);
+                          setDelayDialogOpen(true);
+                        }}
+                      >
+                        Báo trễ
                       </Button>
                     )}
                   </div>
@@ -493,6 +637,8 @@ function QueueList({
           <span className="font-semibold">{endRecord}</span> của{" "}
           <span className="font-semibold">{totalRecords}</span>
         </div>
+
+        {/* Inline delay form removed; using dialog below */}
 
         <div className="flex items-center gap-2">
           <Button
@@ -567,6 +713,50 @@ function QueueList({
             {/* Delay input only shown when Trễ đơn selected */}
             {!isOnTime && (
               <div className="grid gap-3 pt-2">
+                {(() => {
+                  const current = filtered.find((o) => o.id === confirmOrderId);
+                  if (!current) return null;
+                  return (
+                    <div>
+                      <label className="text-sm">Món bị trễ (tuỳ chọn)</label>
+                      <Popover.Root>
+                        <Popover.Trigger asChild>
+                          <Button variant="outline" className="w-full justify-between">
+                            {confirmItemIds.length ? `${confirmItemIds.length} món đã chọn` : "Chọn món"}
+                          </Button>
+                        </Popover.Trigger>
+                        <Popover.Content side="bottom" align="start" className="z-50 w-64 rounded-md border bg-popover text-popover-foreground shadow-md">
+                          <div className="max-h-60 overflow-y-auto p-1">
+                            {current.details.map((d) => {
+                              const id = String(d.id || "");
+                              const name = d.menuItemName || d.menuItemId || d.id || "Món";
+                              const checked = confirmItemIds.includes(id);
+                              return (
+                                <label key={id} className="flex items-center gap-2 px-2 py-1.5 text-sm cursor-pointer hover:bg-accent rounded">
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={(e) => {
+                                      const v = e.target.checked;
+                                      setConfirmItemIds((prev) => {
+                                        const next = new Set(prev);
+                                        if (v) next.add(id);
+                                        else next.delete(id);
+                                        return Array.from(next);
+                                      });
+                                    }}
+                                    className="h-4 w-4"
+                                  />
+                                  <span className="flex-1">{name}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </Popover.Content>
+                      </Popover.Root>
+                    </div>
+                  );
+                })()}
                 <div>
                   <label className="text-sm font-medium flex items-center gap-1">
                     Số phút trễ (tối đa 30 phút)
@@ -606,34 +796,184 @@ function QueueList({
         </DialogContent>
       </Dialog>
 
+      {/* Delay dialog */}
+      <Dialog open={delayDialogOpen} onOpenChange={setDelayDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Báo trễ đơn hàng</DialogTitle>
+            <DialogDescription>Chọn món bị trễ, số phút trễ và lý do.</DialogDescription>
+          </DialogHeader>
+          {(() => {
+            const current = filtered.find((o) => o.id === delayUiOrderId);
+            if (!current) return null;
+            return (
+              <div className="space-y-3">
+                <div>
+                  <label className="text-sm">Món bị trễ (tuỳ chọn)</label>
+                  {delayUiType === 2 ? (
+                    <Popover.Root>
+                      <Popover.Trigger asChild>
+                        <Button variant="outline" className="w-full justify-between">
+                          {delayUiItemIds.length ? `${delayUiItemIds.length} món đã chọn` : "Chọn món"}
+                        </Button>
+                      </Popover.Trigger>
+                      <Popover.Content side="bottom" align="start" className="z-50 w-64 rounded-md border bg-popover text-popover-foreground shadow-md">
+                        <div className="max-h-60 overflow-y-auto p-1">
+                          {(delayMenuItems.length > 0 ? delayMenuItems : current.details).map((d) => {
+                            const id = String(d.id || "");
+                            const name = d.menuItemName || d.menuItemId || d.id || "Món";
+                            const checked = delayUiItemIds.includes(id);
+                            return (
+                              <label key={id} className="flex items-center gap-2 px-2 py-1.5 text-sm cursor-pointer hover:bg-accent rounded">
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={(e) => {
+                                    const v = e.target.checked;
+                                    setDelayUiItemIds((prev) => {
+                                      const next = new Set(prev);
+                                      if (v) next.add(id);
+                                      else next.delete(id);
+                                      return Array.from(next);
+                                    });
+                                  }}
+                                  className="h-4 w-4"
+                                />
+                                <span className="flex-1">{name}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </Popover.Content>
+                    </Popover.Root>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">Không cần chọn món cho trễ trước chế biến.</p>
+                  )}
+                </div>
+                <div>
+                  <label className="text-sm">Phút trễ (toàn đơn)</label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={30}
+                    value={delayUiMinutes}
+                    onChange={(e) =>
+                      setDelayUiMinutes(
+                        Math.max(1, Math.min(30, parseInt(e.target.value || "1", 10)))
+                      )
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="text-sm">Lý do trễ</label>
+                  <Input
+                    value={delayUiReason}
+                    onChange={(e) => setDelayUiReason(e.target.value)}
+                    placeholder="Ví dụ: thiếu nguyên liệu, thiết bị trục trặc"
+                  />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setDelayDialogOpen(false)}>Đóng</Button>
+                  <Button onClick={() => submitDelayForOrder(current)} disabled={delayUiSubmitting} className="bg-amber-500 hover:bg-amber-600 text-white">
+                    {delayUiSubmitting ? "Đang gửi..." : "Báo trễ"}
+                  </Button>
+                </div>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+
+
+      {/* Delay dialog */}
+      <Dialog open={delayDialogOpen} onOpenChange={setDelayDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Báo trễ đơn hàng</DialogTitle>
+            <DialogDescription>Chọn món bị trễ, số phút trễ và lý do.</DialogDescription>
+          </DialogHeader>
+          {(() => {
+            const current = filtered.find((o) => o.id === delayUiOrderId);
+            if (!current) return null;
+            return (
+              <div className="space-y-3">
+                <div>
+                  <label className="text-sm">Món bị trễ (tuỳ chọn)</label>
+                  {delayUiType === 2 ? (
+                    <Popover.Root>
+                      <Popover.Trigger asChild>
+                        <Button variant="outline" className="w-full justify-between">
+                          {delayUiItemIds.length ? `${delayUiItemIds.length} món đã chọn` : "Chọn món"}
+                        </Button>
+                      </Popover.Trigger>
+                      <Popover.Content side="bottom" align="start" className="z-50 w-64 rounded-md border bg-popover text-popover-foreground shadow-md">
+                        <div className="max-h-60 overflow-y-auto p-1">
+                          {(delayMenuItems.length > 0 ? delayMenuItems : current.details).map((d) => {
+                            const id = String(d.id || "");
+                            const name = d.menuItemName || d.menuItemId || d.id || "Món";
+                            const checked = delayUiItemIds.includes(id);
+                            return (
+                              <label key={id} className="flex items-center gap-2 px-2 py-1.5 text-sm cursor-pointer hover:bg-accent rounded">
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={(e) => {
+                                    const v = e.target.checked;
+                                    setDelayUiItemIds((prev) => {
+                                      const next = new Set(prev);
+                                      if (v) next.add(id);
+                                      else next.delete(id);
+                                      return Array.from(next);
+                                    });
+                                  }}
+                                  className="h-4 w-4"
+                                />
+                                <span className="flex-1">{name}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </Popover.Content>
+                    </Popover.Root>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">Không cần chọn món cho trễ trước chế biến.</p>
+                  )}
+                </div>
+                <div>
+                  <label className="text-sm">Phút trễ (toàn đơn)</label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={30}
+                    value={delayUiMinutes}
+                    onChange={(e) =>
+                      setDelayUiMinutes(
+                        Math.max(1, Math.min(30, parseInt(e.target.value || "1", 10)))
+                      )
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="text-sm">Lý do trễ</label>
+                  <Input
+                    value={delayUiReason}
+                    onChange={(e) => setDelayUiReason(e.target.value)}
+                    placeholder="Ví dụ: thiếu nguyên liệu, thiết bị trục trặc"
+                  />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setDelayDialogOpen(false)}>Đóng</Button>
+                  <Button onClick={() => submitDelayForOrder(current)} disabled={delayUiSubmitting} className="bg-amber-500 hover:bg-amber-600 text-white">
+                    {delayUiSubmitting ? "Đang gửi..." : "Báo trễ"}
+                  </Button>
+                </div>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
-  const submitVendorConfirm = async () => {
-    if (!confirmOrderId) return;
-    try {
-      setConfirmSubmitting(true);
-      const token = localStorage.getItem("accessToken") || "";
-      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-      const payload: { isOnTime: boolean; delayMinutes?: number; reason?: string } = {
-        isOnTime,
-      };
-      if (!isOnTime) {
-        const d = Math.max(0, Math.min(30, Number.isFinite(delayMinutes) ? delayMinutes : 0));
-        payload.delayMinutes = d;
-        if (delayReason && delayReason.trim()) payload.reason = delayReason.trim();
-      }
-      await api.post(`/api/order/${confirmOrderId}/confirm-cooking`, payload, headers);
-      toast.success(isOnTime ? "Đã xác nhận hoàn thành đơn đúng hẹn" : "Đã báo trễ đơn so với dự kiến");
-      setConfirmOpen(false);
-      setConfirmOrderId(null);
-      setDelayMinutes(0);
-      setDelayReason("");
-      await load(page);
-    } catch (err) {
-      console.error("[QueueTab] confirm-cooking error", err);
-      toast.error("Xác nhận tiến độ thất bại.");
-    } finally {
-      setConfirmSubmitting(false);
-    }
-  };
+
+function noop() {}

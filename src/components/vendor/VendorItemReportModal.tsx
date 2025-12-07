@@ -56,6 +56,29 @@ type HourRow = {
   samples?: OrderSample[];
 };
 
+type VendorItemHourlyRowApi = {
+  hour: number;
+  orders: number;
+  avgCompletionMinutes: number;
+  configuredMinutes?: number;
+  lateRatePercent: number;
+  recommendPreorder: boolean;
+  preorderSuggestion?: { slotMinutes: number; slotsCount: number; capacityPerSlot: number };
+  samples?: Array<{ id: string; placedAt: string; completedAt?: string; completionMinutes: number }>;
+};
+
+type VendorItemHourlyResponse = ApiResponse<VendorItemHourlyRowApi[]> | VendorItemHourlyRowApi[];
+type VendorItemOrdersResponse = ApiResponse<OrderSample[]> | OrderSample[];
+type VendorItemPreorderStateResponse = ApiResponse<{ enabled: boolean }> | { enabled: boolean };
+
+type VendorItemReportApi = {
+  hourly: VendorItemHourlyRowApi[];
+  orders?: OrderSample[];
+  preorderEnabled?: boolean;
+};
+
+type VendorItemReportResponse = ApiResponse<VendorItemReportApi> | VendorItemReportApi;
+
 function seedFromString(s: string) {
   let h = 2166136261 >>> 0;
   for (let i = 0; i < s.length; i++) {
@@ -169,13 +192,13 @@ export default function VendorItemReportModal({
         const token = localStorage.getItem("accessToken") || "";
         const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
 
-        const resAgg = await api.get<ApiResponse<any>>(`/api/reports/menuitem/${menuItemId}/hourly`, headers).catch(() => null);
-        const resOrders = await api.get<ApiResponse<any>>(`/api/reports/menuitem/${menuItemId}/orders`, headers).catch(() => null);
-        const aggPayload = (resAgg?.data as any) ?? resAgg;
-        const ordersPayload = (resOrders?.data as any) ?? resOrders;
+        const res = await api
+          .get<VendorItemReportResponse>(`/api/vendors/${vendorId}/menuitems/${menuItemId}/report`, headers)
+          .catch(() => null);
+        const payload = (res as ApiResponse<VendorItemReportApi>)?.data ?? (res as VendorItemReportApi | null);
 
-        if (aggPayload && Array.isArray(aggPayload?.data || aggPayload)) {
-          const rows: HourRow[] = (aggPayload?.data || aggPayload).map((r: any) => ({
+        if (payload && payload.hourly && Array.isArray(payload.hourly)) {
+          const rows: HourRow[] = payload.hourly.map((r) => ({
             hourFrom: Number(r.hour) || 0,
             hourTo: (Number(r.hour) || 0) + 1,
             orders: Number(r.orders) || 0,
@@ -185,15 +208,19 @@ export default function VendorItemReportModal({
             lateRatePercent: Number(r.lateRatePercent) || 0,
             recommendPreorder: !!r.recommendPreorder,
             preorderSuggestion: r.preorderSuggestion,
-            samples: Array.isArray(r.samples) ? r.samples.map((s: any) => ({ id: s.id, placedAt: s.placedAt, completedAt: s.completedAt, completionMinutes: Number(s.completionMinutes) })) : undefined,
+            samples: Array.isArray(r.samples) ? r.samples.map((s) => ({ id: s.id, placedAt: s.placedAt, completedAt: s.completedAt, completionMinutes: Number(s.completionMinutes) })) : undefined,
           }));
 
           if (mounted) {
             setData(rows);
-            if (ordersPayload && Array.isArray(ordersPayload?.data || ordersPayload)) {
-              setAllSamples((ordersPayload?.data || ordersPayload).map((o: any) => ({ id: o.id, placedAt: o.placedAt, completedAt: o.completedAt, completionMinutes: Number(o.completionMinutes) })));
+            const ordersPayload = payload.orders;
+            if (ordersPayload && Array.isArray(ordersPayload)) {
+              setAllSamples(ordersPayload.map((o) => ({ id: o.id, placedAt: o.placedAt, completedAt: o.completedAt, completionMinutes: Number(o.completionMinutes) })));
             } else {
               setAllSamples(rows.flatMap((r) => r.samples ?? []).sort((a, b) => new Date(a.placedAt).getTime() - new Date(b.placedAt).getTime()));
+            }
+            if (typeof payload.preorderEnabled === "boolean") {
+              setPreorderEnabledForCurrent(payload.preorderEnabled);
             }
           }
         } else {
@@ -202,12 +229,6 @@ export default function VendorItemReportModal({
             setData(mock);
             setAllSamples(mock.flatMap((r) => r.samples ?? []).sort((a, b) => new Date(a.placedAt).getTime() - new Date(b.placedAt).getTime()));
           }
-        }
-
-        const resPre = await api.get<ApiResponse<any>>(`/api/menuitem/${menuItemId}/preorder-state`, headers).catch(() => null);
-        const prePayload = (resPre?.data as any) ?? resPre;
-        if (mounted && prePayload && typeof prePayload.enabled === "boolean") {
-          setPreorderEnabledForCurrent(prePayload.enabled);
         }
       } catch (e) {
         console.error(e);

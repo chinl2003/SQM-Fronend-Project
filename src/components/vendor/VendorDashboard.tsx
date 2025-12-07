@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { api, ApiResponse } from "@/lib/api";
 import { useParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -15,6 +16,7 @@ import {
   Plus,
   CheckCircle2,
 } from "lucide-react";
+import { HubConnectionBuilder, LogLevel, HttpTransportType } from "@microsoft/signalr";
 
 import QueueTab from "./tabs/QueueTab";
 import SettingsMenu from "./SettingsMenu";
@@ -90,6 +92,7 @@ export default function VendorDashboard() {
   const [activeTab, setActiveTab] = useState<
     "queue" | "menu" | "analytics" | "reviews" | "wallet" | "settings" // <- THÊM "wallet"
   >("queue");
+  const [vendorConfirm, setVendorConfirm] = useState<{ open: boolean; orderId?: string; title?: string; message?: string }>({ open: false });
 
   useEffect(() => {
     let mounted = true;
@@ -127,6 +130,45 @@ export default function VendorDashboard() {
       mounted = false;
     };
   }, [params.userId]);
+
+  useEffect(() => {
+    const apiBaseUrl = import.meta.env.VITE_API_URL;
+    const token =
+      localStorage.getItem("accessToken") ||
+      localStorage.getItem("token") ||
+      "";
+    const connection = new HubConnectionBuilder()
+      .withUrl(`${apiBaseUrl}/hubs/notifications`, {
+        accessTokenFactory: () => token,
+        transport: HttpTransportType.LongPolling,
+      })
+      .withAutomaticReconnect()
+      .configureLogging(LogLevel.None)
+      .build();
+
+    connection.on("ReceiveNotification", (msg: Record<string, unknown>) => {
+      const notifType = (msg?.type ?? "").toString();
+      if (notifType === "vendor_confirm") {
+        const rawData = (msg as Record<string, unknown>).data as unknown;
+        let orderId: string | undefined;
+        if (rawData && typeof rawData === "object") {
+          orderId = (rawData as { orderId?: string }).orderId;
+        }
+        setVendorConfirm({
+          open: true,
+          orderId,
+          title: (msg as { title?: string }).title ?? "Yêu cầu xác nhận đơn hàng",
+          message: (msg as { body?: string; message?: string }).body ?? (msg as { body?: string; message?: string }).message ?? "",
+        });
+      }
+    });
+
+    connection.start().catch(() => {});
+
+    return () => {
+      connection.stop();
+    };
+  }, []);
 
   const vendorTitle = vendor?.name ? `Quán ${vendor.name}` : "Smart Queue - Vendor Dashboard";
   const statusInfo = statusToLabel(vendor?.status);
@@ -326,6 +368,29 @@ export default function VendorDashboard() {
           </TabsContent>
         </Tabs>
       </div>
+
+      <Dialog open={vendorConfirm.open} onOpenChange={(o) => setVendorConfirm((p) => ({ ...p, open: o }))}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{vendorConfirm.title || "Thông báo"}</DialogTitle>
+            {vendorConfirm.message && (
+              <DialogDescription>{vendorConfirm.message}</DialogDescription>
+            )}
+          </DialogHeader>
+          <div className="space-y-3">
+            {vendorConfirm.orderId && (
+              <div className="text-sm">Mã đơn hàng: <span className="font-semibold">{vendorConfirm.orderId}</span></div>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setVendorConfirm({ open: false })}>Đóng</Button>
+              <Button onClick={() => {
+                setVendorConfirm({ open: false });
+                setActiveTab("queue");
+              }}>Xem hàng đợi</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
