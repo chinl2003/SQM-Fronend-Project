@@ -147,7 +147,7 @@ export function VendorCard({
             disabled={queueSize >= 20}
           >
             <Utensils className="h-4 w-4 mr-1" />
-            {queueSize >= 20 ? "Hết chỗ" : "Tham gia xếp hàng"}
+            {queueSize >= 20 ? "Hết chỗ" : "Xếp hàng"}
           </Button>
 
           {isPreOrderAvailable && (

@@ -4,6 +4,8 @@ import { Navigation } from "@/components/Navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
+
 import {
   MapPin,
   Phone,
@@ -25,7 +27,10 @@ import { toast } from "sonner";
 
 import DatePicker, { registerLocale } from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-
+// ================= đăng ký locale vi cho DatePicker (nếu chưa có sẽ lỗi)
+import vi from "date-fns/locale/vi";
+registerLocale("vi", vi);
+// =================
 
 type MenuItemResponse = {
   id: string;
@@ -120,7 +125,6 @@ type OrderCreateRequest = {
   position?: number | null;
 };
 
-
 type RatingReplyResponse = {
   id: string;
   ratingId: string;
@@ -135,9 +139,9 @@ type VendorRatingWithOrderInfo = {
   id: string;
   vendorId?: string | null;
   orderId?: string | null;
-  stars: number | string;  
+  stars: number | string;
   comment?: string | null;
-  imageUrls?: string | string[] | null; 
+  imageUrls?: string | string[] | null;
   createdTime?: string | null;
 
   orderCode?: string | null;
@@ -151,14 +155,15 @@ type VendorRatingWithOrderInfo = {
   replies: RatingReplyResponse[];
 };
 
-
+// ================= thêm totalRecords để dùng tổng đánh giá nếu API trả về
 type PaginatedList<T> = {
   data: T[];
   totalPages: number;
   page: number;
   pageSize: number;
+  totalRecords?: number;
 };
-
+// =================
 
 function fmtTime(t?: string | null) {
   if (!t) return "—";
@@ -217,7 +222,6 @@ type Mode = "QUEUE" | "PREORDER";
 
 const REVIEWS_PER_PAGE = 2;
 
-
 export default function VendorDetailPage() {
   const { vendorId } = useParams<{ vendorId: string }>();
   const navigate = useNavigate();
@@ -242,6 +246,10 @@ export default function VendorDetailPage() {
   const [ratingsPage, setRatingsPage] = useState(1);
   const [totalRecord, setTotalRecords] = useState(0);
   const [ratingsTotalPages, setRatingsTotalPages] = useState(1);
+
+  // ================= state search
+  const [searchTerm, setSearchTerm] = useState("");
+  // =================
 
   useEffect(() => {
     const cid = localStorage.getItem("userId") || null;
@@ -313,6 +321,24 @@ export default function VendorDetailPage() {
     return typeof q?.positionMax === "number" ? q.positionMax : 0;
   }, [data]);
 
+  // ================= lọc menu theo searchTerm
+  const filteredMenuItems = useMemo(() => {
+    const items = data?.menuItems ?? [];
+    if (!searchTerm.trim()) return items;
+    const keyword = searchTerm.toLowerCase();
+    return items.filter((item) => {
+      const name = (item.name ?? "").toLowerCase();
+      const desc = (item.description ?? "").toLowerCase();
+      const type = (item.typeOfFood ?? "").toLowerCase();
+      return (
+        name.includes(keyword) ||
+        desc.includes(keyword) ||
+        type.includes(keyword)
+      );
+    });
+  }, [data, searchTerm]);
+  // =================
+
   const effectivePickupDate = useMemo(() => {
     if (pickupDate) return pickupDate;
     if (isPreOrderMode && preOrderStart) return parseTimeToDate(preOrderStart);
@@ -332,15 +358,17 @@ export default function VendorDetailPage() {
     return typeof q?.positionMax === "number" ? q.positionMax : 0;
   }, [data]);
 
+  // ================= grouped dùng filteredMenuItems thay vì data?.menuItems
   const grouped = useMemo(() => {
     const map = new Map<string, MenuItemResponse[]>();
-    for (const item of data?.menuItems ?? []) {
+    for (const item of filteredMenuItems ?? []) {
       const key = (item.typeOfFood ?? "Khác").trim() || "Khác";
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(item);
     }
     return Array.from(map.entries());
-  }, [data]);
+  }, [filteredMenuItems]);
+  // =================
 
   const selectedItems = useMemo(() => {
     const byId: Record<string, MenuItemResponse> = {};
@@ -364,41 +392,40 @@ export default function VendorDetailPage() {
   const handleCardClick = (id: string) =>
     setQty((p) => ({ ...p, [id]: (p[id] ?? 0) > 0 ? p[id] : 1 }));
 
-
   useEffect(() => {
-  if (!vendorId) return;
+    if (!vendorId) return;
 
-  const fetchRatings = async () => {
-    try {
-      setRatingsLoading(true);
-      const token = localStorage.getItem("accessToken") || "";
-      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+    const fetchRatings = async () => {
+      try {
+        setRatingsLoading(true);
+        const token = localStorage.getItem("accessToken") || "";
+        const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
 
-      const res =
-        await api.get<ApiResponse<PaginatedList<VendorRatingWithOrderInfo>>>(
-          `/api/rating/by-vendor/${vendorId}?pageNumber=${ratingsPage}&pageSize=${REVIEWS_PER_PAGE}`,
-          headers
-        );
+        const res =
+          await api.get<ApiResponse<PaginatedList<VendorRatingWithOrderInfo>>>(
+            `/api/rating/by-vendor/${vendorId}?pageNumber=${ratingsPage}&pageSize=${REVIEWS_PER_PAGE}`,
+            headers
+          );
 
-      const outer = (res as any)?.data ?? res;
-      const payload: PaginatedList<VendorRatingWithOrderInfo> =
-        outer ?? null;
+        const outer = (res as any)?.data ?? res;
+        const payload: PaginatedList<VendorRatingWithOrderInfo> =
+          outer ?? null;
 
-      setTotalRecords(outer.totalRecords ?? 0);
-      setRatings(payload?.data ?? []);
-      setRatingsTotalPages(payload?.totalPages ?? 1);
-    } catch (e) {
-      console.error(e);
-      setRatings([]);
-      setRatingsTotalPages(1);
-    } finally {
-      setRatingsLoading(false);
-    }
-  };
+        // nếu API gói thêm 1 lớp data nữa (data.data) thì chỉnh lại ở đây
+        setTotalRecords(outer.totalRecords ?? 0);
+        setRatings(payload?.data ?? []);
+        setRatingsTotalPages(payload?.totalPages ?? 1);
+      } catch (e) {
+        console.error(e);
+        setRatings([]);
+        setRatingsTotalPages(1);
+      } finally {
+        setRatingsLoading(false);
+      }
+    };
 
-  fetchRatings();
-}, [vendorId, ratingsPage]);
-
+    fetchRatings();
+  }, [vendorId, ratingsPage]);
 
   const openConfirm = () => {
     if (totalCount === 0) {
@@ -645,16 +672,19 @@ export default function VendorDetailPage() {
               </div>
             </div>
 
-            <div className="flex flex-col items-end gap-3">
-              <Button
-                variant="outline"
-                className="bg-white/90 text-foreground border-none hover:bg-white"
-                onClick={() => navigate(-1)}
-              >
-                Quay lại
-              </Button>
+            <div className="flex flex-col items-end gap-3 w-full md:w-auto">
+              {/* Ô tìm kiếm món */}
+              <div className="w-full md:w-64">
+                <Input
+                  placeholder="Tìm món theo tên, mô tả hoặc loại..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="bg-white/90 border-none focus-visible:ring-emerald-500 focus-visible:ring-2 focus-visible:ring-offset-0"
+                />
+              </div>
 
-              <div className="flex gap-2">
+              {/* Nút chọn chế độ queue / preorder */}
+              <div className="flex gap-2 self-end">
                 <Button
                   className={cn(
                     "bg-white/90 text-foreground border-none hover:bg-white",
@@ -670,7 +700,9 @@ export default function VendorDetailPage() {
                   <Button
                     className={cn(
                       "bg-white/90 text-foreground border-none hover:bg-white",
-                      mode === "PREORDER" ? "ring-2 ring-emerald-500/60" : "opacity-80"
+                      mode === "PREORDER"
+                        ? "ring-2 ring-emerald-500/60"
+                        : "opacity-80"
                     )}
                     disabled={loading}
                     onClick={() => setMode("PREORDER")}
@@ -1021,7 +1053,7 @@ export default function VendorDetailPage() {
                 onClick={openConfirm}
                 disabled={totalCount === 0}
               >
-                {isPreOrderMode ? "Đặt trước" : "Tham gia xếp hàng"}
+                {isPreOrderMode ? "Đặt trước" : "Taaham gia xếp hàng"}
               </Button>
             </div>
           </aside>
