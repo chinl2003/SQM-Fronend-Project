@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import AdminLayout from "@/components/admin/AdminLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -254,6 +255,7 @@ export default function VendorWalletTab() {
     }
 
     return (
+    <AdminLayout title="Thanh toán">
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
@@ -408,6 +410,8 @@ export default function VendorWalletTab() {
                 </CardHeader>
             </Card>
         </div>
+
+    </AdminLayout>
     );
 }
 
