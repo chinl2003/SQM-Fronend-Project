@@ -208,6 +208,16 @@ function QueueList({
     return `${totalMin} phút`;
   };
 
+  const formatPreorderWait = (iso?: string | null) => {
+    if (!iso) return "—";
+    const est = new Date(iso);
+    if (Number.isNaN(est.getTime())) return "—";
+    const diffMs = est.getTime() - Date.now();
+    const diffMin = Math.round(diffMs / 60000);
+    if (diffMin <= 0) return "0 phút";
+    return `${diffMin} phút`;
+  };
+
   const mapPaymentStatus = (ps: number | null | undefined) => {
     switch (ps) {
       case 0:
@@ -265,7 +275,12 @@ function QueueList({
       const token = localStorage.getItem("accessToken") || "";
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
 
-      const estServeIso = order.queueEntry?.estimatedServeTime || null;
+      // ✅ Ưu tiên ETA từ QueueEntryPreOrder, fallback sang QueueEntry
+      const estServeIso =
+        order.queueEntryPreOrder?.estimatedServeTime ??
+        order.queueEntry?.estimatedServeTime ??
+        null;
+
       const onTime = (() => {
         if (!estServeIso) return false;
         const now = Date.now();
@@ -333,13 +348,18 @@ function QueueList({
           filtered.map((it) => {
             const payment = mapPaymentStatus(it.paymentStatus ?? null);
             const statusText = mapOrderStatus(it.status ?? null);
-            const estServe = it.queueEntry?.estimatedServeTime
-              ? formatDate(it.queueEntry.estimatedServeTime)
-              : "—";
-            const waitText = it.queueEntry?.estimatedWaitTime
-              ? formatWaitMinutes(it.queueEntry.estimatedWaitTime)
-              : "—";
+            const queueInfo =
+              queueType === 2 ? it.queueEntryPreOrder : it.queueEntry;
 
+            const estServe = queueInfo?.estimatedServeTime
+              ? formatDate(queueInfo.estimatedServeTime)
+              : "";
+            const waitText =
+              queueType === 2
+                ? formatPreorderWait(queueInfo?.estimatedServeTime)
+                : queueInfo?.estimatedWaitTime
+                ? formatWaitMinutes(queueInfo.estimatedWaitTime)
+                : "—";
             const rawStatus = Number(it.status ?? -1);
 
             let buttonLabel = statusText;
@@ -379,7 +399,7 @@ function QueueList({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white font-bold">
-                      #{it.queueEntry?.position ?? "-"}
+                       #{queueInfo?.position ?? ""}
                     </div>
 
                     <div>
@@ -444,7 +464,7 @@ function QueueList({
                         buttonLabel
                       )}
                     </Button>
-                    {rawStatus === 4 && (
+                    {queueType === 2 && rawStatus === 5 && (
                       <Button
                         variant="outline"
                         className="ml-2"
@@ -456,7 +476,7 @@ function QueueList({
                           setConfirmOpen(true);
                         }}
                       >
-                        Xác nhận ETA
+                        Xác nhận thời gian
                       </Button>
                     )}
                   </div>
@@ -507,7 +527,7 @@ function QueueList({
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Xác nhận tiến độ món ăn</DialogTitle>
-            <DialogDescription>Vui lòng xác nhận kịp ETA hay báo trễ.</DialogDescription>
+            <DialogDescription>Vui lòng xác nhận bạn sẽ hoàn thành đơn hàng đúng so với thời gian dự kiến hay đang trễ đơn.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div className="flex items-center gap-2">
@@ -515,19 +535,19 @@ function QueueList({
                 variant={isOnTime ? "default" : "outline"}
                 onClick={() => setIsOnTime(true)}
               >
-                Kịp ETA
+                Hoàn thành đúng hẹn
               </Button>
               <Button
                 variant={!isOnTime ? "default" : "outline"}
                 onClick={() => setIsOnTime(false)}
               >
-                Không kịp
+                Trễ đơn
               </Button>
             </div>
             {!isOnTime && (
               <div className="grid gap-3">
                 <div>
-                  <label className="text-sm">Số phút trễ (tối đa 30)</label>
+                  <label className="text-sm">Số phút trễ (tối đa 30 phút)</label>
                   <Input
                     type="number"
                     min={0}
@@ -537,7 +557,7 @@ function QueueList({
                   />
                 </div>
                 <div>
-                  <label className="text-sm">Lý do (tuỳ chọn)</label>
+                  <label className="text-sm">Lý do trễ đơn</label>
                   <Input
                     value={delayReason}
                     onChange={(e) => setDelayReason(e.target.value)}
@@ -573,7 +593,7 @@ function QueueList({
         if (delayReason && delayReason.trim()) payload.reason = delayReason.trim();
       }
       await api.post(`/api/order/${confirmOrderId}/confirm-cooking`, payload, headers);
-      toast.success(isOnTime ? "Đã xác nhận kịp ETA" : "Đã báo trễ ETA");
+      toast.success(isOnTime ? "Đã xác nhận hoàn thành đơn đúng hẹn" : "Đã báo trễ đơn so với dự kiến");
       setConfirmOpen(false);
       setConfirmOrderId(null);
       setDelayMinutes(0);
