@@ -391,29 +391,32 @@ return ( <AdminLayout title="Tổng quan hệ thống"> <div className="space-y-
           </div>
         ))}
 
-        <div className="flex justify-between mt-4">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={pageNumber <= 1}
-            onClick={() => setPageNumber((prev) => prev - 1)}
-          >
-            Trang trước
-          </Button>
+        {totalPages > 1 && (
+          <div className="flex justify-between mt-4">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={pageNumber <= 1}
+              onClick={() => setPageNumber((prev) => prev - 1)}
+            >
+              Trang trước
+            </Button>
 
-          <p className="text-sm text-muted-foreground">
-            Trang {pageNumber} / {totalPages}
-          </p>
+            <p className="text-sm text-muted-foreground">
+              Trang {pageNumber} / {totalPages}
+            </p>
 
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={pageNumber >= totalPages}
-            onClick={() => setPageNumber((prev) => prev + 1)}
-          >
-            Trang sau
-          </Button>
-        </div>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={pageNumber >= totalPages}
+              onClick={() => setPageNumber((prev) => prev + 1)}
+            >
+              Trang sau
+            </Button>
+          </div>
+        )}
+
       </div>
     )}
   </CardContent>

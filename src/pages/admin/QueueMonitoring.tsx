@@ -6,40 +6,141 @@ import {
   Clock, Users, AlertCircle, X, 
   Eye, MapPin, ShoppingBag
 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { api } from "@/lib/api";
+import { getQueueEntryStatus } from "@/constaints/queueEntryStatusConst";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
+import { format } from "date-fns";
+import { Calendar } from "lucide-react";
 
 const QueueMonitoring = () => {
-  const activeQueues = [
-    {
-      id: 1,
-      vendorName: "Phở Hà Nội",
-      location: "Quận 1, TP.HCM",
-      customersInQueue: 12,
-      avgWaitTime: "15 phút",
-      status: "normal",
-      complaints: 0,
-      lastUpdate: "2 phút trước"
-    },
-    {
-      id: 2,
-      vendorName: "Coffee House",
-      location: "Quận 3, TP.HCM",
-      customersInQueue: 8,
-      avgWaitTime: "8 phút",
-      status: "normal",
-      complaints: 1,
-      lastUpdate: "1 phút trước"
-    },
-    {
-      id: 3,
-      vendorName: "Bánh Mì Express",
-      location: "Quận 7, TP.HCM",
-      customersInQueue: 25,
-      avgWaitTime: "35 phút",
-      status: "overloaded",
-      complaints: 3,
-      lastUpdate: "30 giây trước"
+
+  interface QueueEntryCountResponse {
+    data: {
+      totalCount: number;
+    };
+    additionalData: any;
+    message: string;
+    statusCode: number;
+    code: string;
+  }
+
+  interface CustomerQueueEntryCountResponse {
+    data: {
+      totalCount: number;
+    };
+    additionalData: any;
+    message: string;
+    statusCode: number;
+    code: string;
+  }
+
+  interface VendorForMonthResponse
+  {
+      data: {
+          totalRecords: number;
+          pageNumber: number;
+          pageSize: number;
+          totalPages: number;
+          hasPreviousPage: boolean;
+          hasNextPage: boolean;
+          data: Vendor[];
+        };
+  additionalData: any;
+  message: string;
+  statusCode: number;
+  code: string;
+  }
+
+  interface Vendor
+  {
+    id: string;
+    address: string;
+    name: string;
+    logoUrl: string;
+    lastUpdatedAgo: string;
+    act: number;
+    totalCustomerCount: number;
+    status: string,
+    complaints: number,
+  }
+
+  const [queueToday, setQueueToday] = useState(0);
+  const [queueCustomerToday, setQueueCustomerToday] = useState(0);
+  const [pageNumber, setPageNumber] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [vendor, setVendors] = useState<Vendor[]>([]);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const PAGE_SIZE = 5;
+
+  const formatToLocalDateString = (date: Date) => {
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, "0");
+    const dd = String(date.getDate()).padStart(2, "0");
+
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  const fetchQueueEntryCount = async (dateString: string) => {
+    try {
+      const res = await api.get<CustomerQueueEntryCountResponse>(
+        `/api/User/customer-waiting-count?date=${encodeURIComponent(dateString)}`
+      );
+      const totalCustomerQueueToday = res.data?.totalCount ?? 0;
+      setQueueCustomerToday(totalCustomerQueueToday);
+    } catch (error) {
+      console.error("Error fetching total customer queue entry:", error);
     }
-  ];
+  };
+
+  const fetchCustomerQueueEntryCount = async (dateString: string) => {
+    try {
+      const res = await api.get<QueueEntryCountResponse>(
+        `/api/QueueEntry/queue-entry-count?date=${encodeURIComponent(dateString)}`
+      );
+      const totalQueueToday = res.data?.totalCount ?? 0;
+      setQueueToday(totalQueueToday);
+    } catch (error) {
+      console.error("Error fetching total queue entry:", error);
+    }
+  };
+
+  const fetchVendorsQueue = async (dateString: string, page: number = 1) => {
+    try {
+      setLoading(true);
+  
+      const res = await api.get<VendorForMonthResponse>(
+        `/api/vendor/vendor-queue?date=${encodeURIComponent(dateString)}&PageNumber=${page}&PageSize=${PAGE_SIZE}`
+      );
+  
+      const response = res.data;
+  
+      setVendors(response.data ?? []);
+      setTotalPages(response.totalPages ?? 1);
+      setTotalRecords(response.totalRecords ?? 0);
+    } catch (error) {
+      console.error("Error fetching vendors:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDateChange = (date: Date | null) => {
+    if (!date) return;
+    setSelectedDate(date);
+    fetchQueueEntryCount(formatToLocalDateString(date));
+    fetchCustomerQueueEntryCount(formatToLocalDateString(date));
+    fetchVendorsQueue(formatToLocalDateString(selectedDate), pageNumber);
+  };
+
+  useEffect(() => {
+    fetchQueueEntryCount(formatToLocalDateString(selectedDate));
+    fetchCustomerQueueEntryCount(formatToLocalDateString(selectedDate));
+    fetchVendorsQueue(formatToLocalDateString(selectedDate), pageNumber);
+  }, [selectedDate, pageNumber]);
 
   const complaints = [
     {
@@ -60,23 +161,36 @@ const QueueMonitoring = () => {
     }
   ];
 
-  const handleForceClose = (queueId: number) => {
+  const handleForceClose = (queueId: string) => {
     console.log("Buộc đóng hàng đợi:", queueId);
   };
 
-  const handleViewDetails = (queueId: number) => {
+  const handleViewDetails = (queueId: string) => {
     console.log("Xem chi tiết hàng đợi:", queueId);
   };
 
   return (
     <AdminLayout title="Giám sát hàng đợi">
       <div className="space-y-6">
-        {/* Thống kê tổng quan */}
+
+        <div className="mb-4 flex items-center gap-2">
+        <label htmlFor="queueDate" className="font-medium">Chọn ngày:</label>
+        <DatePicker
+          id="queueDate"
+          selected={selectedDate}
+          onChange={handleDateChange}
+          dateFormat="yyyy-MM-dd"
+          className="border rounded px-2 py-1"
+        />
+        <Calendar className="w-5 h-5 text-gray-500" />
+      </div>
+
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Card>
             <CardContent className="pt-6">
               <div className="text-center">
-                <div className="text-3xl font-bold text-primary">45</div>
+                <div className="text-3xl font-bold text-primary">{queueToday.toLocaleString()}</div>
                 <p className="text-muted-foreground">Hàng đợi đang hoạt động</p>
               </div>
             </CardContent>
@@ -84,7 +198,7 @@ const QueueMonitoring = () => {
           <Card>
             <CardContent className="pt-6">
               <div className="text-center">
-                <div className="text-3xl font-bold text-warning">234</div>
+                <div className="text-3xl font-bold text-primary">{queueCustomerToday.toLocaleString()}</div>
                 <p className="text-muted-foreground">Khách đang chờ</p>
               </div>
             </CardContent>
@@ -105,8 +219,8 @@ const QueueMonitoring = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {activeQueues.map((queue) => (
-                <div key={queue.id} className="border rounded-lg p-4">
+              {vendor.map((vendor) => (
+                <div key={vendor.id} className="border rounded-lg p-4">
                   <div className="grid lg:grid-cols-5 gap-4 items-center">
                     <div className="lg:col-span-2">
                       <div className="flex items-start gap-3">
@@ -114,20 +228,20 @@ const QueueMonitoring = () => {
                           <ShoppingBag className="w-5 h-5 text-primary" />
                         </div>
                         <div>
-                          <h3 className="font-semibold">{queue.vendorName}</h3>
+                          <h3 className="font-semibold">{vendor.name}</h3>
                           <p className="text-sm text-muted-foreground flex items-center gap-1">
                             <MapPin className="w-3 h-3" />
-                            {queue.location}
+                            {vendor.address}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            Cập nhật {queue.lastUpdate}
+                            Cập nhật {vendor.lastUpdatedAgo}
                           </p>
                         </div>
                       </div>
                     </div>
 
                     <div className="text-center">
-                      <div className="text-2xl font-bold">{queue.customersInQueue}</div>
+                      <div className="text-2xl font-bold">{vendor.totalCustomerCount.toLocaleString()}</div>
                       <p className="text-xs text-muted-foreground flex items-center justify-center gap-1">
                         <Users className="w-3 h-3" />
                         Khách đang chờ
@@ -135,7 +249,7 @@ const QueueMonitoring = () => {
                     </div>
 
                     <div className="text-center">
-                      <div className="text-2xl font-bold">{queue.avgWaitTime}</div>
+                      <div className="text-2xl font-bold">{vendor.act}</div>
                       <p className="text-xs text-muted-foreground flex items-center justify-center gap-1">
                         <Clock className="w-3 h-3" />
                         Thời gian trung bình
@@ -146,16 +260,16 @@ const QueueMonitoring = () => {
                       <div className="flex items-center justify-between">
                         <Badge 
                           variant={
-                            queue.status === "normal" ? "default" : 
-                            queue.status === "overloaded" ? "destructive" : "secondary"
+                            vendor.status === "normal" ? "default" : 
+                            vendor.status === "overloaded" ? "destructive" : "secondary"
                           }
                         >
-                          {queue.status === "normal" ? "Bình thường" : "Quá tải"}
+                          {vendor.status === "normal" ? "Bình thường" : "Quá tải"}
                         </Badge>
-                        {queue.complaints > 0 && (
+                        {vendor.complaints > 0 && (
                           <Badge variant="outline" className="text-xs">
                             <AlertCircle className="w-3 h-3 mr-1" />
-                            {queue.complaints}
+                            {vendor.complaints}
                           </Badge>
                         )}
                       </div>
@@ -164,14 +278,14 @@ const QueueMonitoring = () => {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => handleViewDetails(queue.id)}
+                          onClick={() => handleViewDetails(vendor.id)}
                         >
                           <Eye className="w-4 h-4" />
                         </Button>
                         <Button
                           size="sm"
                           variant="destructive"
-                          onClick={() => handleForceClose(queue.id)}
+                          onClick={() => handleForceClose(vendor.id)}
                         >
                           <X className="w-4 h-4" />
                         </Button>
@@ -180,6 +294,33 @@ const QueueMonitoring = () => {
                   </div>
                 </div>
               ))}
+
+              {totalPages > 1 && (
+                <div className="flex justify-between mt-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={pageNumber <= 1}
+                    onClick={() => setPageNumber((prev) => prev - 1)}
+                  >
+                    Trang trước
+                  </Button>
+
+                  <p className="text-sm text-muted-foreground">
+                    Trang {pageNumber} / {totalPages}
+                  </p>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={pageNumber >= totalPages}
+                    onClick={() => setPageNumber((prev) => prev + 1)}
+                  >
+                    Trang sau
+                  </Button>
+                </div>
+              )}
+
             </div>
           </CardContent>
         </Card>
