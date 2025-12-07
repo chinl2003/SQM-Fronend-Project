@@ -275,13 +275,27 @@ export default function RegistrationSection({
     }
   }
 
-  const editableInputCls = editable
-    ? ""
-    : "opacity-60 pointer-events-none select-none";
+  const isVerified = useMemo(
+    () =>
+      Boolean(
+        vendor?.businessLicenseUrl &&
+        vendor?.foodSafetyCertUrl &&    
+        vendor?.personalIdentityNumber &&
+        vendor?.personalIdentityFront &&
+        vendor?.personalIdentityBack
+      ),
+    [
+      vendor?.businessLicenseUrl,
+      vendor?.foodSafetyCertUrl,
+      vendor?.personalIdentityNumber,
+      vendor?.personalIdentityFront,
+      vendor?.personalIdentityBack,
+    ]
+  );
+
 
   return (
     <div className="space-y-6">
-      {/* BASIC INFORMATION */}
       <Card className={`border-primary/25 bg-primary/5 ${sectionFx}`}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-primary">
@@ -292,9 +306,7 @@ export default function RegistrationSection({
 
         <CardContent className="space-y-4">
 
-          {/* NAME + BUSINESS TYPE */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* NAME */}
             <div className="space-y-2">
               <Label className="font-semibold" htmlFor="brandName">
                 Tên quán / thương hiệu {editable && <Req />}
@@ -311,7 +323,6 @@ export default function RegistrationSection({
               )}
             </div>
 
-            {/* BUSINESS TYPE */}
             <div className="space-y-2">
               <Label className="font-semibold" htmlFor="businessType">
                 Loại hình kinh doanh {editable && <Req />}
@@ -334,12 +345,11 @@ export default function RegistrationSection({
                   </SelectContent>
                 </Select>
               ) : (
-                <p className="font-normal">{vendor?.businessTypeId || "—"}</p>
+                <p className="font-normal">{vendor?.businessTypeName || "—"}</p>
               )}
             </div>
           </div>
 
-          {/* ADDRESS */}
           <div className="space-y-2">
             <Label className="font-semibold" htmlFor="address">
               Địa chỉ hoạt động {editable && <Req />}
@@ -356,9 +366,7 @@ export default function RegistrationSection({
             )}
           </div>
 
-          {/* OPEN + PHONE */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* HOURS */}
             <div className="space-y-2">
               <Label className="font-semibold" htmlFor="openingHours">
                 Giờ hoạt động {editable && <Req />}
@@ -375,7 +383,6 @@ export default function RegistrationSection({
               )}
             </div>
 
-            {/* PHONE */}
             <div className="space-y-2">
               <Label className="font-semibold" htmlFor="phone">
                 Số điện thoại {editable && <Req />}
@@ -393,9 +400,7 @@ export default function RegistrationSection({
             </div>
           </div>
 
-          {/* EMAIL + LOGO */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* EMAIL */}
             <div className="space-y-2">
               <Label className="font-semibold" htmlFor="email">
                 Email liên hệ {editable && <Req />}
@@ -413,7 +418,6 @@ export default function RegistrationSection({
               )}
             </div>
 
-            {/* LOGO */}
             <div className="space-y-2">
               <Label className="font-semibold" htmlFor="logo">
                 Hình ảnh/Logo quán {editable && <Req />}
@@ -438,278 +442,275 @@ export default function RegistrationSection({
         </CardContent>
       </Card>
 
-      {/* ========== LEGAL SECTION ========== */}
-      <Card className={`border-primary/25 bg-primary/5 ${sectionFx}`}>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-primary">
-            <Shield className="h-5 w-5" />
-            Thông tin pháp lý / xác thực {editable && <Req />}
-          </CardTitle>
-        </CardHeader>
+      <Card
+        className={`
+          relative overflow-hidden border-0 bg-transparent ${sectionFx}
+        `}
+      >
+        <div className="relative rounded-2xl bg-gradient-to-br from-primary/70 via-primary/30 to-emerald-400/70 p-[1.5px] shadow-[0_18px_45px_rgba(0,0,0,0.28)]">
+          <div className="relative rounded-2xl bg-gradient-to-br from-background via-background/90 to-primary/5">
+            <div className="pointer-events-none absolute -left-24 top-0 h-40 w-40 rounded-full bg-primary/15 blur-3xl" />
+            <div className="pointer-events-none absolute -right-16 bottom-0 h-32 w-32 rounded-full bg-emerald-400/10 blur-3xl" />
 
-        <CardContent className="space-y-4">
-          {/* BUSINESS LICENSE */}
-          <div className="space-y-2">
-            <Label className="font-semibold" htmlFor="businessLicense">
-              Giấy phép kinh doanh {editable && <Req />}
-            </Label>
-
-            {editable ? (
-              <div className="flex items-center gap-2">
-                <Input id="businessLicense" type="file" accept="image/*" />
-                <Upload className="h-4 w-4 text-muted-foreground" />
-              </div>
-            ) : vendor?.businessLicenseUrl ? (
-              <img
-                src={buildMediaUrl(vendor.businessLicenseUrl)}
-                className="h-28 rounded object-cover"
-              />
-            ) : (
-              <span className="text-sm text-muted-foreground">—</span>
-            )}
-          </div>
-
-          {/* FOOD SAFETY CERT */}
-          <div className="space-y-2">
-            <Label className="font-semibold" htmlFor="foodSafety">
-              Giấy chứng nhận VSATTP {editable &&<Req />}
-            </Label>
-
-            {editable ? (
-              <div className="flex items-center gap-2">
-                <Input id="foodSafety" type="file" accept="image/*" />
-                <Upload className="h-4 w-4 text-muted-foreground" />
-              </div>
-            ) : vendor?.foodSafetyCertUrl ? (
-              <img
-                src={buildMediaUrl(vendor.foodSafetyCertUrl)}
-                className="h-28 rounded object-cover"
-              />
-            ) : (
-              <span className="text-sm text-muted-foreground">—</span>
-            )}
-          </div>
-
-          {/* CCCD */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* NUMBER */}
-            <div className="space-y-2 md:col-span-1">
-              <Label className="font-semibold" htmlFor="idNumber">
-                Mã số CCCD {editable && <Req />}
-              </Label>
-              {editable ? (
-                <Input
-                  id="idNumber"
-                  defaultValue={vendor?.personalIdentityNumber || ""}
-                  placeholder="Nhập mã số CCCD"
-                />
-              ) : (
-                <p className="font-normal">
-                  {vendor?.personalIdentityNumber || "—"}
-                </p>
-              )}
-            </div>
-
-            {/* FRONT */}
-            <div className="space-y-2 md:col-span-1">
-              <Label className="font-semibold" htmlFor="idFront">
-                Ảnh CCCD mặt trước {editable && <Req />}
-              </Label>
-
-              {editable ? (
-                <div className="flex items-center gap-2">
-                  <Input id="idFront" type="file" accept="image/*" />
-                  <Upload className="h-4 w-4 text-muted-foreground" />
+            <CardHeader className="relative z-[1] flex flex-col gap-3 border-b border-primary/10 pb-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 ring-2 ring-primary/20">
+                  <Shield className="h-5 w-5 text-primary" />
                 </div>
-              ) : vendor?.personalIdentityFront ? (
-                <img
-                  src={buildMediaUrl(vendor.personalIdentityFront)}
-                  className="h-28 rounded object-cover"
-                />
-              ) : (
-                <span className="text-sm text-muted-foreground">—</span>
-              )}
-            </div>
-
-            {/* BACK */}
-            <div className="space-y-2 md:col-span-1">
-              <Label className="font-semibold" htmlFor="idBack">
-                Ảnh CCCD mặt sau {editable && <Req />}
-              </Label>
-              {editable ? (
-                <div className="flex items-center gap-2">
-                  <Input id="idBack" type="file" accept="image/*" />
-                  <Upload className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-base font-semibold tracking-tight text-foreground">
+                    Thông tin pháp lý / xác thực {editable && <Req />}
+                  </CardTitle>
+                  <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
+                    Cung cấp đầy đủ giấy tờ để kích hoạt trạng thái nhà cung cấp đã xác thực.
+                  </p>
                 </div>
-              ) : vendor?.personalIdentityBack ? (
-                <img
-                  src={buildMediaUrl(vendor.personalIdentityBack)}
-                  className="h-28 rounded object-cover"
-                />
-              ) : (
-                <span className="text-sm text-muted-foreground">—</span>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+              </div>
 
-      {/* ========== FINANCE SECTION ========== */}
-      <Card className={`border-primary/25 bg-primary/5 ${sectionFx}`}>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-primary">
-            <DollarSign className="h-5 w-5" />
-            Thông tin tài chính / thanh toán {editable && <Req />}
-          </CardTitle>
-        </CardHeader>
-
-        <CardContent className="space-y-4">
-          {/* BANK SELECT */}
-          <div className="space-y-2">
-            <Label className="font-semibold" htmlFor="bankName">
-              Tên ngân hàng {editable && <Req />}
-            </Label>
-
-            {editable ? (
-              <Select
-                value={selectedBankBin}
-                onValueChange={setSelectedBankBin}
-                disabled={banksLoading || !!banksError}
-              >
-                <SelectTrigger>
-                  <SelectValue
-                    placeholder={
-                      banksLoading
-                        ? "Đang tải danh sách ngân hàng..."
-                        : banksError
-                        ? "Không tải được danh sách. Thử lại."
-                        : "Chọn ngân hàng"
+              <div className="flex items-center gap-2">
+                <div
+                  className={`
+                    inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium
+                    ${
+                      isVerified
+                        ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-500"
+                        : "border-amber-500/40 bg-amber-500/10 text-amber-500"
                     }
-                  />
-                </SelectTrigger>
-
-                <SelectContent className="max-h-80">
-                  {banks.length === 0 ? (
-                    <div className="px-3 py-2 text-sm text-muted-foreground">
-                      {banksError ? banksError : "Không có dữ liệu ngân hàng"}
-                    </div>
-                  ) : (
-                    banks.map((b) => (
-                      <SelectItem key={b.bin} value={b.bin}>
-                        <span className="flex items-center gap-2">
-                          <img
-                            src={b.logo}
-                            alt={b.shortName}
-                            className="h-4 w-4 rounded-sm object-contain"
-                          />
-                          <span className="truncate">
-                            {b.shortName || b.name}
-                          </span>
-                        </span>
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-            ) : (
-              <p className="font-normal">
-                {vendor?.bankName ||
-                  (vendor?.bankBin ? `BIN ${vendor.bankBin}` : "—")}
-              </p>
-            )}
-
-            {selectedBank && editable && (
-              <p className="text-xs text-muted-foreground">
-                Mã BIN: {selectedBank.bin}
-                {selectedBank.lookupSupported ? " • Hỗ trợ tra cứu chủ TK" : ""}
-              </p>
-            )}
-          </div>
-
-          {/* BANK ACCOUNT */}
-          <div className="space-y-2">
-            <Label className="font-semibold" htmlFor="bankAccount">
-              Tài khoản ngân hàng / ví điện tử {editable && <Req />}
-            </Label>
-
-            {editable ? (
-              <div className="flex gap-2">
-                <Input
-                  id="bankAccount"
-                  placeholder="Nhập số tài khoản"
-                  required
-                  value={bankAccount}
-                  onChange={(e) => setBankAccount(e.target.value)}
-                />
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={lookupAccountName}
-                  disabled={
-                    !selectedBankBin ||
-                    !bankAccount ||
-                    !selectedBank?.lookupSupported
-                  }
+                  `}
                 >
-                  Tra cứu
-                </Button>
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full ${
+                      isVerified ? "bg-emerald-400" : "bg-amber-400"
+                    }`}
+                  />
+                  {isVerified ? "Đã đủ thông tin" : "Chưa đủ thông tin"}
+                </div>
+
+                {editable && (
+                  <span className="hidden text-[11px] text-muted-foreground sm:inline">
+                    Trạng thái được cập nhật tự động khi bạn lưu thông tin.
+                  </span>
+                )}
               </div>
-            ) : (
-              <p className="font-normal">{vendor?.bankAccountNumber || "—"}</p>
-            )}
+            </CardHeader>
 
-            {editable ? (
-              <p className="text-xs text-muted-foreground">
-                Chọn ngân hàng và nhập số tài khoản, sau đó bấm <em>Tra cứu</em>{" "}
-                để điền tên chủ tài khoản (nếu hỗ trợ).
-              </p>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                Chủ TK: {vendor?.bankAccountHolder || "—"}
-              </p>
-            )}
+            <CardContent className="relative z-[1] space-y-5 pt-4">
+              <div className="grid gap-4 lg:grid-cols-[1.2fr_1.2fr]">
+                <div className="group relative overflow-hidden rounded-xl border border-primary/10 bg-background/60 p-3.5 shadow-sm transition hover:border-primary/40 hover:shadow-md">
+                  <div className="absolute right-4 top-3 text-[10px] font-semibold uppercase tracking-wide text-primary/60">
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2 text-sm font-semibold" htmlFor="businessLicense">
+                      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-[11px] font-bold text-primary">
+                        1
+                      </span>
+                      Giấy phép kinh doanh {editable && <Req />}
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Tải ảnh rõ nét, bao gồm tên doanh nghiệp, địa chỉ và ngành nghề.
+                    </p>
+                  </div>
+
+                  <div className="mt-3">
+                    {editable ? (
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                        <label
+                          htmlFor="businessLicense"
+                          className="flex h-28 w-full cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-muted-foreground/40 bg-muted/40 text-xs text-muted-foreground transition hover:border-primary/60 hover:bg-muted/70"
+                        >
+                          <Upload className="mb-1 h-5 w-5 opacity-70" />
+                          <span className="font-medium text-foreground">Chọn hoặc kéo thả file</span>
+                          <span className="text-[10px] text-muted-foreground/80">
+                            Hỗ trợ PNG, JPG (tối đa ~5MB)
+                          </span>
+                        </label>
+                        <Input
+                          id="businessLicense"
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                        />
+                      </div>
+                    ) : vendor?.businessLicenseUrl ? (
+                      <div className="relative mt-1 overflow-hidden rounded-lg border border-primary/10 bg-muted/50">
+                        <img
+                          src={buildMediaUrl(vendor.businessLicenseUrl)}
+                          className="h-32 w-full object-contain"
+                        />
+                        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 transition group-hover:opacity-100" />
+                        <div className="pointer-events-none absolute bottom-1.5 right-2 rounded-full bg-black/65 px-2 py-0.5 text-[10px] font-medium text-white opacity-0 backdrop-blur group-hover:opacity-100">
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">Chưa có dữ liệu — vui lòng bổ sung.</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="group relative overflow-hidden rounded-xl border border-primary/10 bg-background/60 p-3.5 shadow-sm transition hover:border-primary/40 hover:shadow-md">
+                  <div className="absolute right-4 top-3 text-[10px] font-semibold uppercase tracking-wide text-primary/60">
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2 text-sm font-semibold" htmlFor="foodSafety">
+                      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-[11px] font-bold text-primary">
+                        2
+                      </span>
+                      Giấy chứng nhận VSATTP {editable && <Req />}
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Bắt buộc cho đơn vị kinh doanh thực phẩm, đồ uống, bếp ăn, F&amp;B.
+                    </p>
+                  </div>
+
+                  <div className="mt-3">
+                    {editable ? (
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                        <label
+                          htmlFor="foodSafety"
+                          className="flex h-28 w-full cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-muted-foreground/40 bg-muted/40 text-xs text-muted-foreground transition hover:border-primary/60 hover:bg-muted/70"
+                        >
+                          <Upload className="mb-1 h-5 w-5 opacity-70" />
+                          <span className="font-medium text-foreground">Chọn hoặc kéo thả file</span>
+                          <span className="text-[10px] text-muted-foreground/80">
+                            Hỗ trợ PNG, JPG (tối đa ~5MB)
+                          </span>
+                        </label>
+                        <Input id="foodSafety" type="file" accept="image/*" className="hidden" />
+                      </div>
+                    ) : vendor?.foodSafetyCertUrl ? (
+                      <div className="relative mt-1 overflow-hidden rounded-lg border border-primary/10 bg-muted/50">
+                        <img
+                          src={buildMediaUrl(vendor.foodSafetyCertUrl)}
+                          className="h-32 w-full object-contain"
+                        />
+                        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 transition group-hover:opacity-100" />
+                        <div className="pointer-events-none absolute bottom-1.5 right-2 rounded-full bg-black/65 px-2 py-0.5 text-[10px] font-medium text-white opacity-0 backdrop-blur group-hover:opacity-100">
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">
+                        Chưa có dữ liệu — có thể bổ sung sau nếu không thuộc ngành thực phẩm.
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="relative overflow-hidden rounded-xl border border-primary/10 bg-background/60 p-3.5 shadow-sm">
+                <div className="absolute right-4 top-3 text-[10px] font-semibold uppercase tracking-wide text-primary/60">
+                </div>
+
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-[11px] font-bold text-primary">
+                      3
+                    </span>
+                    <p className="text-sm font-semibold">Thông tin CCCD cá nhân {editable && <Req />}</p>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Dùng để xác thực chủ sở hữu gian hàng, không hiển thị với khách.
+                  </p>
+                </div>
+
+                <div className="flex flex-col gap-4 md:flex-row md:items-stretch">
+                  <div className="w-full md:w-1/2 space-y-2">
+                    <Label className="text-sm font-semibold" htmlFor="idNumber">
+                      Mã số CCCD
+                    </Label>
+                    {editable ? (
+                      <Input
+                        id="idNumber"
+                        defaultValue={vendor?.personalIdentityNumber || ""}
+                        placeholder="Ví dụ: 0xx xxx xxx xxx"
+                        className="h-10 text-base tracking-[0.18em] font-medium"
+                      />
+                    ) : (
+                      <div className="rounded-md border border-muted/70 bg-muted/40 px-3 py-2">
+                        <p className="text-base font-semibold tracking-[0.18em]">
+                          {vendor?.personalIdentityNumber || "—"}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="w-full md:w-1/2">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Label className="text-xs font-semibold" htmlFor="idFront">
+                          Mặt trước
+                        </Label>
+
+                        {editable ? (
+                          <div className="flex items-center justify-center">
+                            <label
+                              htmlFor="idFront"
+                              className="flex aspect-[85/54] w-full max-w-[180px] cursor-pointer items-center justify-center rounded-lg border border-dashed border-muted-foreground/40 bg-muted/40 text-[11px] text-muted-foreground transition hover:border-primary/60 hover:bg-muted/70"
+                            >
+                              <div className="flex flex-col items-center gap-1">
+                                <Upload className="h-4 w-4 opacity-70" />
+                                <span className="font-medium text-foreground">
+                                  Tải ảnh mặt trước
+                                </span>
+                              </div>
+                            </label>
+                            <Input id="idFront" type="file" accept="image/*" className="hidden" />
+                          </div>
+                        ) : vendor?.personalIdentityFront ? (
+                          <div className="flex justify-start">
+                            <div className="aspect-[85/54] w-full max-w-[180px] overflow-hidden rounded-lg border border-primary/10 bg-muted/60">
+                              <img
+                                src={buildMediaUrl(vendor.personalIdentityFront)}
+                                className="h-full w-full object-cover"
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">—</span>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label className="text-xs font-semibold" htmlFor="idBack">
+                          Mặt sau
+                        </Label>
+
+                        {editable ? (
+                          <div className="flex items-center justify-center">
+                            <label
+                              htmlFor="idBack"
+                              className="flex aspect-[85/54] w-full max-w-[180px] cursor-pointer items-center justify-center rounded-lg border border-dashed border-muted-foreground/40 bg-muted/40 text-[11px] text-muted-foreground transition hover:border-primary/60 hover:bg-muted/70"
+                            >
+                              <div className="flex flex-col items-center gap-1">
+                                <Upload className="h-4 w-4 opacity-70" />
+                                <span className="font-medium text-foreground">
+                                  Tải ảnh mặt sau
+                                </span>
+                              </div>
+                            </label>
+                            <Input id="idBack" type="file" accept="image/*" className="hidden" />
+                          </div>
+                        ) : vendor?.personalIdentityBack ? (
+                          <div className="flex justify-start">
+                            <div className="aspect-[85/54] w-full max-w-[180px] overflow-hidden rounded-lg border border-primary/10 bg-muted/60">
+                              <img
+                                src={buildMediaUrl(vendor.personalIdentityBack)}
+                                className="h-full w-full object-cover"
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">—</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
           </div>
-
-          {/* ACCOUNT HOLDER */}
-          <div className="space-y-2">
-            <Label className="font-semibold" htmlFor="accountHolder">
-              Tên chủ tài khoản {editable && <Req />}
-            </Label>
-
-            {editable ? (
-              <Input
-                id="accountHolder"
-                placeholder="Tên chủ tài khoản"
-                required
-                value={accountHolder}
-                onChange={(e) => setAccountHolder(e.target.value)}
-              />
-            ) : (
-              <p className="font-normal">{vendor?.bankAccountHolder || "—"}</p>
-            )}
-          </div>
-
-          {/* INVOICE INFO */}
-          <div className="space-y-2">
-            <Label className="font-semibold" htmlFor="invoiceInfo">
-              Thông tin xuất hóa đơn
-            </Label>
-            {editable ? (
-              <Textarea
-                id="invoiceInfo"
-                defaultValue={vendor?.invoiceInfo || ""}
-                placeholder="Nhập thông tin xuất hóa đơn (nếu có)"
-              />
-            ) : (
-              <p className="font-normal whitespace-pre-wrap">
-                {vendor?.invoiceInfo || "—"}
-              </p>
-            )}
-          </div>
-        </CardContent>
+        </div>
       </Card>
 
-      {/* ========== COST SECTION ========== */}
       <Card className="border-amber-200 bg-amber-50">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-amber-800">
@@ -719,7 +720,6 @@ export default function RegistrationSection({
         </CardHeader>
 
         <CardContent className="space-y-4">
-          {/* FEES */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label className="text-sm font-medium">
@@ -736,7 +736,6 @@ export default function RegistrationSection({
             </div>
           </div>
 
-          {/* RULES */}
           <Alert>
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription className="text-sm">
@@ -750,10 +749,8 @@ export default function RegistrationSection({
             </AlertDescription>
           </Alert>
 
-          {/* SUBMIT */}
           {editable ? (
             <div className="space-y-3">
-              {/* TERMS */}
               <div className="flex items-center space-x-2">
                 <input type="checkbox" id="terms" />
                 <Label htmlFor="terms">
