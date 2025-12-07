@@ -1,3 +1,4 @@
+// src/pages/Index.tsx
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Navigation } from "@/components/Navigation";
@@ -10,7 +11,6 @@ import { Badge } from "@/components/ui/badge";
 import { Utensils, MapPin, Loader2, MapPinOff } from "lucide-react";
 import heroImage from "@/assets/hero-image.jpg";
 import { api, ApiResponse } from "@/lib/api";
-import { VendorQuickView } from "@/components/customer/VendorQuickView";
 import { useGeolocation } from "@/hooks/useGeolocation";
 import { calculateDistance, formatDistance } from "@/lib/geolocation";
 
@@ -38,14 +38,17 @@ type ApiVendor = {
   queueCount?: number | null;
   allowPreorder?: boolean | null;
   distance?: number | null;
+
+  // business type id để filter
+  businessTypeId?: string | null;
 };
 
-  type BusinessType = {
-    id: string;
-    name?: string | null;
-    icon?: string | null;         
-    activeVendorCount?: number | null;
-  };
+type BusinessType = {
+  id: string;
+  name?: string | null;
+  icon?: string | null;
+  activeVendorCount?: number | null;
+};
 
 function buildMediaUrl(path?: string | null) {
   if (!path) return "";
@@ -54,22 +57,48 @@ function buildMediaUrl(path?: string | null) {
   return `${base}/${String(path).replace(/^\/+/, "")}`;
 }
 
+// Ép dữ liệu vendor về đúng shape + có businessTypeId
 function extractVendorsFromResponse(res: any): ApiVendor[] {
-  const outer = res?.data.data ?? res;
+  const outer = res?.data?.data ?? res?.data ?? res;
   const list =
     (Array.isArray(outer) && outer) ||
     (Array.isArray(outer?.data) && outer.data) ||
     [];
-  return list as ApiVendor[];
+
+  return (list as any[]).map((v) => ({
+    id: v.id,
+    name: v.name,
+    address: v.address,
+    latitude: v.latitude,
+    longitude: v.longitude,
+    logoUrl: v.logoUrl,
+    averageRating: v.averageRating,
+    queueCount: v.queueCount,
+    allowPreorder: v.allowPreorder,
+    distance: v.distance,
+    // cố gắng map nhiều kiểu tên field
+    businessTypeId:
+      v.businessTypeId ??
+      v.BusinessTypeId ??
+      v.businessTypeID ??
+      null,
+  }));
 }
 
+// Map BusinessTypeResponse (BusinessTypeId, BusinessTypeName, Count) về type FE
 function extractBusinessTypesFromResponse(res: any): BusinessType[] {
   const outer = res?.data?.data ?? res?.data ?? res;
   const list =
     (Array.isArray(outer) && outer) ||
     (Array.isArray(outer?.data) && outer.data) ||
     [];
-  return list as BusinessType[];
+
+  return (list as any[]).map((b, idx) => ({
+    id: b.businessTypeId ?? b.BusinessTypeId ?? b.id ?? `bt-${idx}`,
+    name: b.businessTypeName ?? b.BusinessTypeName ?? b.name ?? "Danh mục",
+    icon: b.icon ?? null,
+    activeVendorCount: b.count ?? b.Count ?? b.activeVendorCount ?? 0,
+  }));
 }
 
 export default function Index() {
@@ -77,13 +106,11 @@ export default function Index() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [vendors, setVendors] = useState<ApiVendor[]>([]);
-  const [quickViewId, setQuickViewId] = useState<string | null>(null);
-  const [currentCustomerId, setCurrentCustomerId] = useState<string | null>(null);
   const [radiusKm] = useState<number>(5);
 
   const [categories, setCategories] = useState<BusinessType[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(false);
-  // Geolocation hook
+
   const {
     coordinates: userLocation,
     loading: locationLoading,
@@ -92,11 +119,13 @@ export default function Index() {
   } = useGeolocation();
 
   useEffect(() => {
+    // nếu có cần currentCustomerId thì giữ, còn không có thể xoá
     const cid = localStorage.getItem("userId") || null;
-    setCurrentCustomerId(cid);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const currentCustomerId = cid;
   }, []);
 
-
+  // Lấy BusinessType
   useEffect(() => {
     let mounted = true;
 
@@ -127,6 +156,7 @@ export default function Index() {
     };
   }, []);
 
+  // Lấy vendors
   useEffect(() => {
     let mounted = true;
 
@@ -180,16 +210,26 @@ export default function Index() {
     };
   }, [userLocation, locationLoading, radiusKm]);
 
+  // ====== FILTER VENDOR THEO DANH MỤC ======
+  const filteredVendors = useMemo(
+    () =>
+      selectedCategory
+        ? vendors.filter((v) => v.businessTypeId === selectedCategory)
+        : vendors,
+    [vendors, selectedCategory]
+  );
+  // ========================================
+
   const vendorLocations = useMemo(
     () =>
-      vendors.map((v) => ({
+      filteredVendors.map((v) => ({
         id: v.id,
         name: v.name ?? "",
         lat: v.latitude ?? 0,
         lng: v.longitude ?? 0,
         queueSize: v.queueCount ?? 0,
       })),
-    [vendors]
+    [filteredVendors]
   );
 
   const getVendorDistance = (vendor: ApiVendor): string => {
@@ -216,7 +256,7 @@ export default function Index() {
 
   const vendorCards = useMemo(
     () =>
-      vendors.map((v) => ({
+      filteredVendors.map((v) => ({
         id: v.id,
         name: v.name ?? "—",
         coverImage: buildMediaUrl(v.logoUrl) || heroImage,
@@ -232,7 +272,7 @@ export default function Index() {
         lat: v.latitude ?? 0,
         lng: v.longitude ?? 0,
       })),
-    [vendors, userLocation]
+    [filteredVendors, userLocation]
   );
 
   const handleVendorClick = (vendorId: string) => {
@@ -240,6 +280,7 @@ export default function Index() {
   };
 
   const handleFilterChange = () => {
+    // TODO: nếu sau này muốn filter thêm
   };
 
   return (
@@ -287,8 +328,15 @@ export default function Index() {
             ) : locationError ? (
               <>
                 <MapPinOff className="h-4 w-4 text-destructive" />
-                <span className="text-sm text-muted-foreground">{locationError}</span>
-                <Button variant="link" size="sm" onClick={requestLocation} className="p-0 h-auto">
+                <span className="text-sm text-muted-foreground">
+                  {locationError}
+                </span>
+                <Button
+                  variant="link"
+                  size="sm"
+                  onClick={requestLocation}
+                  className="p-0 h-auto"
+                >
                   Thử lại
                 </Button>
               </>
@@ -300,13 +348,18 @@ export default function Index() {
         <section>
           <GoogleMap
             vendors={vendorLocations}
-            userLocation={userLocation ? { lat: userLocation.latitude, lng: userLocation.longitude } : null}
+            userLocation={
+              userLocation
+                ? { lat: userLocation.latitude, lng: userLocation.longitude }
+                : null
+            }
             onVendorClick={handleVendorClick}
             height="300px"
           />
         </section>
 
-         <section>
+        {/* Danh mục */}
+        <section>
           <h2 className="text-xl font-semibold mb-4 flex items-center">
             <Utensils className="mr-2 h-5 w-5" />
             Duyệt theo danh mục
@@ -361,6 +414,7 @@ export default function Index() {
           )}
         </section>
 
+        {/* Vendors */}
         <section>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold">
@@ -397,7 +451,9 @@ export default function Index() {
               ))}
               {!vendorCards.length && (
                 <div className="col-span-full text-center text-muted-foreground py-8">
-                  Chưa có nhà hàng nào.
+                  {selectedCategory
+                    ? "Không có nhà hàng nào thuộc danh mục này."
+                    : "Chưa có nhà hàng nào."}
                 </div>
               )}
             </div>
