@@ -208,6 +208,16 @@ function QueueList({
     return `${totalMin} phút`;
   };
 
+  const formatPreorderWait = (iso?: string | null) => {
+    if (!iso) return "—";
+    const est = new Date(iso);
+    if (Number.isNaN(est.getTime())) return "—";
+    const diffMs = est.getTime() - Date.now();
+    const diffMin = Math.round(diffMs / 60000);
+    if (diffMin <= 0) return "0 phút";
+    return `${diffMin} phút`;
+  };
+
   const mapPaymentStatus = (ps: number | null | undefined) => {
     switch (ps) {
       case 0:
@@ -265,7 +275,11 @@ function QueueList({
       const token = localStorage.getItem("accessToken") || "";
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
 
-      const estServeIso = order.queueEntry?.estimatedServeTime || null;
+      // ✅ Ưu tiên ETA từ QueueEntryPreOrder, fallback sang QueueEntry
+      const estServeIso =
+        order.queueEntryPreOrder?.estimatedServeTime ??
+        order.queueEntry?.estimatedServeTime ??
+        null;
       const onTime = (() => {
         if (!estServeIso) return false;
         const now = Date.now();
@@ -281,6 +295,7 @@ function QueueList({
           status: newStatus,
           notifyVendor: true,
           onTime,
+          isPreOrder: queueType === 2,
         },
         headers
       );
@@ -333,13 +348,18 @@ function QueueList({
           filtered.map((it) => {
             const payment = mapPaymentStatus(it.paymentStatus ?? null);
             const statusText = mapOrderStatus(it.status ?? null);
-            const estServe = it.queueEntry?.estimatedServeTime
-              ? formatDate(it.queueEntry.estimatedServeTime)
-              : "—";
-            const waitText = it.queueEntry?.estimatedWaitTime
-              ? formatWaitMinutes(it.queueEntry.estimatedWaitTime)
-              : "—";
+            const queueInfo =
+              queueType === 2 ? it.queueEntryPreOrder : it.queueEntry;
 
+            const estServe = queueInfo?.estimatedServeTime
+              ? formatDate(queueInfo.estimatedServeTime)
+              : "";
+            const waitText =
+              queueType === 2
+                ? formatPreorderWait(queueInfo?.estimatedServeTime)
+                : queueInfo?.estimatedWaitTime
+                ? formatWaitMinutes(queueInfo.estimatedWaitTime)
+                : "—";
             const rawStatus = Number(it.status ?? -1);
 
             let buttonLabel = statusText;
@@ -379,7 +399,7 @@ function QueueList({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white font-bold">
-                      #{it.queueEntry?.position ?? "-"}
+                       #{queueInfo?.position ?? ""}
                     </div>
 
                     <div>
@@ -444,7 +464,7 @@ function QueueList({
                         buttonLabel
                       )}
                     </Button>
-                    {rawStatus === 4 && (
+                    {queueType === 2 && rawStatus === 5 && (
                       <Button
                         variant="outline"
                         className="ml-2"
@@ -456,7 +476,7 @@ function QueueList({
                           setConfirmOpen(true);
                         }}
                       >
-                        Xác nhận ETA
+                        Xác nhận thời gian
                       </Button>
                     )}
                   </div>
@@ -505,56 +525,87 @@ function QueueList({
       </div>
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Xác nhận tiến độ món ăn</DialogTitle>
-            <DialogDescription>Vui lòng xác nhận kịp ETA hay báo trễ.</DialogDescription>
+          <DialogHeader className="text-center">
+            <DialogTitle className="text-center">Xác nhận tiến độ món ăn</DialogTitle>
+            <DialogDescription className="text-center">
+              Vui lòng xác nhận tiến độ hoàn thành đơn hàng.
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
+
+          <div className="space-y-4">
+            
+            {/* 2 main action buttons */}
+            <div className="flex items-center justify-center gap-3">
               <Button
-                variant={isOnTime ? "default" : "outline"}
-                onClick={() => setIsOnTime(true)}
+                className={`px-6 transition-all ${
+                  isOnTime
+                    ? "bg-green-600 text-white shadow-md"
+                    : "bg-white text-green-700 border border-green-600"
+                }`}
+                disabled={confirmSubmitting}
+                onClick={() => {
+                  setIsOnTime(true);
+                  submitVendorConfirm();
+                }}
               >
-                Kịp ETA
+                Hoàn thành đúng hẹn
               </Button>
+
               <Button
-                variant={!isOnTime ? "default" : "outline"}
+                className={`px-6 transition-all ${
+                  !isOnTime
+                    ? "bg-red-600 text-white shadow-md"
+                    : "bg-white text-red-700 border border-red-600"
+                }`}
+                disabled={confirmSubmitting}
                 onClick={() => setIsOnTime(false)}
               >
-                Không kịp
+                Trễ đơn
               </Button>
             </div>
+
+            {/* Delay input only shown when Trễ đơn selected */}
             {!isOnTime && (
-              <div className="grid gap-3">
+              <div className="grid gap-3 pt-2">
                 <div>
-                  <label className="text-sm">Số phút trễ (tối đa 30)</label>
+                  <label className="text-sm font-medium flex items-center gap-1">
+                    Số phút trễ (tối đa 30 phút)
+                    <span className="text-red-600 font-bold">*</span>
+                  </label>
+
                   <Input
                     type="number"
                     min={0}
                     max={30}
                     value={delayMinutes}
-                    onChange={(e) => setDelayMinutes(parseInt(e.target.value || "0", 10))}
+                    onChange={(e) =>
+                      setDelayMinutes(parseInt(e.target.value || "0", 10))
+                    }
                   />
                 </div>
+
                 <div>
-                  <label className="text-sm">Lý do (tuỳ chọn)</label>
+                  <label className="text-sm font-medium">Lý do trễ đơn</label>
                   <Input
                     value={delayReason}
                     onChange={(e) => setDelayReason(e.target.value)}
-                    placeholder="Ví dụ: nguyên liệu thiếu, thiết bị trục trặc"
+                    placeholder="Ví dụ: khách đổi món, nguyên liệu thiếu..."
                   />
                 </div>
+
+                <Button
+                  className="bg-red-600 text-white hover:bg-red-700"
+                  disabled={confirmSubmitting}
+                  onClick={submitVendorConfirm}
+                >
+                  {confirmSubmitting ? "Đang gửi..." : "Xác nhận trễ đơn"}
+                </Button>
               </div>
             )}
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setConfirmOpen(false)}>Đóng</Button>
-              <Button onClick={submitVendorConfirm} disabled={confirmSubmitting}>
-                {confirmSubmitting ? "Đang gửi..." : "Xác nhận"}
-              </Button>
-            </div>
           </div>
         </DialogContent>
       </Dialog>
+
     </div>
   );
 }
@@ -573,7 +624,7 @@ function QueueList({
         if (delayReason && delayReason.trim()) payload.reason = delayReason.trim();
       }
       await api.post(`/api/order/${confirmOrderId}/confirm-cooking`, payload, headers);
-      toast.success(isOnTime ? "Đã xác nhận kịp ETA" : "Đã báo trễ ETA");
+      toast.success(isOnTime ? "Đã xác nhận hoàn thành đơn đúng hẹn" : "Đã báo trễ đơn so với dự kiến");
       setConfirmOpen(false);
       setConfirmOrderId(null);
       setDelayMinutes(0);

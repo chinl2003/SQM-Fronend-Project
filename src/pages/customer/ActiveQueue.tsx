@@ -61,6 +61,15 @@ type OrderWithDetailsDto = {
     estimatedWaitTime?: string | null;
     estimatedServeTime?: string | null;
   } | null;
+  queueEntryPreOrder?: {
+    id: string;
+    queueId?: string | null;
+    position?: number | null;
+    joinedAt?: string | null;
+    servedAt?: string | null;
+    status: number | string;
+    estimatedServeTime?: string | null;
+  } | null;
   details: Array<{
     id: string;
     menuItemId: string;
@@ -116,10 +125,11 @@ interface QueueItem {
   estimatedWaitTimeRaw?: string | null;
   estimatedServeTimeRaw?: string | null;
   rating?: RatingDto | null;
+  completedTimeRaw?: string | null;
 }
 
 type OrderStatusNumber = 0 | 1 | 2 | 3 | 4 | 5 | 6;
-type StatusTab = "pending" | "confirmed" | "preparing" | "completed";
+type StatusTab = "pending" | "confirmed" | "preparing" | "ready" | "completed";
 type ReviewMode = "create" | "view" | "update";
 
 const uiStatusFromApi = (
@@ -267,7 +277,20 @@ const humanETA = (estimatedServeTime?: string | null) => {
     0,
     Math.round((serve.getTime() - now.getTime()) / 60000)
   );
-  if (diffMin <= 1) return "≈ 1 phút";
+  if (diffMin <= 1) return "1 phút";
+  return `${diffMin} phút`;
+};
+
+const fmtWaitTimeDynamic = (estimatedServeTime?: string | null) => {
+  if (!estimatedServeTime) return "—";
+  const now = new Date();
+  const serve = new Date(estimatedServeTime);
+  if (Number.isNaN(serve.getTime())) return "—";
+
+  const diffMs = serve.getTime() - now.getTime();
+  const diffMin = Math.max(0, Math.round(diffMs / 60000));
+
+  if (diffMin <= 1) return "1 phút";
   return `${diffMin} phút`;
 };
 
@@ -416,7 +439,21 @@ function mapOrderToQueueItem(
   if (o.ratings && o.ratings.length > 0) {
     rating = mapRatingFromOrder(o.ratings[0]);
   }
+  const position =
+    o.queueEntry?.position ?? o.queueEntryPreOrder?.position ?? undefined;
+  const estimatedServeTime =
+    o.queueEntry?.estimatedServeTime ??
+    o.queueEntryPreOrder?.estimatedServeTime ??
+    null;
+  let estimatedWaitTimeRaw: string | null = null;
 
+  if (o.queueEntry?.estimatedWaitTime) {
+    estimatedWaitTimeRaw = o.queueEntry.estimatedWaitTime;
+  } else if (!o.queueEntry && o.queueEntryPreOrder && estimatedServeTime) {
+    estimatedWaitTimeRaw = fmtWaitTimeDynamic(estimatedServeTime);
+  } else {
+    estimatedWaitTimeRaw = null;
+  }
   return {
     id: o.id,
     code: o.code || "",
@@ -424,9 +461,9 @@ function mapOrderToQueueItem(
     vendorName: vendor?.name || `#${o.vendorId.slice(0, 6)}`,
     vendorImage: vendor?.logoUrl ? buildMediaUrl(vendor.logoUrl) : "",
     vendorAddress: vendor?.address || "—",
-    type: "join_queue",
-    position: o.queueEntry?.position ?? undefined,
-    estimatedTime: humanETA(o.queueEntry?.estimatedServeTime),
+    type: o.queueEntryPreOrder ? "pre_order" : "join_queue",
+    position,
+    estimatedTime: humanETA(estimatedServeTime),
     status: uiStatus,
     items: (o.details || []).map((d) => ({
       id: d.id,
@@ -440,9 +477,10 @@ function mapOrderToQueueItem(
     orderTime: o.createdAt || new Date().toISOString(),
     canCancel: !["completed", "cancelled"].includes(uiStatus),
     canUpdate: ["pending", "confirmed"].includes(uiStatus),
-    estimatedWaitTimeRaw: o.queueEntry?.estimatedWaitTime ?? null,
-    estimatedServeTimeRaw: o.queueEntry?.estimatedServeTime ?? null,
+    estimatedWaitTimeRaw,
+    estimatedServeTimeRaw: estimatedServeTime,
     rating,
+    completedTimeRaw: o.lastUpdatedTime ?? null,
   };
 }
 
@@ -450,6 +488,7 @@ const tabToApiStatus: Record<StatusTab, number> = {
   pending: 0,
   confirmed: 4,
   preparing: 5,
+  ready: 6,    
   completed: 2,
 };
 
@@ -526,6 +565,7 @@ export default function ActiveQueue() {
 
   const renderQueueCard = (queueItem: QueueItem) => {
     const isCompletedTab = statusTab === "completed";
+    const isReadyTab = statusTab === "ready";
 
     return (
       <Card key={queueItem.id} className="mb-4">
@@ -538,7 +578,10 @@ export default function ActiveQueue() {
             />
             <div className="flex-1">
               <div className="flex items-center justify-between mb-2">
-                <h3 className="font-semibold">{queueItem.vendorName}</h3>
+                <h3 className="font-semibold">
+                  {queueItem.vendorName} - Mã đơn hàng: {queueItem.code}
+                </h3>
+
                 <Badge
                   className={`${getStatusColor(queueItem.status)} text-white`}
                 >
@@ -547,15 +590,13 @@ export default function ActiveQueue() {
                 </Badge>
               </div>
 
-              {/* ✅ TẤT CẢ CÁC TAB ĐỀU DÙNG CHUNG BLOCK NÀY (giống Đã xác nhận) */}
+              {/* Thông tin loại & vị trí */}
               <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground mb-3">
                 <div className="flex items-center space-x-1">
                   <MapPin className="h-3 w-3 text-emerald-500" />
                   <span>
                     <span className="font-semibold">Loại:</span>{" "}
-                    {queueItem.type === "join_queue"
-                      ? "Xếp hàng ngay"
-                      : "Pre-order"}
+                    {queueItem.type === "join_queue" ? "Xếp hàng ngay" : "Đặt trước"}
                   </span>
                 </div>
 
@@ -566,26 +607,58 @@ export default function ActiveQueue() {
                     {queueItem.position ?? "—"}
                   </span>
                 </div>
+              </div>
 
-                <div className="flex items-center space-x-1">
-                  <Clock className="h-3 w-3 text-amber-500" />
-                  <span>
-                    <span className="font-semibold">
-                      Thời gian đợi đến lượt:
-                    </span>{" "}
-                    {fmtWaitTimeFromSpan(queueItem.estimatedWaitTimeRaw)}
-                  </span>
-                </div>
+              {/* Thời gian dự kiến / hoàn tất */}
+              <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground mb-3">
+                {isReadyTab || isCompletedTab ? (
+                  <>
+                    {/* Bên trái: Thời gian nhận hàng dự kiến */}
+                    <div className="flex items-center space-x-1">
+                      <Clock className="h-3 w-3 text-emerald-500" />
+                      <span>
+                        <span className="font-semibold">
+                          Thời gian nhận hàng dự kiến:
+                        </span>{" "}
+                        {fmtServeTimeFull(queueItem.estimatedServeTimeRaw)}
+                      </span>
+                    </div>
 
-                <div className="flex items-center space-x-1">
-                  <Clock className="h-3 w-3 text-emerald-500" />
-                  <span>
-                    <span className="font-semibold">
-                      Thời gian nhận hàng dự kiến:
-                    </span>{" "}
-                    {fmtServeTimeFull(queueItem.estimatedServeTimeRaw)}
-                  </span>
-                </div>
+                    {/* Bên phải: Thời gian hoàn tất đơn */}
+                    <div className="flex items-center space-x-1">
+                      <Clock className="h-3 w-3 text-sky-500" />
+                      <span>
+                        <span className="font-semibold">
+                          Thời gian hoàn tất đơn:
+                        </span>{" "}
+                        {fmtServeTimeFull(queueItem.completedTimeRaw)}
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {/* Các tab khác vẫn hiển thị Thời gian đợi đến lượt + Thời gian nhận hàng dự kiến */}
+                    <div className="flex items-center space-x-1">
+                      <Clock className="h-3 w-3 text-amber-500" />
+                      <span>
+                        <span className="font-semibold">
+                          Thời gian đợi đến lượt:
+                        </span>{" "}
+                        {fmtWaitTimeFromSpan(queueItem.estimatedWaitTimeRaw)}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center space-x-1">
+                      <Clock className="h-3 w-3 text-emerald-500" />
+                      <span>
+                        <span className="font-semibold">
+                          Thời gian nhận hàng dự kiến:
+                        </span>{" "}
+                        {fmtServeTimeFull(queueItem.estimatedServeTimeRaw)}
+                      </span>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Thanh toán + trạng thái thanh toán */}
@@ -678,7 +751,8 @@ export default function ActiveQueue() {
                       {/* Ẩn Hủy & Cập nhật ở tab Đã xác nhận và Đang chế biến */}
                       {queueItem.canUpdate &&
                         statusTab !== "confirmed" &&
-                        statusTab !== "preparing" && (
+                        statusTab !== "preparing" && 
+                        statusTab !== "ready" &&(
                           <Button
                             size="sm"
                             variant="outline"
@@ -694,7 +768,8 @@ export default function ActiveQueue() {
 
                       {queueItem.canCancel &&
                         statusTab !== "confirmed" &&
-                        statusTab !== "preparing" && (
+                        statusTab !== "preparing" && 
+                        statusTab !== "ready" &&(
                           <Button
                             size="sm"
                             variant="outline"
@@ -743,31 +818,32 @@ export default function ActiveQueue() {
           onValueChange={(v) => setStatusTab(v as StatusTab)}
           className="space-y-4"
         >
-          <TabsList className="w-full grid grid-cols-4 gap-2 bg-transparent p-0">
-            {(["pending", "confirmed", "preparing", "completed"] as StatusTab[]).map(
-              (tab) => (
-                <TabsTrigger
-                  key={tab}
-                  value={tab}
-                  className="
-                    text-sm font-medium py-2
-                    border border-gray-300 rounded-md
-                    data-[state=active]:bg-[#00a759]
-                    data-[state=active]:text-white
-                    data-[state=active]:border-[#00914b]
-                    data-[state=active]:shadow
-                    data-[state=inactive]:bg-white
-                    data-[state=inactive]:text-gray-700
-                    hover:data-[state=inactive]:bg-green-50
-                  "
-                >
-                  {tab === "pending" && "Chưa xác nhận"}
-                  {tab === "confirmed" && "Đã xác nhận"}
-                  {tab === "preparing" && "Đang chế biến"}
-                  {tab === "completed" && "Hoàn tất"}
-                </TabsTrigger>
-              )
-            )}
+          <TabsList className="w-full grid grid-cols-5 gap-2 bg-transparent p-0">
+            {(
+              ["pending", "confirmed", "preparing", "ready", "completed"] as StatusTab[]
+            ).map((tab) => (
+              <TabsTrigger
+                key={tab}
+                value={tab}
+                className="
+                  text-sm font-medium py-2
+                  border border-gray-300 rounded-md
+                  data-[state=active]:bg-[#00a759]
+                  data-[state=active]:text-white
+                  data-[state=active]:border-[#00914b]
+                  data-[state=active]:shadow
+                  data-[state=inactive]:bg-white
+                  data-[state=inactive]:text-gray-700
+                  hover:data-[state=inactive]:bg-green-50
+                "
+              >
+                {tab === "pending" && "Chưa xác nhận"}
+                {tab === "confirmed" && "Đã xác nhận"}
+                {tab === "preparing" && "Đang chế biến"}
+                {tab === "ready" && "Chờ nhận đơn"}    
+                {tab === "completed" && "Hoàn tất"}
+              </TabsTrigger>
+            ))}
           </TabsList>
 
           <TabsContent value={statusTab}>
@@ -793,7 +869,9 @@ export default function ActiveQueue() {
                           {statusTab === "preparing" &&
                             "Không có đơn hàng nào đang chế biến"}
                           {statusTab === "completed" &&
-                            "Chưa có đơn hàng nào hoàn tất"}
+                            "Chưa có đơn hàng nào hoàn tất"} &&
+                          {statusTab === "ready" &&
+                            "Không có đơn hàng nào đang chờ nhận"}
                         </h3>
                         {statusTab === "pending" && (
                           <>

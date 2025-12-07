@@ -5,13 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Plus, Trash2, Clock, UtensilsCrossed } from "lucide-react";
 import { api, ApiResponse } from "@/lib/api";
@@ -33,7 +26,7 @@ type MenuItemFromApi = {
 
 type PreOrderConfig = {
   id: string;
-  menuItemId: string;
+  menuItemIds: string[];
   startTime: string;
   endTime: string;
   maxQuantity: string;
@@ -43,11 +36,11 @@ type PreOrderConfig = {
 
 type PreOrderConfigFromApi = {
   id: string;
-  menuItemId: string;
   startTime: string | null;
   endTime: string | null;
   maxQuantity: number;
   enabled: boolean;
+  details?: { menuItemId?: string | null }[] | null;
 };
 
 type PreOrderConfigsResponseFromApi = {
@@ -82,6 +75,7 @@ export default function SettingsPreOrder({ vendorId }: SettingsPreOrderProps) {
   const [saving, setSaving] = useState(false);
   const [menuItems, setMenuItems] = useState<MenuItemFromApi[]>([]);
   const [configs, setConfigs] = useState<PreOrderConfig[]>([]);
+  const [openConfigId, setOpenConfigId] = useState<string | null>(null);
 
   const fetchData = async () => {
     if (!vendorId) return;
@@ -119,20 +113,24 @@ export default function SettingsPreOrder({ vendorId }: SettingsPreOrderProps) {
       setEnabled(!!dataPre.enabled);
 
       const mappedConfigs: PreOrderConfig[] =
-        dataPre.configs?.map((c) => ({
-          id: c.id || uid(),
-          menuItemId: c.menuItemId,
-          startTime: c.startTime ?? "08:00",
-          endTime: c.endTime ?? "11:00",
-          maxQuantity: String(c.maxQuantity || 10),
-          enabled: c.enabled,
-          isNew: false,
-        })) || [];
+      dataPre.configs?.map((c) => ({
+        id: c.id || uid(),
+        menuItemIds: Array.isArray(c.details)
+          ? c.details
+              .map((d) => d?.menuItemId)
+              .filter((x): x is string => !!x)
+          : [],
+        startTime: c.startTime ?? "08:00",
+        endTime: c.endTime ?? "11:00",
+        maxQuantity: String(c.maxQuantity || 10),
+        enabled: c.enabled,
+        isNew: false,
+      })) || [];
 
       setConfigs(mappedConfigs);
     } catch (err) {
       console.error(err);
-      toast.error("Không tải được cấu hình Đặt trước.");
+      toast.error("Không tải được khung giờ đặt trước.");
     } finally {
       setLoading(false);
     }
@@ -145,14 +143,14 @@ export default function SettingsPreOrder({ vendorId }: SettingsPreOrderProps) {
 
   const addConfig = () => {
     if (menuItems.length === 0) {
-      toast.warning("Chưa có món nào để cấu hình.");
+      toast.warning("Chưa có món nào để chọn.");
       return;
     }
     setConfigs((prev) => [
       ...prev,
       {
         id: uid(),
-        menuItemId: menuItems[0]?.id ?? "",
+        menuItemIds: [menuItems[0]?.id ?? ""].filter((x) => !!x),
         startTime: "08:00",
         endTime: "11:00",
         maxQuantity: "10",
@@ -170,6 +168,42 @@ export default function SettingsPreOrder({ vendorId }: SettingsPreOrderProps) {
     setConfigs((prev) =>
       prev.map((cfg) => (cfg.id === id ? { ...cfg, [key]: value } : cfg))
     );
+  };
+
+  const addMenuItemToConfig = (configId: string, menuItemId: string) => {
+    if (!menuItemId) return;
+    setConfigs((prev) =>
+      prev.map((cfg) => {
+        if (cfg.id !== configId) return cfg;
+        const currentIds = cfg.menuItemIds ?? [];
+        if (currentIds.includes(menuItemId)) return cfg;
+        return { ...cfg, menuItemIds: [...currentIds, menuItemId] };
+      })
+    );
+  };
+
+  const removeMenuItemFromConfig = (configId: string, menuItemId: string) => {
+    setConfigs((prev) =>
+      prev.map((cfg) =>
+        cfg.id === configId
+          ? {
+              ...cfg,
+              menuItemIds: (cfg.menuItemIds ?? []).filter((id) => id !== menuItemId),
+            }
+          : cfg
+      )
+    );
+  };
+
+  const toggleMenuItemInConfig = (configId: string, menuItemId: string) => {
+    const cfg = configs.find((c) => c.id === configId);
+    if (!cfg) return;
+    const has = (cfg.menuItemIds ?? []).includes(menuItemId);
+    if (has) {
+      removeMenuItemFromConfig(configId, menuItemId);
+    } else {
+      addMenuItemToConfig(configId, menuItemId);
+    }
   };
 
   const isGlobalDisabled = !enabled;
@@ -193,11 +227,11 @@ export default function SettingsPreOrder({ vendorId }: SettingsPreOrderProps) {
         headers
       );
 
-      toast.success("Đã xóa cấu hình.");
+      toast.success("Đã xóa khung giờ.");
       await fetchData();
     } catch (err) {
       console.error(err);
-      toast.error("Xóa cấu hình thất bại.");
+      toast.error("Xóa khung giờ thất bại.");
     }
   };
 
@@ -210,15 +244,15 @@ export default function SettingsPreOrder({ vendorId }: SettingsPreOrderProps) {
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
 
       await api.post<ApiResponse<any>>(
-        `/api/vendor/${vendorId}/is-active`,
-        { isActive: value },
+        `/api/vendor/${vendorId}/is-allow-pre-order`,
+        { isAllowPreOrder: value },
         headers
       );
 
       if (value) {
-        toast.success("Quán của bạn đang được hoạt động!");
+        toast.success("Bật tính năng đặt trước thành công!");
       } else {
-        toast.success("Quán của bạn đã ngưng hoạt động!");
+        toast.success("Tắt tính năng đặt trước thành công!");
       }
     } catch (err) {
       console.error(err);
@@ -251,7 +285,7 @@ export default function SettingsPreOrder({ vendorId }: SettingsPreOrderProps) {
           headers
         );
 
-        toast.success("Đã lưu cấu hình Đặt trước.");
+        toast.success("Đã lưu khung giờ đặt trước.");
         return;
       }
 
@@ -259,15 +293,17 @@ export default function SettingsPreOrder({ vendorId }: SettingsPreOrderProps) {
         const payload = {
           enabled,
           configs: chunk.map((c) => ({
-            menuItemId: c.menuItemId,
             startTime: c.startTime,
             endTime: c.endTime,
             maxQuantity: Number(c.maxQuantity),
             enabled: c.enabled,
+            details: (c.menuItemIds ?? [])
+              .filter((x) => !!x)
+              .map((id) => ({
+                menuItemId: id,
+              })),
           })),
         };
-
-        console.log("Sending pre-order batch", { vendorId, payload });
 
         await api.post<ApiResponse<any>>(
           `/api/vendor-preorder/${vendorId}/configs`,
@@ -276,11 +312,11 @@ export default function SettingsPreOrder({ vendorId }: SettingsPreOrderProps) {
         );
       }
 
-      toast.success("Đã lưu cấu hình Đặt trước.");
+      toast.success("Đã lưu khung giờ đặt trước.");
       await fetchData();
     } catch (err) {
       console.error(err);
-      toast.error("Lưu cấu hình Đặt trước thất bại.");
+      toast.error("Lưu khung giờ đặt trước thất bại.");
     } finally {
       setSaving(false);
     }
@@ -314,7 +350,7 @@ export default function SettingsPreOrder({ vendorId }: SettingsPreOrderProps) {
           <div>
             <CardTitle className="text-base font-semibold flex items-center gap-2">
               <UtensilsCrossed className="h-4 w-4 text-emerald-600" />
-              Cấu hình
+              Khung giờ
             </CardTitle>
           </div>
 
@@ -325,7 +361,7 @@ export default function SettingsPreOrder({ vendorId }: SettingsPreOrderProps) {
             disabled={isGlobalDisabled || loading}
           >
             <Plus className="h-4 w-4 mr-2" />
-            Thêm cấu hình
+            Thêm khung giờ
           </Button>
         </CardHeader>
 
@@ -334,11 +370,12 @@ export default function SettingsPreOrder({ vendorId }: SettingsPreOrderProps) {
         <CardContent className="pt-4">
           {configs.length > 0 && (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {configs.map((cfg) => {
-                const itemName =
-                  menuItems.find((mi) => mi.id === cfg.menuItemId)?.name ||
-                  "Chưa chọn món";
+              {configs.map((cfg, index) => {
                 const disabledByToggle = isGlobalDisabled || !cfg.enabled;
+                const cfgIds = cfg.menuItemIds ?? [];
+                const selectedMenuItems = menuItems.filter((mi) =>
+                  cfgIds.includes(mi.id)
+                );
 
                 return (
                   <div
@@ -348,7 +385,7 @@ export default function SettingsPreOrder({ vendorId }: SettingsPreOrderProps) {
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <p className="text-sm font-medium">
-                          {itemName}
+                          Khung giờ {index + 1}
                         </p>
                       </div>
 
@@ -379,27 +416,74 @@ export default function SettingsPreOrder({ vendorId }: SettingsPreOrderProps) {
 
                     <div className="grid gap-3">
                       <div className="space-y-1">
-                        <Label className="text-xs font-semibold">
-                          Món ăn
-                        </Label>
-                        <Select
-                          value={cfg.menuItemId}
-                          onValueChange={(v) =>
-                            updateConfig(cfg.id, "menuItemId", v)
-                          }
-                          disabled={disabledByToggle}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Chọn món" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {menuItems.map((mi) => (
-                              <SelectItem key={mi.id} value={mi.id}>
-                                {mi.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <Label className="text-xs font-semibold">Món ăn</Label>
+                        <div className="relative">
+                          <button
+                            type="button"
+                            disabled={disabledByToggle}
+                            onClick={() =>
+                              setOpenConfigId((prev) =>
+                                prev === cfg.id ? null : cfg.id
+                              )
+                            }
+                            className="w-full min-h-[2.25rem] rounded-md border border-input bg-background px-2 py-1 text-sm shadow-sm flex flex-wrap items-center gap-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                          >
+                            {selectedMenuItems.length > 0 ? (
+                              selectedMenuItems.map((mi) => (
+                                <span
+                                  key={mi.id}
+                                  className="flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] bg-muted"
+                                >
+                                  <span>{mi.name}</span>
+                                  <button
+                                    type="button"
+                                    className="text-xs"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      removeMenuItemFromConfig(cfg.id, mi.id);
+                                    }}
+                                  >
+                                    ✕
+                                  </button>
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-xs text-muted-foreground">
+                                Chọn món
+                              </span>
+                            )}
+                          </button>
+
+                          {openConfigId === cfg.id && !disabledByToggle && (
+                            <div className="absolute z-20 mt-1 w-full rounded-md border bg-popover shadow-md max-h-60 overflow-y-auto text-sm">
+                              {menuItems.length === 0 ? (
+                                <div className="px-2 py-2 text-xs text-muted-foreground">
+                                  Chưa có món.
+                                </div>
+                              ) : (
+                                menuItems.map((mi) => {
+                                  const checked = cfgIds.includes(mi.id);
+                                  return (
+                                    <button
+                                      key={mi.id}
+                                      type="button"
+                                      onClick={() => {
+                                        toggleMenuItemInConfig(cfg.id, mi.id);
+                                        setOpenConfigId(null);
+                                      }}
+                                      className="flex w-full items-center justify-between px-2 py-1.5 hover:bg-accent"
+                                    >
+                                      <span>{mi.name}</span>
+                                      {checked && (
+                                        <span className="text-xs">✓</span>
+                                      )}
+                                    </button>
+                                  );
+                                })
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
 
                       <div className="flex gap-2">
@@ -481,7 +565,7 @@ export default function SettingsPreOrder({ vendorId }: SettingsPreOrderProps) {
               disabled={saving}
               className="min-w-[140px]"
             >
-              {saving ? "Đang lưu..." : "Lưu cấu hình"}
+              {saving ? "Đang lưu..." : "Lưu khung giờ"}
             </Button>
           </div>
         </CardContent>

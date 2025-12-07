@@ -122,7 +122,7 @@ export default function Index() {
         try {
           const token = localStorage.getItem("accessToken") || "";
           const res = await api.get<ApiResponse<ApiVendor[]>>(
-            "/api/vendor",
+            "/api/vendor/active",
             token ? { Authorization: `Bearer ${token}` } : undefined
           );
           const list = extractVendorsFromResponse(res);
