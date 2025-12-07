@@ -260,6 +260,10 @@ export default function VendorDetailPage() {
 
   const preOrderStart = normalizeTimeString(preOrderQueue?.startTime ?? undefined);
   const preOrderEnd = normalizeTimeString(preOrderQueue?.endTime ?? undefined);
+  const preOrderPositionMax = useMemo(() => {
+    const q = data?.vendorQueues?.find((x) => x.type === 2);
+    return typeof q?.positionMax === "number" ? q.positionMax : 0;
+  }, [data]);
 
   const effectivePickupDate = useMemo(() => {
     if (pickupDate) return pickupDate;
@@ -391,7 +395,7 @@ export default function VendorDetailPage() {
       : 2;
 
     const preOrderPosition = isPreOrderMode
-      ? (preOrderQueue?.positionMax ?? 0) + 1
+      ? preOrderPositionMax + 1
       : undefined;
 
     const payload: OrderCreateRequest = {
@@ -431,10 +435,24 @@ export default function VendorDetailPage() {
 
       if (!orderId) {
         setConfirmOpen(false);
-        toast.success("Đặt hàng thành công, nhưng không lấy được thông tin chi tiết đơn.");
+        toast.success(
+          isPreOrderMode
+            ? "Đặt trước thành công, nhưng không lấy được thông tin chi tiết đơn."
+            : "Đặt hàng thành công, nhưng không lấy được thông tin chi tiết đơn."
+        );
         return;
       }
 
+      // 🔹 CASE PREORDER: KHÔNG GỌI /queue-info, đóng modal & chuyển trang luôn
+      if (isPreOrderMode) {
+        setQty({});
+        setConfirmOpen(false);
+        toast.success("Đặt trước thành công!");
+        navigate("/customer/active-queue");
+        return;
+      }
+
+      // 🔹 CASE QUEUE THƯỜNG: giữ logic cũ, gọi /queue-info
       const detailRes = await api.get<ApiResponse<OrderQueueInfo>>(
         `/api/order/${orderId}/queue-info`,
         token ? { Authorization: `Bearer ${token}` } : undefined
@@ -445,12 +463,10 @@ export default function VendorDetailPage() {
         detailOuter?.data ?? detailOuter ?? null;
 
       setOrderInfo(detailPayload ?? { orderId });
+      setQty({});
       setConfirmOpen(false);
       setSuccessOpen(true);
-      setQty({});
-      toast.success(
-        isPreOrderMode ? "Đặt trước thành công!" : "Tham gia hàng đợi thành công!"
-      );
+      toast.success("Tham gia hàng đợi thành công!");
     } catch (e: any) {
       console.error(e);
       toast.error(e?.message || "Tạo đơn hàng thất bại.");
