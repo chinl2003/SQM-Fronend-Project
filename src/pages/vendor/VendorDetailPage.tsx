@@ -1,4 +1,3 @@
-// src/pages/VendorDetailPage.tsx
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Navigation } from "@/components/Navigation";
@@ -16,6 +15,8 @@ import {
   Minus,
   Plus,
   CheckCircle,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { api, ApiResponse } from "@/lib/api";
@@ -24,9 +25,7 @@ import { toast } from "sonner";
 
 import DatePicker, { registerLocale } from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import vi from "date-fns/locale/vi";
 
-registerLocale("vi", vi);
 
 type MenuItemResponse = {
   id: string;
@@ -121,6 +120,46 @@ type OrderCreateRequest = {
   position?: number | null;
 };
 
+
+type RatingReplyResponse = {
+  id: string;
+  ratingId: string;
+  senderId?: string | null;
+  senderName?: string | null;
+  role: number;
+  content?: string | null;
+  createdTime?: string | null;
+};
+
+type VendorRatingWithOrderInfo = {
+  id: string;
+  vendorId?: string | null;
+  orderId?: string | null;
+  stars: number | string;  
+  comment?: string | null;
+  imageUrls?: string | string[] | null; 
+  createdTime?: string | null;
+
+  orderCode?: string | null;
+
+  customerId?: string | null;
+  customerName?: string | null;
+  customerPhone?: string | null;
+
+  totalRecord?: number | 0;
+
+  replies: RatingReplyResponse[];
+};
+
+
+type PaginatedList<T> = {
+  data: T[];
+  totalPages: number;
+  page: number;
+  pageSize: number;
+};
+
+
 function fmtTime(t?: string | null) {
   if (!t) return "—";
   const d = new Date(t);
@@ -176,6 +215,9 @@ function formatDateToTime(date: Date | null, fallback = ""): string {
 
 type Mode = "QUEUE" | "PREORDER";
 
+const REVIEWS_PER_PAGE = 2;
+
+
 export default function VendorDetailPage() {
   const { vendorId } = useParams<{ vendorId: string }>();
   const navigate = useNavigate();
@@ -194,6 +236,12 @@ export default function VendorDetailPage() {
 
   const [pickupTime, setPickupTime] = useState<string>("");
   const [pickupDate, setPickupDate] = useState<Date | null>(null);
+
+  const [ratings, setRatings] = useState<VendorRatingWithOrderInfo[]>([]);
+  const [ratingsLoading, setRatingsLoading] = useState(false);
+  const [ratingsPage, setRatingsPage] = useState(1);
+  const [totalRecord, setTotalRecords] = useState(0);
+  const [ratingsTotalPages, setRatingsTotalPages] = useState(1);
 
   useEffect(() => {
     const cid = localStorage.getItem("userId") || null;
@@ -315,6 +363,42 @@ export default function VendorDetailPage() {
     setQty((p) => ({ ...p, [id]: Math.max((p[id] ?? 0) - 1, 0) }));
   const handleCardClick = (id: string) =>
     setQty((p) => ({ ...p, [id]: (p[id] ?? 0) > 0 ? p[id] : 1 }));
+
+
+  useEffect(() => {
+  if (!vendorId) return;
+
+  const fetchRatings = async () => {
+    try {
+      setRatingsLoading(true);
+      const token = localStorage.getItem("accessToken") || "";
+      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+
+      const res =
+        await api.get<ApiResponse<PaginatedList<VendorRatingWithOrderInfo>>>(
+          `/api/rating/by-vendor/${vendorId}?pageNumber=${ratingsPage}&pageSize=${REVIEWS_PER_PAGE}`,
+          headers
+        );
+
+      const outer = (res as any)?.data ?? res;
+      const payload: PaginatedList<VendorRatingWithOrderInfo> =
+        outer ?? null;
+
+      setTotalRecords(outer.totalRecords ?? 0);
+      setRatings(payload?.data ?? []);
+      setRatingsTotalPages(payload?.totalPages ?? 1);
+    } catch (e) {
+      console.error(e);
+      setRatings([]);
+      setRatingsTotalPages(1);
+    } finally {
+      setRatingsLoading(false);
+    }
+  };
+
+  fetchRatings();
+}, [vendorId, ratingsPage]);
+
 
   const openConfirm = () => {
     if (totalCount === 0) {
@@ -443,7 +527,6 @@ export default function VendorDetailPage() {
         return;
       }
 
-      // 🔹 CASE PREORDER: KHÔNG GỌI /queue-info, đóng modal & chuyển trang luôn
       if (isPreOrderMode) {
         setQty({});
         setConfirmOpen(false);
@@ -452,7 +535,6 @@ export default function VendorDetailPage() {
         return;
       }
 
-      // 🔹 CASE QUEUE THƯỜNG: giữ logic cũ, gọi /queue-info
       const detailRes = await api.get<ApiResponse<OrderQueueInfo>>(
         `/api/order/${orderId}/queue-info`,
         token ? { Authorization: `Bearer ${token}` } : undefined
@@ -474,6 +556,23 @@ export default function VendorDetailPage() {
       setSubmitting(false);
     }
   };
+
+  const renderStars = (rating: number) => (
+    <div className="flex items-center gap-0.5">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <Star
+          key={i}
+          className={cn(
+            "w-3.5 h-3.5",
+            i < Math.round(rating)
+              ? "text-amber-400 fill-amber-400"
+              : "text-muted-foreground"
+          )}
+        />
+      ))}
+      <span className="ml-1 text-xs font-medium">{rating.toFixed(1)}</span>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-muted/60 via-background to-background">
@@ -584,12 +683,176 @@ export default function VendorDetailPage() {
           </div>
         </section>
 
+        <section className="rounded-2xl border bg-card/80 backdrop-blur-sm p-4 md:p-5 space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
+              <h2 className="text-sm md:text-base font-semibold">
+                Đánh giá từ khách hàng
+              </h2>
+              {ratings.length > 0 && (
+                <Badge variant="secondary" className="text-xs md:text-[13px] flex items-center gap-1">
+                  <span>{totalRecord} đánh giá</span>
+                  <span className="opacity-60">•</span>
+                  <span>
+                    Trang {ratingsPage}/{ratingsTotalPages}
+                  </span>
+                </Badge>
+              )}
+
+            </div>
+
+            {ratingsTotalPages > 1 && (
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setRatingsPage((prev) =>
+                      prev <= 1 ? ratingsTotalPages : prev - 1
+                    )
+                  }
+                  className="inline-flex items-center justify-center rounded-full border bg-background w-8 h-8 text-xs hover:bg-muted disabled:opacity-40"
+                  disabled={ratingsLoading || ratingsTotalPages <= 1}
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setRatingsPage((prev) =>
+                      prev >= ratingsTotalPages ? 1 : prev + 1
+                    )
+                  }
+                  className="inline-flex items-center justify-center rounded-full border bg-background w-8 h-8 text-xs hover:bg-muted disabled:opacity-40"
+                  disabled={ratingsLoading || ratingsTotalPages <= 1}
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </div>
+
+          {ratingsLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+              {Array.from({ length: 2 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="rounded-2xl border bg-background/60 p-3 md:p-4 animate-pulse"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-full bg-muted" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-3 w-24 bg-muted rounded" />
+                      <div className="h-3 w-32 bg-muted rounded" />
+                      <div className="h-3 w-full bg-muted rounded" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : ratings.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Chưa có đánh giá nào cho quán này.
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+              {ratings.map((r) => {
+  const numericStars =
+    typeof r.stars === "string"
+      ? parseFloat(r.stars) || 0
+      : r.stars ?? 0;
+
+  const imageList = !r.imageUrls
+    ? []
+    : Array.isArray(r.imageUrls)
+    ? r.imageUrls
+    : String(r.imageUrls)     
+        .split(";")
+        .map((x) => x.trim())
+        .filter(Boolean);
+
+  return (
+    <div
+      key={r.id}
+      className="rounded-2xl border bg-background/80 shadow-sm p-3 md:p-4 flex flex-col gap-2"
+    >
+      <div className="flex items-start gap-3">
+        <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center overflow-hidden text-sm font-semibold text-emerald-700 shrink-0">
+          {(r.customerName?.[0] || "?").toUpperCase()}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-2">
+            <div className="truncate font-medium text-sm">
+              {r.customerName || "Khách hàng ẩn danh"}
+            </div>
+            {renderStars(numericStars)}
+          </div>
+          {r.createdTime && (
+            <div className="text-[11px] text-muted-foreground mt-0.5">
+              {fmtTime(r.createdTime)}
+            </div>
+          )}
+          <p className="text-xs md:text-sm text-foreground mt-1 whitespace-pre-line">
+            {r.comment || "Không có nội dung đánh giá."}
+          </p>
+
+          {imageList.length > 0 && (
+            <div className="mt-2 flex gap-2">
+              {imageList.slice(0, 3).map((img, idx) => (
+                <div
+                  key={idx}
+                  className="relative w-14 h-14 rounded-lg overflow-hidden bg-muted"
+                >
+                  <img
+                    src={buildMediaUrl(img)}
+                    alt={`Review ${idx + 1}`}
+                    className="w-full h-full object-cover"
+                  />
+                  {idx === 2 && imageList.length > 3 && (
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center text-[11px] text-white font-medium">
+                      +{imageList.length - 3}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {r.replies && r.replies.length > 0 && (
+            <div className="mt-2 space-y-1 border-t pt-2">
+              {r.replies.map((rep) => (
+                <div
+                  key={rep.id}
+                  className="text-xs text-muted-foreground"
+                >
+                  <span className="font-semibold">
+                    {rep.senderName || "Quán"}:
+                  </span>{" "}
+                  {rep.content}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+})}
+
+            </div>
+          )}
+        </section>
+
+        {/* Menu + cart */}
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,3fr)_minmax(260px,1fr)] gap-6 items-start">
           <section className="space-y-6">
             {loading ? (
               <div className="space-y-3">
                 {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="border rounded-2xl p-4 animate-pulse bg-card/60">
+                  <div
+                    key={i}
+                    className="border rounded-2xl p-4 animate-pulse bg-card/60"
+                  >
                     <div className="h-4 bg-muted rounded w-32 mb-4" />
                     <div className="grid md:grid-cols-3 gap-3">
                       <div className="h-28 bg-muted rounded" />
@@ -765,6 +1028,7 @@ export default function VendorDetailPage() {
         </div>
       </div>
 
+      {/* Dialog xác nhận */}
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -831,11 +1095,15 @@ export default function VendorDetailPage() {
 
               {!isPreOrderMode ? (
                 <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-                  <div className="text-muted-foreground">Ước tính thời gian nhận</div>
+                  <div className="text-muted-foreground">
+                    Ước tính thời gian nhận
+                  </div>
                   <div className="text-right">
                     {etaLoading ? "Đang tính..." : fmtTime(eta?.estimatedPickupTime)}
                   </div>
-                  <div className="text-muted-foreground">Ước tính thời gian đợi</div>
+                  <div className="text-muted-foreground">
+                    Ước tính thời gian đợi
+                  </div>
                   <div className="text-right">
                     {etaLoading
                       ? "Đang tính..."
@@ -962,6 +1230,7 @@ export default function VendorDetailPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Dialog success */}
       <Dialog open={successOpen} onOpenChange={setSuccessOpen}>
         <DialogContent className="sm:max-w-md">
           <div className="flex flex-col items-center text-center space-y-4">
