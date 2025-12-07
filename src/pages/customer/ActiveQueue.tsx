@@ -61,6 +61,15 @@ type OrderWithDetailsDto = {
     estimatedWaitTime?: string | null;
     estimatedServeTime?: string | null;
   } | null;
+  queueEntryPreOrder?: {
+    id: string;
+    queueId?: string | null;
+    position?: number | null;
+    joinedAt?: string | null;
+    servedAt?: string | null;
+    status: number | string;
+    estimatedServeTime?: string | null;
+  } | null;
   details: Array<{
     id: string;
     menuItemId: string;
@@ -271,6 +280,19 @@ const humanETA = (estimatedServeTime?: string | null) => {
   return `${diffMin} phút`;
 };
 
+const fmtWaitTimeDynamic = (estimatedServeTime?: string | null) => {
+  if (!estimatedServeTime) return "—";
+  const now = new Date();
+  const serve = new Date(estimatedServeTime);
+  if (Number.isNaN(serve.getTime())) return "—";
+
+  const diffMs = serve.getTime() - now.getTime();
+  const diffMin = Math.max(0, Math.round(diffMs / 60000));
+
+  if (diffMin <= 1) return "≈ 1 phút";
+  return `${diffMin} phút`;
+};
+
 const fmtServeTimeFull = (t?: string | null) => {
   if (!t) return "—";
   const d = new Date(t);
@@ -416,7 +438,21 @@ function mapOrderToQueueItem(
   if (o.ratings && o.ratings.length > 0) {
     rating = mapRatingFromOrder(o.ratings[0]);
   }
+  const position =
+    o.queueEntry?.position ?? o.queueEntryPreOrder?.position ?? undefined;
+  const estimatedServeTime =
+    o.queueEntry?.estimatedServeTime ??
+    o.queueEntryPreOrder?.estimatedServeTime ??
+    null;
+  let estimatedWaitTimeRaw: string | null = null;
 
+  if (o.queueEntry?.estimatedWaitTime) {
+    estimatedWaitTimeRaw = o.queueEntry.estimatedWaitTime;
+  } else if (!o.queueEntry && o.queueEntryPreOrder && estimatedServeTime) {
+    estimatedWaitTimeRaw = fmtWaitTimeDynamic(estimatedServeTime);
+  } else {
+    estimatedWaitTimeRaw = null;
+  }
   return {
     id: o.id,
     code: o.code || "",
@@ -424,9 +460,9 @@ function mapOrderToQueueItem(
     vendorName: vendor?.name || `#${o.vendorId.slice(0, 6)}`,
     vendorImage: vendor?.logoUrl ? buildMediaUrl(vendor.logoUrl) : "",
     vendorAddress: vendor?.address || "—",
-    type: "join_queue",
-    position: o.queueEntry?.position ?? undefined,
-    estimatedTime: humanETA(o.queueEntry?.estimatedServeTime),
+    type: o.queueEntryPreOrder ? "pre_order" : "join_queue",
+    position,
+    estimatedTime: humanETA(estimatedServeTime),
     status: uiStatus,
     items: (o.details || []).map((d) => ({
       id: d.id,
@@ -440,8 +476,8 @@ function mapOrderToQueueItem(
     orderTime: o.createdAt || new Date().toISOString(),
     canCancel: !["completed", "cancelled"].includes(uiStatus),
     canUpdate: ["pending", "confirmed"].includes(uiStatus),
-    estimatedWaitTimeRaw: o.queueEntry?.estimatedWaitTime ?? null,
-    estimatedServeTimeRaw: o.queueEntry?.estimatedServeTime ?? null,
+    estimatedWaitTimeRaw,
+    estimatedServeTimeRaw: estimatedServeTime,
     rating,
   };
 }

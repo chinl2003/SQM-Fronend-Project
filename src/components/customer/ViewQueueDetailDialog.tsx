@@ -216,7 +216,7 @@ export function ViewQueueDetailDialog({
                   <p className="text-base font-semibold">
                     {queueItem.type === "join_queue"
                       ? "Xếp hàng ngay"
-                      : "Pre-order"}
+                      : "Đặt trước"}
                   </p>
                 </div>
               </div>
@@ -237,10 +237,6 @@ export function ViewQueueDetailDialog({
 
                 {queueItem.type === "pre_order" ? (
                   <>
-                    <div className="flex items-center space-x-2 text-muted-foreground">
-                      <Calendar className="h-4 w-4" />
-                      <span>Khung giờ: {queueItem.slot}</span>
-                    </div>
                     <div className="flex items-center space-x-2 text-muted-foreground">
                       <Clock className="h-4 w-4" />
                       <span>
