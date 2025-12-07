@@ -280,7 +280,6 @@ function QueueList({
         order.queueEntryPreOrder?.estimatedServeTime ??
         order.queueEntry?.estimatedServeTime ??
         null;
-
       const onTime = (() => {
         if (!estServeIso) return false;
         const now = Date.now();
@@ -296,6 +295,7 @@ function QueueList({
           status: newStatus,
           notifyVendor: true,
           onTime,
+          isPreOrder: queueType === 2,
         },
         headers
       );
