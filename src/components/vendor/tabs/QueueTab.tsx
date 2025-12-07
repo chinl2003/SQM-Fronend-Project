@@ -525,56 +525,87 @@ function QueueList({
       </div>
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Xác nhận tiến độ món ăn</DialogTitle>
-            <DialogDescription>Vui lòng xác nhận bạn sẽ hoàn thành đơn hàng đúng so với thời gian dự kiến hay đang trễ đơn.</DialogDescription>
+          <DialogHeader className="text-center">
+            <DialogTitle className="text-center">Xác nhận tiến độ món ăn</DialogTitle>
+            <DialogDescription className="text-center">
+              Vui lòng xác nhận tiến độ hoàn thành đơn hàng.
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
+
+          <div className="space-y-4">
+            
+            {/* 2 main action buttons */}
+            <div className="flex items-center justify-center gap-3">
               <Button
-                variant={isOnTime ? "default" : "outline"}
-                onClick={() => setIsOnTime(true)}
+                className={`px-6 transition-all ${
+                  isOnTime
+                    ? "bg-green-600 text-white shadow-md"
+                    : "bg-white text-green-700 border border-green-600"
+                }`}
+                disabled={confirmSubmitting}
+                onClick={() => {
+                  setIsOnTime(true);
+                  submitVendorConfirm();
+                }}
               >
                 Hoàn thành đúng hẹn
               </Button>
+
               <Button
-                variant={!isOnTime ? "default" : "outline"}
+                className={`px-6 transition-all ${
+                  !isOnTime
+                    ? "bg-red-600 text-white shadow-md"
+                    : "bg-white text-red-700 border border-red-600"
+                }`}
+                disabled={confirmSubmitting}
                 onClick={() => setIsOnTime(false)}
               >
                 Trễ đơn
               </Button>
             </div>
+
+            {/* Delay input only shown when Trễ đơn selected */}
             {!isOnTime && (
-              <div className="grid gap-3">
+              <div className="grid gap-3 pt-2">
                 <div>
-                  <label className="text-sm">Số phút trễ (tối đa 30 phút)</label>
+                  <label className="text-sm font-medium flex items-center gap-1">
+                    Số phút trễ (tối đa 30 phút)
+                    <span className="text-red-600 font-bold">*</span>
+                  </label>
+
                   <Input
                     type="number"
                     min={0}
                     max={30}
                     value={delayMinutes}
-                    onChange={(e) => setDelayMinutes(parseInt(e.target.value || "0", 10))}
+                    onChange={(e) =>
+                      setDelayMinutes(parseInt(e.target.value || "0", 10))
+                    }
                   />
                 </div>
+
                 <div>
-                  <label className="text-sm">Lý do trễ đơn</label>
+                  <label className="text-sm font-medium">Lý do trễ đơn</label>
                   <Input
                     value={delayReason}
                     onChange={(e) => setDelayReason(e.target.value)}
-                    placeholder="Ví dụ: nguyên liệu thiếu, thiết bị trục trặc"
+                    placeholder="Ví dụ: khách đổi món, nguyên liệu thiếu..."
                   />
                 </div>
+
+                <Button
+                  className="bg-red-600 text-white hover:bg-red-700"
+                  disabled={confirmSubmitting}
+                  onClick={submitVendorConfirm}
+                >
+                  {confirmSubmitting ? "Đang gửi..." : "Xác nhận trễ đơn"}
+                </Button>
               </div>
             )}
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setConfirmOpen(false)}>Đóng</Button>
-              <Button onClick={submitVendorConfirm} disabled={confirmSubmitting}>
-                {confirmSubmitting ? "Đang gửi..." : "Xác nhận"}
-              </Button>
-            </div>
           </div>
         </DialogContent>
       </Dialog>
+
     </div>
   );
 }
