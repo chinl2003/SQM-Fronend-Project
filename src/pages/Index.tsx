@@ -1,4 +1,3 @@
-// src/pages/Index.tsx
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Navigation } from "@/components/Navigation";
@@ -38,8 +37,15 @@ type ApiVendor = {
   averageRating?: number | null;
   queueCount?: number | null;
   allowPreorder?: boolean | null;
-  distance?: number | null; // distance in km from API
+  distance?: number | null;
 };
+
+  type BusinessType = {
+    id: string;
+    name?: string | null;
+    icon?: string | null;         
+    activeVendorCount?: number | null;
+  };
 
 function buildMediaUrl(path?: string | null) {
   if (!path) return "";
@@ -57,6 +63,15 @@ function extractVendorsFromResponse(res: any): ApiVendor[] {
   return list as ApiVendor[];
 }
 
+function extractBusinessTypesFromResponse(res: any): BusinessType[] {
+  const outer = res?.data?.data ?? res?.data ?? res;
+  const list =
+    (Array.isArray(outer) && outer) ||
+    (Array.isArray(outer?.data) && outer.data) ||
+    [];
+  return list as BusinessType[];
+}
+
 export default function Index() {
   const navigate = useNavigate();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -66,6 +81,8 @@ export default function Index() {
   const [currentCustomerId, setCurrentCustomerId] = useState<string | null>(null);
   const [radiusKm] = useState<number>(5);
 
+  const [categories, setCategories] = useState<BusinessType[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
   // Geolocation hook
   const {
     coordinates: userLocation,
@@ -79,16 +96,37 @@ export default function Index() {
     setCurrentCustomerId(cid);
   }, []);
 
-  const categories = [
-    { name: "Ý", icon: "🍕", count: 23 },
-    { name: "Châu Á", icon: "🍜", count: 18 },
-    { name: "Burger", icon: "🍔", count: 15 },
-    { name: "Mexico", icon: "🌮", count: 12 },
-    { name: "Ấn Độ", icon: "🍛", count: 9 },
-    { name: "Tráng Miệng", icon: "🍰", count: 14 },
-  ];
 
-  // --- Fetch vendors from API with location filter ---
+  useEffect(() => {
+    let mounted = true;
+
+    const fetchBusinessTypes = async () => {
+      try {
+        setCategoriesLoading(true);
+        const token = localStorage.getItem("accessToken") || "";
+        const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+
+        const res = await api.get<ApiResponse<BusinessType[]>>(
+          "/api/BusinessType/address-count",
+          headers
+        );
+
+        const list = extractBusinessTypesFromResponse(res);
+        if (mounted) setCategories(list);
+      } catch (e) {
+        console.error("Error fetching business types:", e);
+        if (mounted) setCategories([]);
+      } finally {
+        if (mounted) setCategoriesLoading(false);
+      }
+    };
+
+    fetchBusinessTypes();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   useEffect(() => {
     let mounted = true;
 
@@ -98,14 +136,12 @@ export default function Index() {
         const token = localStorage.getItem("accessToken") || "";
         const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
 
-        // Build query params
         const params = new URLSearchParams({
           filter: "NearestMe",
           radiusKm: radiusKm.toString(),
           status: "Approved",
         });
 
-        // Add location if available
         if (userLocation) {
           params.append("latitude", userLocation.latitude.toString());
           params.append("longitude", userLocation.longitude.toString());
@@ -119,7 +155,6 @@ export default function Index() {
         if (mounted) setVendors(list);
       } catch (e) {
         console.error("Error fetching vendors:", e);
-        // Fallback to basic vendor list if filter fails
         try {
           const token = localStorage.getItem("accessToken") || "";
           const res = await api.get<ApiResponse<ApiVendor[]>>(
@@ -136,7 +171,6 @@ export default function Index() {
       }
     };
 
-    // Only fetch when location is resolved (either got coords or failed)
     if (!locationLoading) {
       fetchVendors();
     }
@@ -158,14 +192,11 @@ export default function Index() {
     [vendors]
   );
 
-  // Calculate distance client-side if API doesn't provide it
   const getVendorDistance = (vendor: ApiVendor): string => {
-    // If API provides distance, use it
     if (vendor.distance != null) {
       return formatDistance(vendor.distance);
     }
 
-    // Otherwise, calculate client-side if user location is available
     if (
       userLocation &&
       vendor.latitude != null &&
@@ -209,7 +240,6 @@ export default function Index() {
   };
 
   const handleFilterChange = () => {
-    // TODO: implement filter logic
   };
 
   return (
@@ -276,34 +306,59 @@ export default function Index() {
           />
         </section>
 
-        <section>
+         <section>
           <h2 className="text-xl font-semibold mb-4 flex items-center">
             <Utensils className="mr-2 h-5 w-5" />
             Duyệt theo danh mục
           </h2>
-          <div className="grid [grid-template-columns:repeat(auto-fill,minmax(180px,1fr))] gap-4 sm:gap-5">
-            {categories.map((category) => (
-              <Card
-                key={category.name}
-                className={`h-full w-full cursor-pointer transition-all hover:shadow-md ${
-                  selectedCategory === category.name ? "ring-2 ring-primary" : ""
-                }`}
-                onClick={() =>
-                  setSelectedCategory(
-                    selectedCategory === category.name ? null : category.name
-                  )
-                }
-              >
-                <CardContent className="p-4 text-center h-full flex flex-col items-center justify-center">
-                  <div className="text-2xl mb-2">{category.icon}</div>
-                  <div className="text-sm font-medium">{category.name}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {category.count} địa điểm
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+
+          {categoriesLoading && categories.length === 0 ? (
+            <div className="grid [grid-template-columns:repeat(auto-fill,minmax(180px,1fr))] gap-4 sm:gap-5">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <Card key={`category-skeleton-${i}`} className="animate-pulse">
+                  <CardContent className="p-4 h-full flex flex-col items-center justify-center">
+                    <div className="h-8 w-8 bg-muted rounded-full mb-3" />
+                    <div className="h-4 w-24 bg-muted rounded mb-2" />
+                    <div className="h-3 w-16 bg-muted rounded" />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : categories.length > 0 ? (
+            <div className="grid [grid-template-columns:repeat(auto-fill,minmax(180px,1fr))] gap-4 sm:gap-5">
+              {categories.map((category) => {
+                const name = category.name ?? "Danh mục";
+                const icon = category.icon || "🍽️";
+                const count = category.activeVendorCount ?? 0;
+
+                return (
+                  <Card
+                    key={category.id}
+                    className={`h-full w-full cursor-pointer transition-all hover:shadow-md ${
+                      selectedCategory === category.id ? "ring-2 ring-primary" : ""
+                    }`}
+                    onClick={() =>
+                      setSelectedCategory(
+                        selectedCategory === category.id ? null : category.id
+                      )
+                    }
+                  >
+                    <CardContent className="p-4 text-center h-full flex flex-col items-center justify-center">
+                      <div className="text-2xl mb-2">{icon}</div>
+                      <div className="text-sm font-medium">{name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {count} địa điểm
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-sm text-muted-foreground">
+              Chưa có danh mục nào.
+            </div>
+          )}
         </section>
 
         <section>
