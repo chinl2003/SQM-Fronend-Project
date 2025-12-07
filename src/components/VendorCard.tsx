@@ -140,18 +140,22 @@ export function VendorCard({
           />
         </div>
 
-        <div className="flex space-x-2">
-          <Button 
-            className="flex-1" 
+        <div className="mt-auto flex flex-wrap space-x-2 pt-2 border-t border-border/60">
+          <Button
+            className="flex-1 min-w-0 truncate"
             size="sm"
             disabled={queueSize >= 20}
           >
             <Utensils className="h-4 w-4 mr-1" />
-            {queueSize >= 20 ? 'Hết chỗ' : 'Tham gia xếp hàng'}
+            {queueSize >= 20 ? "Hết chỗ" : "Tham gia xếp hàng"}
           </Button>
-          
+
           {isPreOrderAvailable && (
-            <Button variant="outline" size="sm" className="flex-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 min-w-0 truncate"
+            >
               Đặt trước
             </Button>
           )}
