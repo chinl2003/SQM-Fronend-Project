@@ -12,29 +12,68 @@ export default function SettingsTab({ vendor }: any) {
 
   return (
     <Tabs defaultValue="registration" className="space-y-4">
-      <TabsList className="flex w-full justify-start rounded-xl bg-muted/40 p-1 shadow-sm border border-border h-10">
-        <TabsTrigger value="registration">Thông tin</TabsTrigger>
-        {/* THAY Thực đơn bằng Pre-order */}
-        <TabsTrigger value="preorder">Đặt trước</TabsTrigger>
-        <TabsTrigger value="debt">Công nợ</TabsTrigger>
-        <TabsTrigger value="account">Quán của bạn</TabsTrigger>
+      <TabsList
+        className="
+          grid w-full grid-cols-3
+          rounded-xl bg-muted/40 p-1 shadow-sm border border-border h-11
+        "
+      >
+        <TabsTrigger
+          value="registration"
+          className="
+            w-full rounded-lg text-sm transition-all
+            data-[state=active]:bg-white
+            data-[state=active]:font-semibold
+            data-[state=active]:text-primary
+            data-[state=active]:border
+            data-[state=active]:border-primary
+            data-[state=active]:shadow-sm
+          "
+        >
+          Thông tin
+        </TabsTrigger>
+
+        <TabsTrigger
+          value="preorder"
+          className="
+            w-full rounded-lg text-sm transition-all
+            data-[state=active]:bg-white
+            data-[state=active]:font-semibold
+            data-[state=active]:text-primary
+            data-[state=active]:border
+            data-[state=active]:border-primary
+            data-[state=active]:shadow-sm
+          "
+        >
+          Đặt trước
+        </TabsTrigger>
+
+        <TabsTrigger
+          value="account"
+          className="
+            w-full rounded-lg text-sm transition-all
+            data-[state=active]:bg-white
+            data-[state=active]:font-semibold
+            data-[state=active]:text-primary
+            data-[state=active]:border
+            data-[state=active]:border-primary
+            data-[state=active]:shadow-sm
+          "
+        >
+          Quán của bạn
+        </TabsTrigger>
       </TabsList>
 
       <TabsContent value="registration">
         <RegistrationSection vendor={vendor} editable={isEditable} />
       </TabsContent>
 
-      {/* TAB PRE-ORDER MỚI */}
       <TabsContent value="preorder">
         {vendor?.id ? (
           <SettingsPreOrder vendorId={vendor.id} />
         ) : (
           <p>Chưa tải được quán.</p>
         )}
-      </TabsContent>
-
-      <TabsContent value="debt">
-        <SettingsDebt />
       </TabsContent>
 
       <TabsContent value="account">
