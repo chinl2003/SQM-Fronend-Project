@@ -734,7 +734,7 @@ export default function ActiveQueue() {
                     })()
                   ) : (
                     <>
-                      <Button
+                      {/* <Button
                         size="sm"
                         variant="outline"
                         onClick={() => {
@@ -744,7 +744,7 @@ export default function ActiveQueue() {
                       >
                         <MessageCircle className="h-3 w-3 mr-1" />
                         Chat
-                      </Button>
+                      </Button> */}
 
                       {/* Ẩn Hủy & Cập nhật ở tab Đã xác nhận và Đang chế biến */}
                       {queueItem.canUpdate &&
@@ -867,10 +867,11 @@ export default function ActiveQueue() {
                           {statusTab === "preparing" &&
                             "Không có đơn hàng nào đang chế biến"}
                           {statusTab === "completed" &&
-                            "Chưa có đơn hàng nào hoàn tất"} &&
+                            "Chưa có đơn hàng nào hoàn tất"}
                           {statusTab === "ready" &&
                             "Không có đơn hàng nào đang chờ nhận"}
                         </h3>
+
                         {statusTab === "pending" && (
                           <>
                             <p className="text-muted-foreground mb-4">

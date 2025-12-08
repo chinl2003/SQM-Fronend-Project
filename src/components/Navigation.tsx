@@ -310,11 +310,11 @@ export function Navigation({
           <div className="flex items-center space-x-2">
             {(userType === "customer" || userType === "guest") && (
               <>
-                <Link to="/order-history">
+                {/* <Link to="/order-history">
                   <Button variant="ghost" size="sm">
                     <Heart className="h-4 w-4" />
                   </Button>
-                </Link>
+                </Link> */}
                 <Link to="/customer/active-queue">
                   <Button variant="ghost" size="sm" className="relative">
                     <ShoppingBag className="h-4 w-4" />
