@@ -1215,7 +1215,7 @@ export default function VendorDetailPage() {
                 Ví của bạn
               </button>
 
-              {!isPreOrderMode && (
+              {/* {!isPreOrderMode && (
                 <button
                   type="button"
                   onClick={() => setPaymentMethod("CASH")}
@@ -1234,7 +1234,7 @@ export default function VendorDetailPage() {
                   />
                   Thanh toán tiền mặt
                 </button>
-              )}
+              )} */}
             </div>
 
             <div className="flex justify-end gap-2 pt-1">

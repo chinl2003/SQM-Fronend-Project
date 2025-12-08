@@ -563,7 +563,7 @@ export function VendorQuickView({
                   Ví của bạn
                 </button>
 
-                <button
+                {/* <button
                   type="button"
                   onClick={() => setPaymentMethod("CASH")}
                   className={cn(
@@ -580,7 +580,7 @@ export function VendorQuickView({
                     )}
                   />
                   Thanh toán tiền mặt
-                </button>
+                </button> */}
               </div>
             </div>
 
