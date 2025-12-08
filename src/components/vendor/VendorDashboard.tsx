@@ -14,16 +14,16 @@ import {
   TrendingUp,
   Download,
   Plus,
-  CheckCircle2,
+  CheckCircle2, LogOut 
 } from "lucide-react";
 import { HubConnectionBuilder, LogLevel, HttpTransportType } from "@microsoft/signalr";
 
 import QueueTab from "./tabs/QueueTab";
 import SettingsMenu from "./SettingsMenu";
-import AnalyticsTab from "./tabs/AnalyticsTab";
+// import AnalyticsTab from "./tabs/AnalyticsTab"; // ❌ bỏ
 import ReviewsTab from "./tabs/ReviewsTab";
 import SettingsTab from "./tabs/SettingsTab";
-import VendorWalletTab from "./tabs/VendorWalletTab"; 
+import VendorWalletTab from "./tabs/VendorWalletTab";
 
 type VendorFromApi = {
   id: string;
@@ -90,7 +90,7 @@ export default function VendorDashboard() {
   const [loadingVendor, setLoadingVendor] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<
-    "queue" | "menu" | "analytics" | "reviews" | "wallet" | "settings" // <- THÊM "wallet"
+    "queue" | "menu" | "reviews" | "wallet" | "settings"
   >("queue");
   const [vendorConfirm, setVendorConfirm] = useState<{ open: boolean; orderId?: string; title?: string; message?: string }>({ open: false });
 
@@ -201,14 +201,20 @@ export default function VendorDashboard() {
           </div>
 
           <div className="flex items-center gap-3">
-            <Button variant="outline" onClick={() => toast.info("Xuất báo cáo (placeholder)")}>
-              <Download className="h-4 w-4 mr-2" />
-              Xuất báo cáo
-            </Button>
-
-            <Button onClick={() => toast.info("Thêm món (placeholder)")}>
-              <Plus className="h-4 w-4 mr-2" />
-              Thêm món mới
+            <Button
+              variant="destructive"
+              onClick={() => {
+                localStorage.removeItem("accessToken");
+                localStorage.removeItem("userId");
+                toast.success("Đăng xuất thành công!");
+                setTimeout(() => {
+                  window.location.href = "/auth";
+                }, 500);
+              }}
+              className="flex items-center gap-2"
+            >
+              <LogOut className="h-4 w-4" />
+              Đăng xuất
             </Button>
           </div>
         </div>
@@ -290,7 +296,8 @@ export default function VendorDashboard() {
         </div>
 
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-6">
+          {/* 5 tab, không còn tab Thống kê */}
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger
               value="queue"
               className="py-2 text-sm font-medium transition-all data-[state=active]:bg-green-500 data-[state=active]:text-white data-[state=active]:shadow-sm hover:bg-muted/60 rounded-md"
@@ -306,20 +313,12 @@ export default function VendorDashboard() {
             </TabsTrigger>
 
             <TabsTrigger
-              value="analytics"
-              className="py-2 text-sm font-medium transition-all data-[state=active]:bg-green-500 data-[state=active]:text-white data-[state=active]:shadow-sm hover:bg-muted/60 rounded-md"
-            >
-              Thống kê
-            </TabsTrigger>
-
-            <TabsTrigger
               value="reviews"
               className="py-2 text-sm font-medium transition-all data-[state=active]:bg-green-500 data-[state=active]:text-white data-[state=active]:shadow-sm hover:bg-muted/60 rounded-md"
             >
               Đánh giá
             </TabsTrigger>
 
-            {/* TAB VÍ CỦA BẠN - mới */}
             <TabsTrigger
               value="wallet"
               className="py-2 text-sm font-medium transition-all data-[state=active]:bg-green-500 data-[state=active]:text-white data-[state=active]:shadow-sm hover:bg-muted/60 rounded-md"
@@ -349,16 +348,10 @@ export default function VendorDashboard() {
             )}
           </TabsContent>
 
-
-          <TabsContent value="analytics">
-            <AnalyticsTab vendor={vendor} />
-          </TabsContent>
-
           <TabsContent value="reviews">
-            <ReviewsTab vendorId={vendor?.id}/>
+            <ReviewsTab vendorId={vendor?.id} />
           </TabsContent>
 
-          {/* NỘI DUNG TAB VÍ CỦA BẠN */}
           <TabsContent value="wallet">
             <VendorWalletTab vendor={vendor} />
           </TabsContent>
@@ -379,14 +372,22 @@ export default function VendorDashboard() {
           </DialogHeader>
           <div className="space-y-3">
             {vendorConfirm.orderId && (
-              <div className="text-sm">Mã đơn hàng: <span className="font-semibold">{vendorConfirm.orderId}</span></div>
+              <div className="text-sm">
+                Mã đơn hàng: <span className="font-semibold">{vendorConfirm.orderId}</span>
+              </div>
             )}
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setVendorConfirm({ open: false })}>Đóng</Button>
-              <Button onClick={() => {
-                setVendorConfirm({ open: false });
-                setActiveTab("queue");
-              }}>Xem hàng đợi</Button>
+              <Button variant="outline" onClick={() => setVendorConfirm({ open: false })}>
+                Đóng
+              </Button>
+              <Button
+                onClick={() => {
+                  setVendorConfirm({ open: false });
+                  setActiveTab("queue");
+                }}
+              >
+                Xem hàng đợi
+              </Button>
             </div>
           </div>
         </DialogContent>
