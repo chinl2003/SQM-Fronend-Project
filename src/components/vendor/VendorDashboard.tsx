@@ -111,7 +111,7 @@ export default function VendorDashboard() {
           `/api/vendor/by-owner/${userId}`,
           token ? { Authorization: `Bearer ${token}` } : undefined
         );
-
+        console.log(res);
         const payload: any = (res?.data as any) ?? res;
         const vendors: VendorFromApi[] =
           (payload?.data as VendorFromApi[]) ??

@@ -347,7 +347,9 @@ export function VendorRegisterDialog({
   async function handleCheckBalanceAndOpenDialog() {
     try {
       setCheckingBalance(true);
-
+      const address = (
+              document.getElementById("address") as HTMLInputElement
+            )?.value?.trim();
       const geocodeKey = import.meta.env.VITE_GEOCODE_API_KEY as
         | string
         | undefined;
@@ -397,7 +399,74 @@ export function VendorRegisterDialog({
       const wallet = res.data;
       setWalletInfo(wallet);
       const available = Number(wallet.availableBalance) || 0;
+      const brandName = (
+        document.getElementById("brandName") as HTMLInputElement
+      )?.value?.trim();
+      const openingHours = (
+        document.getElementById("openingHours") as HTMLInputElement
+      )?.value?.trim();
+      const phone = (
+        document.getElementById("phone") as HTMLInputElement
+      )?.value?.trim();
+      const email = (
+        document.getElementById("email") as HTMLInputElement
+      )?.value?.trim();
+      const invoiceInfo =
+        (document.getElementById("invoiceInfo") as HTMLTextAreaElement)
+          ?.value ?? "";
+      const cccdNumber = (
+        document.getElementById("idNumber") as HTMLInputElement
+      )?.value?.trim();
 
+      const logoFile = (document.getElementById("logo") as HTMLInputElement)
+        ?.files?.[0];
+      const businessLicenseFile = (
+        document.getElementById("businessLicense") as HTMLInputElement
+      )?.files?.[0];
+      const foodSafetyFile = (
+        document.getElementById("foodSafety") as HTMLInputElement
+      )?.files?.[0];
+      const cccdFrontFile = (
+        document.getElementById("idFront") as HTMLInputElement
+      )?.files?.[0];
+      const cccdBackFile = (
+        document.getElementById("idBack") as HTMLInputElement
+      )?.files?.[0];
+
+      const acceptTerms = (document.getElementById("terms") as HTMLInputElement)
+        ?.checked;
+      const commitNoFraud = (
+        document.getElementById("commitment1") as HTMLInputElement
+      )?.checked;
+      const commitAnalytics = (
+        document.getElementById("commitment2") as HTMLInputElement
+      )?.checked;
+
+      if (!brandName || !businessTypeId || !address || !openingHours) {
+        toast.error("Vui lòng điền đầy đủ thông tin cơ bản.");
+        return;
+      }
+      if (
+        !logoFile ||
+        !businessLicenseFile ||
+        !foodSafetyFile ||
+        !cccdFrontFile ||
+        !cccdBackFile ||
+        !cccdNumber
+      ) {
+        toast.error("Vui lòng cung cấp đầy đủ giấy tờ pháp lý và CCCD.");
+        return;
+      }
+
+      if (!acceptTerms || !commitNoFraud || !commitAnalytics) {
+        toast.error("Bạn cần đồng ý điều khoản và các cam kết.");
+        return;
+      }
+
+      if (geoLat == null || geoLon == null) {
+        toast.error("Vui lòng kiểm tra địa chỉ trước khi gửi hồ sơ.");
+        return;
+      }
       setWalletBalance(available);
       setHasEnoughBalance(available >= REGISTER_FEE);
       setShowPaymentDialog(true);
