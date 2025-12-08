@@ -1,6 +1,6 @@
 // src/pages/Index.tsx
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Navigation } from "@/components/Navigation";
 import { VendorCard } from "@/components/VendorCard";
 import { FilterBar } from "@/components/FilterBar";
@@ -39,7 +39,6 @@ type ApiVendor = {
   allowPreorder?: boolean | null;
   distance?: number | null;
 
-  // business type id để filter
   businessTypeId?: string | null;
 };
 
@@ -57,7 +56,6 @@ function buildMediaUrl(path?: string | null) {
   return `${base}/${String(path).replace(/^\/+/, "")}`;
 }
 
-// Ép dữ liệu vendor về đúng shape + có businessTypeId
 function extractVendorsFromResponse(res: any): ApiVendor[] {
   const outer = res?.data?.data ?? res?.data ?? res;
   const list =
@@ -76,7 +74,6 @@ function extractVendorsFromResponse(res: any): ApiVendor[] {
     queueCount: v.queueCount,
     allowPreorder: v.allowPreorder,
     distance: v.distance,
-    // cố gắng map nhiều kiểu tên field
     businessTypeId:
       v.businessTypeId ??
       v.BusinessTypeId ??
@@ -85,7 +82,6 @@ function extractVendorsFromResponse(res: any): ApiVendor[] {
   }));
 }
 
-// Map BusinessTypeResponse (BusinessTypeId, BusinessTypeName, Count) về type FE
 function extractBusinessTypesFromResponse(res: any): BusinessType[] {
   const outer = res?.data?.data ?? res?.data ?? res;
   const list =
@@ -103,6 +99,7 @@ function extractBusinessTypesFromResponse(res: any): BusinessType[] {
 
 export default function Index() {
   const navigate = useNavigate();
+  const location = useLocation()
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [vendors, setVendors] = useState<ApiVendor[]>([]);
@@ -118,14 +115,13 @@ export default function Index() {
     requestLocation,
   } = useGeolocation();
 
+  const searchParams = new URLSearchParams(location.search);
+  const searchKeyword = (searchParams.get("q") || "").trim()
   useEffect(() => {
-    // nếu có cần currentCustomerId thì giữ, còn không có thể xoá
     const cid = localStorage.getItem("userId") || null;
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const currentCustomerId = cid;
   }, []);
 
-  // Lấy BusinessType
   useEffect(() => {
     let mounted = true;
 
@@ -156,8 +152,7 @@ export default function Index() {
     };
   }, []);
 
-  // Lấy vendors
-  useEffect(() => {
+    useEffect(() => {
     let mounted = true;
 
     const fetchVendors = async () => {
@@ -177,6 +172,14 @@ export default function Index() {
           params.append("longitude", userLocation.longitude.toString());
         }
 
+        if (searchKeyword) {
+          params.append("nameSearch", searchKeyword);
+        }
+
+        if (selectedCategory) {
+          params.append("businessTypeId", selectedCategory);
+        }
+
         const res = await api.get<ApiResponse<ApiVendor[]>>(
           `/api/Vendor?${params.toString()}`,
           headers
@@ -184,18 +187,6 @@ export default function Index() {
         const list = extractVendorsFromResponse(res);
         if (mounted) setVendors(list);
       } catch (e) {
-        console.error("Error fetching vendors:", e);
-        try {
-          const token = localStorage.getItem("accessToken") || "";
-          const res = await api.get<ApiResponse<ApiVendor[]>>(
-            "/api/vendor/active",
-            token ? { Authorization: `Bearer ${token}` } : undefined
-          );
-          const list = extractVendorsFromResponse(res);
-          if (mounted) setVendors(list);
-        } catch {
-          if (mounted) setVendors([]);
-        }
       } finally {
         if (mounted) setLoading(false);
       }
@@ -205,12 +196,8 @@ export default function Index() {
       fetchVendors();
     }
 
-    return () => {
-      mounted = false;
-    };
-  }, [userLocation, locationLoading, radiusKm]);
+  }, [userLocation, locationLoading, radiusKm, selectedCategory, searchKeyword]);
 
-  // ====== FILTER VENDOR THEO DANH MỤC ======
   const filteredVendors = useMemo(
     () =>
       selectedCategory
@@ -218,7 +205,6 @@ export default function Index() {
         : vendors,
     [vendors, selectedCategory]
   );
-  // ========================================
 
   const vendorLocations = useMemo(
     () =>
@@ -280,14 +266,13 @@ export default function Index() {
   };
 
   const handleFilterChange = () => {
-    // TODO: nếu sau này muốn filter thêm
   };
 
   return (
     <div className="min-h-screen bg-background">
       <Navigation userType="customer" queueCount={2} />
 
-      <FilterBar onFilterChange={handleFilterChange} />
+      {/* <FilterBar onFilterChange={handleFilterChange} /> */}
 
       <section className="relative h-64 md:h-80 overflow-hidden">
         <img

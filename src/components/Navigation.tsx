@@ -215,11 +215,17 @@ export function Navigation({
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (searchQuery.trim()) {
-      navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
-      setSearchQuery("");
-    }
+    const query = searchQuery.trim();
+    if (!query) return;
+
+    navigate({
+      pathname: "/",
+      search: `?q=${encodeURIComponent(query)}`,
+    });
+
+    setSearchQuery("");
   };
+
 
   const handleOpenStore = (e: React.MouseEvent) => {
     e.preventDefault();
