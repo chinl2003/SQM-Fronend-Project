@@ -7,7 +7,7 @@ import { componentTagger } from "lovable-tagger";
 export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
-    port: 8085,
+    port: 3000,
     open: "/",
     proxy: {
       "/vietqr": {
@@ -17,6 +17,10 @@ export default defineConfig(({ mode }) => ({
         rewrite: (path) => path.replace(/^\/vietqr/, ""),
       },
     },
+  },
+  preview: {
+    host: true,
+    allowedHosts: ["https://sqm-client.datacenter.tms-s.vn", "https://sqm-client.datacenter.tms-s.vn"]
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
