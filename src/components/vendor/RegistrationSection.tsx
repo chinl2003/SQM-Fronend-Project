@@ -323,7 +323,7 @@ export default function RegistrationSection({
               )}
             </div>
 
-            <div className="space-y-2">
+            {/* <div className="space-y-2">
               <Label className="font-semibold" htmlFor="businessType">
                 Loại hình kinh doanh {editable && <Req />}
               </Label>
@@ -347,7 +347,7 @@ export default function RegistrationSection({
               ) : (
                 <p className="font-normal">{vendor?.businessTypeName || "—"}</p>
               )}
-            </div>
+            </div> */}
           </div>
 
           <div className="space-y-2">
@@ -383,7 +383,7 @@ export default function RegistrationSection({
               )}
             </div>
 
-            <div className="space-y-2">
+            {/* <div className="space-y-2">
               <Label className="font-semibold" htmlFor="phone">
                 Số điện thoại {editable && <Req />}
               </Label>
@@ -397,11 +397,11 @@ export default function RegistrationSection({
               ) : (
                 <p className="font-normal">{vendor?.phone || "—"}</p>
               )}
-            </div>
+            </div> */}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
+            {/* <div className="space-y-2">
               <Label className="font-semibold" htmlFor="email">
                 Email liên hệ {editable && <Req />}
               </Label>
@@ -416,7 +416,7 @@ export default function RegistrationSection({
               ) : (
                 <p className="font-normal">{vendor?.email || "—"}</p>
               )}
-            </div>
+            </div> */}
 
             <div className="space-y-2">
               <Label className="font-semibold" htmlFor="logo">
