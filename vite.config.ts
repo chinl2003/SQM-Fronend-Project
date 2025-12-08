@@ -20,7 +20,7 @@ export default defineConfig(({ mode }) => ({
   },
   preview: {
     host: true,
-    allowedHosts: ["https://sqm-client.datacenter.tms-s.vn", "https://sqm-client.datacenter.tms-s.vn"]
+    allowedHosts: ["sqm-client.datacenter.tms-s.vn", "sqm-client.datacenter.tms-s.vn"]
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
