@@ -271,12 +271,11 @@ const VendorManagement = () => {
     }
   };
 
-  // MỞ MODAL XÁC NHẬN – nhận status mong muốn
   const openApproveModal = (vendor: Vendor, status: number) => {
     setApprovingTarget({
       id: vendor.id,
       name: vendor.name,
-      status, // lưu status để xác nhận xong gọi API
+      status
     });
     setShowApprovalModal(true);
   };
