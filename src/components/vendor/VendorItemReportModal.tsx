@@ -62,6 +62,7 @@ type VendorItemHourlyRowApi = {
   avgCompletionMinutes: number;
   configuredMinutes?: number;
   lateRatePercent: number;
+  suggestedEtaMinutes: number;
   recommendPreorder: boolean;
   preorderSuggestion?: { slotMinutes: number; slotsCount: number; capacityPerSlot: number };
   samples?: Array<{ id: string; placedAt: string; completedAt?: string; completionMinutes: number }>;
@@ -166,6 +167,7 @@ export default function VendorItemReportModal({
   menuItemId,
   menuItemName,
   currentPrepMinutes,
+  suggestedEtaMinutes,
   onApply,
 }: {
   open: boolean;
@@ -174,6 +176,7 @@ export default function VendorItemReportModal({
   menuItemId: string;
   menuItemName: string;
   currentPrepMinutes: number;
+  suggestedEtaMinutes: number;
   onApply: (menuItemId: string, newPrepMinutes: number) => Promise<void> | void;
 }) {
   const [loading, setLoading] = useState(false);
@@ -196,7 +199,7 @@ export default function VendorItemReportModal({
           .get<VendorItemReportResponse>(`/api/vendors/${vendorId}/menuitems/${menuItemId}/report`, headers)
           .catch(() => null);
         const payload = (res as ApiResponse<VendorItemReportApi>)?.data ?? (res as VendorItemReportApi | null);
-
+        console.log(res);
         if (payload && payload.hourly && Array.isArray(payload.hourly)) {
           const rows: HourRow[] = payload.hourly.map((r) => ({
             hourFrom: Number(r.hour) || 0,
@@ -204,7 +207,7 @@ export default function VendorItemReportModal({
             orders: Number(r.orders) || 0,
             avgCompletionMinutes: Number(r.avgCompletionMinutes) || 0,
             configuredMinutes: Number(r.configuredMinutes) || currentPrepMinutes || undefined,
-            suggestedEtaMinutes: Math.max(Number(r.configuredMinutes) || currentPrepMinutes || 0, Math.round((Number(r.avgCompletionMinutes) || 0) + 1)),
+            suggestedEtaMinutes: Number(r.suggestedEtaMinutes),
             lateRatePercent: Number(r.lateRatePercent) || 0,
             recommendPreorder: !!r.recommendPreorder,
             preorderSuggestion: r.preorderSuggestion,
@@ -212,9 +215,12 @@ export default function VendorItemReportModal({
           }));
 
           if (mounted) {
+            
+            console.log(rows);
             setData(rows);
             const ordersPayload = payload.orders;
             if (ordersPayload && Array.isArray(ordersPayload)) {
+              console.log(ordersPayload);
               setAllSamples(ordersPayload.map((o) => ({ id: o.id, placedAt: o.placedAt, completedAt: o.completedAt, completionMinutes: Number(o.completionMinutes) })));
             } else {
               setAllSamples(rows.flatMap((r) => r.samples ?? []).sort((a, b) => new Date(a.placedAt).getTime() - new Date(b.placedAt).getTime()));
@@ -283,13 +289,15 @@ export default function VendorItemReportModal({
 
   const applyForCurrentHour = async () => {
     if (!suggestedNow) return toast.error("Không có gợi ý cho giờ hiện tại");
+    const v = Number(suggestedNow.suggestedEtaMinutes);
+    if (!Number.isFinite(v) || v <= 0) return toast.error("Không có gợi ý ETA từ API");
     setApplyLoading(true);
     try {
-      await onApply(menuItemId, suggestedNow.suggestedEtaMinutes);
+      await onApply(menuItemId, v);
       const token = localStorage.getItem("accessToken") || "";
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-      await api.put(`/api/menuitem/${menuItemId}/eta`, { hourFrom: suggestedNow.hourFrom, prepTime: suggestedNow.suggestedEtaMinutes }, headers).catch(() => null);
-      toast.success(`Đã áp dụng ETA ${suggestedNow.suggestedEtaMinutes} phút cho giờ ${suggestedNow.hourFrom}:00`);
+      await api.put(`/api/menuitem/${menuItemId}/eta`, { hourFrom: suggestedNow.hourFrom, prepTime: v }, headers).catch(() => null);
+      toast.success(`Đã áp dụng ETA ${v} phút cho giờ ${suggestedNow.hourFrom}:00`);
     } catch (e) {
       console.error(e);
       toast.error("Áp dụng thất bại.");
@@ -413,7 +421,7 @@ export default function VendorItemReportModal({
 
                   <div className="p-3 rounded-md border bg-gradient-to-br from-emerald-50 to-white shadow-sm">
                     <div className="text-sm text-muted-foreground">Gợi ý giờ hiện tại</div>
-                    <div className="text-2xl font-semibold">{suggestedNow ? `${suggestedNow.suggestedEtaMinutes} phút` : '—'}</div>
+                    <div className="text-2xl font-semibold">{suggestedNow && Number.isFinite(Number(suggestedNow.suggestedEtaMinutes)) ? `${Number(suggestedNow.suggestedEtaMinutes)} phút` : '—'}</div>
                     {suggestedNow && (
                       <div className="text-xs text-muted-foreground">Trung bình: {suggestedNow.avgCompletionMinutes} phút • Đơn: {suggestedNow.orders}</div>
                     )}
