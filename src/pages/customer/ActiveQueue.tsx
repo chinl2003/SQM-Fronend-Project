@@ -624,7 +624,6 @@ export default function ActiveQueue() {
                       </span>
                     </div>
 
-                    {/* Bên phải: Thời gian hoàn tất đơn */}
                     <div className="flex items-center space-x-1">
                       <Clock className="h-3 w-3 text-sky-500" />
                       <span>
@@ -637,7 +636,6 @@ export default function ActiveQueue() {
                   </>
                 ) : (
                   <>
-                    {/* Các tab khác vẫn hiển thị Thời gian đợi đến lượt + Thời gian nhận hàng dự kiến */}
                     <div className="flex items-center space-x-1">
                       <Clock className="h-3 w-3 text-amber-500" />
                       <span>

@@ -1053,7 +1053,7 @@ export default function VendorDetailPage() {
                 onClick={openConfirm}
                 disabled={totalCount === 0}
               >
-                {isPreOrderMode ? "Đặt trước" : "Taaham gia xếp hàng"}
+                {isPreOrderMode ? "Đặt trước" : "Tham gia xếp hàng"}
               </Button>
             </div>
           </aside>
