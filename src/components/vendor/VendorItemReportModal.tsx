@@ -434,9 +434,7 @@ export default function VendorItemReportModal({
           headers
         )
         .catch(() => null);
-      toast.success(
-        `Đã áp dụng ETA ${v} phút cho giờ ${hourToApply}:00`
-      );
+     
       setIsEditingEta(false);
     } catch (e) {
       console.error(e);
