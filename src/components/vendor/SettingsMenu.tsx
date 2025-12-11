@@ -413,7 +413,7 @@ export default function SettingsMenu({ vendorId }: SettingsMenuProps) {
     try {
       const token = localStorage.getItem("accessToken") || "";
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-      await api.put<ApiResponse<any>>(`/api/menuitem/${menuItemId}`, { prepTime: newPrepMinutes }, headers);
+      await api.put<ApiResponse<any>>(`/api/Menuitem/${menuItemId}/eta`, { prepTime: newPrepMinutes }, headers);
       toast.success("Áp dụng ETA thành công.");
     } catch (e) {
       console.error(e);
