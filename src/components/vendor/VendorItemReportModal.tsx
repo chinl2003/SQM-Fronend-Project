@@ -1,17 +1,20 @@
 // src/components/vendor/VendorReportModal.tsx
 import React, { useMemo, useState, useEffect } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { X } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { 
+  Clock, 
+  TrendingUp, 
+  AlertTriangle, 
+  Calendar,
+  BarChart3,
+  CheckCircle,
+  XCircle,
+  Activity,
+  Timer,
+  Target,
+  Edit3
+} from "lucide-react";
 import {
   ResponsiveContainer,
   BarChart,
@@ -208,6 +211,8 @@ export default function VendorItemReportModal({
   const [preorderLoading, setPreorderLoading] = useState(false);
   const [preorderEnabledForCurrent, setPreorderEnabledForCurrent] =
     useState<boolean | null>(null);
+  const [editableSuggestedEta, setEditableSuggestedEta] = useState<number>(0);
+  const [isEditingEta, setIsEditingEta] = useState(false);
 
   const [selectedDate, setSelectedDate] = useState<string>(() => {
     const d = new Date();
@@ -300,6 +305,7 @@ export default function VendorItemReportModal({
             );
           }
         }
+        setEditableSuggestedEta(currentHourEtaDisplay);
       } catch (e) {
         console.error(e);
         if (mounted) {
@@ -320,6 +326,8 @@ export default function VendorItemReportModal({
         }
       } finally {
         if (mounted) setLoading(false);
+
+
       }
     }
     fetchData();
@@ -329,15 +337,19 @@ export default function VendorItemReportModal({
   }, [menuItemId, vendorId, selectedDate, currentPrepMinutes]);
 
   const chartData = useMemo(() => {
-    if (!data) return [] as any[];
-    return data.map((d) => ({
-      hour: `${d.hourFrom}:00`,
-      orders: d.orders,
-      avg: d.avgCompletionMinutes,
-      suggest: d.suggestedEtaMinutes,
-      peak: d.orders >= 50 || d.lateRatePercent >= 25,
-      late: Math.round((d.orders || 0) * ((d.lateRatePercent || 0) / 100)),
-    }));
+    // Create array for all 24 hours
+    const allHours = Array.from({ length: 24 }, (_, i) => {
+      const hourData = data?.find(d => d.hourFrom === i);
+      return {
+        hour: `${i.toString().padStart(2, '0')}:00`,
+        orders: hourData?.orders || 0,
+        avg: hourData ? Math.max(5, Math.round(hourData.avgCompletionMinutes)) : 5,
+        suggest: hourData ? Math.max(5, Math.round(hourData.suggestedEtaMinutes)) : 5,
+        peak: hourData ? (hourData.orders >= 50 || hourData.lateRatePercent >= 25) : false,
+        late: hourData ? Math.round((hourData.orders || 0) * ((hourData.lateRatePercent || 0) / 100)) : 0,
+      };
+    });
+    return allHours;
   }, [data]);
 
   const nowHour = new Date().getHours();
@@ -362,6 +374,17 @@ export default function VendorItemReportModal({
     return currentPrepMinutes;
   }, [suggestedNow, data, currentPrepMinutes]);
 
+  // Update editable ETA when data changes
+  React.useEffect(() => {
+    if (!isEditingEta) {
+      if (suggestedNow) {
+        setEditableSuggestedEta(suggestedNow.suggestedEtaMinutes);
+      } 
+    }
+  }, [suggestedNow, isEditingEta, currentPrepMinutes]);
+        // Use current prep minutes as default if no suggested d
+
+        
   const peakHour = useMemo(() => {
     if (!data || data.length === 0) return null;
     let best = data[0];
@@ -391,25 +414,28 @@ export default function VendorItemReportModal({
   }, [peakHour]);
 
   const applyForCurrentHour = async () => {
-    if (!suggestedNow) return toast.error("Không có gợi ý cho giờ hiện tại");
-    const v = Number(suggestedNow.suggestedEtaMinutes);
+    const v = Number(editableSuggestedEta);
     if (!Number.isFinite(v) || v <= 0)
-      return toast.error("Không có gợi ý ETA từ API");
+      return toast.error("ETA phải là số dương hợp lệ");
+    
     setApplyLoading(true);
     try {
       await onApply(menuItemId, v);
       const token = localStorage.getItem("accessToken") || "";
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+      
+      // Use current hour if suggestedNow is not available
+      const hourToApply = suggestedNow?.hourFrom ?? nowHour;
+      
       await api
         .put(
-          `/api/menuitem/${menuItemId}/eta`,
-          { hourFrom: suggestedNow.hourFrom, prepTime: v },
+          `/api/MenuItem/${menuItemId}/eta`,
+          { prepTime: v },
           headers
         )
         .catch(() => null);
-      toast.success(
-        `Đã áp dụng ETA ${v} phút cho giờ ${suggestedNow.hourFrom}:00`
-      );
+     
+      setIsEditingEta(false);
     } catch (e) {
       console.error(e);
       toast.error("Áp dụng thất bại.");
@@ -486,151 +512,243 @@ export default function VendorItemReportModal({
         className="fixed inset-0 bg-black/40"
         onClick={() => onOpenChange(false)}
       />
-      <div className="relative w-full max-w-6xl max-h-[90vh] overflow-hidden transform transition-all duration-200">
+      <div className="relative w-full max-w-6xl h-[90vh] overflow-hidden transform transition-all duration-200">
         <div className="flex flex-col h-full bg-white rounded-lg shadow-lg">
-          <div className="border-b px-5 py-4 bg-card rounded-t-lg">
+          <div className="flex-shrink-0 border-b px-6 py-5 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-t-lg">
             <div className="flex items-start justify-between gap-4">
-              <div>
-                <div className="text-lg font-semibold">
-                  Báo cáo món — {menuItemName || menuItemId}
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <BarChart3 className="h-5 w-5 text-blue-600" />
                 </div>
-                <div className="mt-2 flex items-center gap-2 text-sm">
-                  <span className="text-muted-foreground">Ngày:</span>
-                  <input
-                    type="date"
-                    className="border rounded px-2 py-1 text-sm"
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                  />
-                  {loading && (
-                    <span className="text-xs text-muted-foreground">
-                      Đang tải dữ liệu...
-                    </span>
-                  )}
+                <div>
+                  <div className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                    📊 Báo cáo món — {menuItemName || menuItemId}
+                    <Badge variant="secondary" className="text-xs">
+                      Chi tiết
+                    </Badge>
+                  </div>
+                  <div className="mt-2 flex items-center gap-3 text-sm">
+                    <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg shadow-sm">
+                      <Calendar className="h-4 w-4 text-gray-500" />
+                      <span className="text-gray-600 font-medium">Ngày:</span>
+                      <input
+                        type="date"
+                        className="border-0 bg-transparent text-gray-800 font-semibold focus:outline-none"
+                        value={selectedDate}
+                        onChange={(e) => setSelectedDate(e.target.value)}
+                      />
+                    </div>
+                    {loading && (
+                      <div className="flex items-center gap-2 text-blue-600">
+                        <Activity className="h-4 w-4 animate-pulse" />
+                        <span className="text-sm font-medium animate-pulse">
+                          Đang tải dữ liệu...
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              <div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => onOpenChange(false)}
-                  aria-label="Đóng"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-4 w-4"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M6 18L18 6M6 6l12 12"
-                    />
-                  </svg>
-                </Button>
-              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => onOpenChange(false)}
+                className="hover:bg-red-100 hover:text-red-600 transition-colors"
+                aria-label="Đóng"
+              >
+                <XCircle className="h-5 w-5" />
+              </Button>
             </div>
           </div>
 
-          <div className="px-5 py-4 max-h-[72vh] overflow-auto">
-            <div className="grid grid-cols-1 gap-4">
-              <div className="rounded-md border p-3 bg-gradient-to-br from-white to-slate-50 shadow-sm hover:shadow-lg transition-shadow duration-200">
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <div className="text-base font-medium">
-                      Biểu đồ giờ — Số lượt đặt & số đơn trễ
+          <div className="flex-1 px-6 py-5 overflow-auto bg-gray-50">
+            <div className="grid grid-cols-1 gap-6">
+              <div className="rounded-xl border-0 p-6 bg-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-gradient-to-br from-purple-100 to-blue-100 rounded-lg">
+                      <TrendingUp className="h-5 w-5 text-purple-600" />
+                    </div>
+                    <div>
+                      <div className="text-lg font-bold text-gray-800">
+                        📈 Biểu đồ theo giờ
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        Phân tích số lượt đặt & đơn trễ theo từng giờ
+                      </div>
                     </div>
                   </div>
-                  <div className="text-sm text-muted-foreground">
-                    Tổng khung: {(data || []).length}
-                  </div>
+                  <Badge variant="outline" className="text-xs font-semibold">
+                    {(data || []).length} khung giờ
+                  </Badge>
                 </div>
 
-                <div style={{ height: 220 }}>
+                <div className="bg-gradient-to-br from-gray-50 to-white p-4 rounded-lg border" style={{ height: 320 }}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="hour" />
-                      <YAxis />
-                      <Tooltip />
-                      <Legend />
+                    <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" opacity={0.6} />
+                      <XAxis 
+                        dataKey="hour" 
+                        tick={{ fontSize: 10, fill: '#64748b' }}
+                        axisLine={{ stroke: '#cbd5e1' }}
+                        interval={0}
+                        angle={-45}
+                        textAnchor="end"
+                        height={60}
+                      />
+                      <YAxis 
+                        allowDecimals={false}
+                        tickFormatter={(value) => Math.round(Number(value)).toString()}
+                        domain={[4, (dataMax: number) => dataMax + 3]}
+                        tick={{ fontSize: 12, fill: '#64748b' }}
+                        axisLine={{ stroke: '#cbd5e1' }}
+                      />
+                      <Tooltip 
+                        formatter={(value: any, name: string) => {
+                          return [Math.round(Number(value)), name];
+                        }}
+                        contentStyle={{
+                          backgroundColor: 'white',
+                          border: '1px solid #e2e8f0',
+                          borderRadius: '8px',
+                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                        }}
+                      />
+                      <Legend 
+                        wrapperStyle={{ paddingTop: '20px' }}
+                        iconType="rect"
+                      />
 
-                      <Bar dataKey="orders" name="Số lượt">
+                      <Bar dataKey="orders" name="🛒 Số lượt đặt" radius={[2, 2, 0, 0]}>
                         {chartData.map((entry: any, idx: number) => (
                           <Cell
                             key={`cell-${idx}`}
-                            fill={entry.peak ? "#f97316" : "#2563eb"}
+                            fill={entry.peak ? "#f59e0b" : "#3b82f6"}
                           />
                         ))}
                       </Bar>
 
                       <Bar
                         dataKey="late"
-                        name="Số đơn trễ"
+                        name="⚠️ Số đơn trễ"
                         fill="#ef4444"
+                        radius={[2, 2, 0, 0]}
                       />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
               </div>
 
-              <div className="rounded-md border p-3 bg-gradient-to-br from-white to-slate-50 shadow-sm hover:shadow-lg transition-shadow duration-200">
-                <div className="mb-3 flex items-center justify-between">
-                  <div>
-                    <div className="text-base font-medium">
-                      Hành động & tóm tắt
+              <div className="rounded-xl border-0 p-6 bg-white shadow-lg hover:shadow-xl transition-all duration-300">
+                <div className="mb-6 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-gradient-to-br from-green-100 to-emerald-100 rounded-lg">
+                      <Target className="h-5 w-5 text-green-600" />
+                    </div>
+                    <div>
+                      <div className="text-lg font-bold text-gray-800">
+                        🎯 Hành động & Tóm tắt
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        Thông tin quan trọng và hành động được đề xuất
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      className="bg-emerald-600 text-white hover:bg-emerald-700"
-                      onClick={applyForCurrentHour}
-                      disabled={!suggestedNow || applyLoading}
-                    >
-                      {applyLoading ? "Đang..." : "Áp dụng ETA (hiện tại)"}
-                    </Button>
-                  </div>
+                  <Button
+                    size="sm"
+                    className="bg-gradient-to-r from-emerald-500 to-green-600 text-white hover:from-emerald-600 hover:to-green-700 shadow-lg hover:shadow-xl transition-all duration-200 transform hover:-translate-y-0.5"
+                    onClick={applyForCurrentHour}
+                    disabled={applyLoading || !editableSuggestedEta || editableSuggestedEta <= 0}
+                  >
+                    {applyLoading ? (
+                      <div className="flex items-center gap-2">
+                        <Activity className="h-4 w-4 animate-spin" />
+                        Đang áp dụng...
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4" />
+                        Áp dụng ETA ngay
+                      </div>
+                    )}
+                  </Button>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div className="p-3 rounded-md border bg-gradient-to-br from-emerald-50 to-white shadow-sm">
-                    <div className="text-sm text-muted-foreground">
-                      ETA hiện tại
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="p-4 rounded-xl border bg-gradient-to-br from-blue-50 to-cyan-50 shadow-sm hover:shadow-md transition-all duration-200 transform hover:-translate-y-1">
+                    <div className="flex items-center gap-3 mb-2">
+                      <Clock className="h-5 w-5 text-blue-600" />
+                      <div className="text-sm font-medium text-blue-800">
+                        ETA hiện tại
+                      </div>
                     </div>
-                    <div className="text-2xl font-semibold">
-                      {currentPrepMinutes} phút
-                    </div>
-                  </div>
-
-                  <div className="p-3 rounded-md border bg-gradient-to-br from-emerald-50 to-white shadow-sm">
-                    <div className="text-sm text-muted-foreground">
-                      ETA gợi ý theo giờ hiện tại
-                    </div>
-                    <div className="text-2xl font-semibold">
-                      {currentHourEtaDisplay} phút
+                    <div className="text-3xl font-bold text-blue-900">
+                      {currentPrepMinutes} <span className="text-lg text-blue-600">phút</span>
                     </div>
                   </div>
 
-                  <div className="p-3 rounded-md border bg-gradient-to-br from-emerald-50 to-white shadow-sm">
-                    <div className="text-sm text-muted-foreground">
-                      Khung giờ cao điểm nhất
+                  <div className="p-4 rounded-xl border bg-gradient-to-br from-green-50 to-emerald-50 shadow-sm hover:shadow-md transition-all duration-200 transform hover:-translate-y-1">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-3">
+                        <Timer className="h-5 w-5 text-green-600" />
+                        <div className="text-sm font-medium text-green-800">
+                          ETA được đề xuất
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setIsEditingEta(!isEditingEta)}
+                        className="text-green-600 hover:text-green-700 hover:bg-green-100"
+                      >
+                        {isEditingEta ? <CheckCircle className="h-4 w-4" /> : <Edit3 className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {isEditingEta ? (
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min="1"
+                            max="120"
+                            value={editableSuggestedEta}
+                            onChange={(e) => setEditableSuggestedEta(Number(e.target.value))}
+                            className="w-20 px-2 py-1 text-2xl font-bold text-green-900 bg-white border border-green-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                setIsEditingEta(false);
+                              }
+                            }}
+                          />
+                          <span className="text-lg text-green-600">phút</span>
+                        </div>
+                      ) : (
+                        <div className="text-3xl font-bold text-green-900">
+                          {editableSuggestedEta || currentHourEtaDisplay} <span className="text-lg text-green-600">phút</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-xl border bg-gradient-to-br from-orange-50 to-amber-50 shadow-sm hover:shadow-md transition-all duration-200 transform hover:-translate-y-1">
+                    <div className="flex items-center gap-3 mb-2">
+                      <AlertTriangle className="h-5 w-5 text-orange-600" />
+                      <div className="text-sm font-medium text-orange-800">
+                        Khung giờ cao điểm
+                      </div>
                     </div>
                     {peakHour ? (
                       <>
-                        <div className="text-2xl font-semibold">
+                        <div className="text-2xl font-bold text-orange-900">
                           {peakHour.hourFrom}:00 — {peakHour.hourTo}:00
                         </div>
-                        <div className="text-xs text-muted-foreground">
-                          Lý do: {peakReason}
+                        <div className="text-xs text-orange-600 mt-1 font-medium">
+                          {peakReason}
                         </div>
                       </>
                     ) : (
-                      <div className="text-sm text-muted-foreground">
+                      <div className="text-sm text-orange-600 font-medium">
                         Không đủ dữ liệu
                       </div>
                     )}
@@ -638,71 +756,112 @@ export default function VendorItemReportModal({
                 </div>
               </div>
 
-              <div className="rounded-md border p-3 bg-gradient-to-br from-white to-slate-50 shadow-sm hover:shadow-lg transition-all duration-200 transform hover:-translate-y-0.5">
-                <div className="text-sm font-medium mb-2">
-                  Lịch sử món ăn
+              <div className="rounded-xl border-0 p-6 bg-white shadow-lg hover:shadow-xl transition-all duration-300">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-2 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-lg">
+                    <Activity className="h-5 w-5 text-indigo-600" />
+                  </div>
+                  <div>
+                    <div className="text-lg font-bold text-gray-800">
+                      📋 Lịch sử chi tiết theo giờ
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      Thông tin đơn hàng và hiệu suất từng khung giờ
+                    </div>
+                  </div>
                 </div>
 
-                <div className="space-y-3">
+                <div className="space-y-4">
                   {groupedByHour.map((g) => (
                     <div
                       key={g.hour}
                       className={`${
                         g.isPeak
-                          ? "bg-yellow-50 border-yellow-300"
-                          : "bg-white border-border"
-                      } rounded-md border p-3 transition-all duration-150 hover:shadow-lg`}
+                          ? "bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200 shadow-amber-100"
+                          : "bg-gradient-to-r from-gray-50 to-slate-50 border-gray-200"
+                      } rounded-xl border-2 p-5 transition-all duration-300 hover:shadow-lg transform hover:-translate-y-1`}
                     >
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="font-semibold text-base">
-                          {g.hour}:00 — {g.hour + 1}:00
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className={`p-2 rounded-lg ${g.isPeak ? 'bg-amber-100' : 'bg-blue-100'}`}>
+                            <Clock className={`h-5 w-5 ${g.isPeak ? 'text-amber-600' : 'text-blue-600'}`} />
+                          </div>
+                          <div>
+                            <div className="font-bold text-lg text-gray-800">
+                              🕐 {g.hour}:00 — {g.hour + 1}:00
+                            </div>
+                            {g.isPeak && (
+                              <Badge variant="destructive" className="text-xs mt-1">
+                                ⚡ Giờ cao điểm
+                              </Badge>
+                            )}
+                          </div>
                         </div>
-                        <div className="text-sm text-muted-foreground">
-                          {g.samples.length} đơn • ETA TB:{" "}
-                          <span className="font-semibold">
-                            {g.avgMinutes} phút
-                          </span>
+                        <div className="text-right">
+                          <div className="text-sm text-gray-600 font-medium">
+                            📦 {g.samples.length} đơn hàng
+                          </div>
+                          <div className="text-lg font-bold text-gray-800">
+                            ⏱️ {g.avgMinutes} phút TB
+                          </div>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-4 mb-3">
-                        <div className="text-sm font-medium">
-                          Tỉ lệ trễ:
+                      <div className="grid grid-cols-2 gap-4 mb-4">
+                        <div className="flex items-center gap-2 p-3 bg-white rounded-lg shadow-sm">
+                          <AlertTriangle className="h-4 w-4 text-red-500" />
+                          <div>
+                            <div className="text-xs text-gray-500 font-medium">Tỉ lệ trễ</div>
+                            <div className="text-lg font-bold text-red-600">
+                              {g.lateRate}%
+                            </div>
+                          </div>
                         </div>
-                        <div className="text-sm font-semibold text-rose-600">
-                          {g.lateRate}%
-                        </div>
-                        <div className="text-sm ml-4 font-medium">
-                          Số lần trễ:
-                        </div>
-                        <div className="text-sm font-semibold text-rose-600">
-                          {g.lateCount}
+                        <div className="flex items-center gap-2 p-3 bg-white rounded-lg shadow-sm">
+                          <XCircle className="h-4 w-4 text-red-500" />
+                          <div>
+                            <div className="text-xs text-gray-500 font-medium">Số đơn trễ</div>
+                            <div className="text-lg font-bold text-red-600">
+                              {g.lateCount} đơn
+                            </div>
+                          </div>
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                         {g.samples.length === 0 && (
-                          <div className="text-muted-foreground">
-                            Không có đơn trong khung này.
+                          <div className="col-span-full text-center py-8 text-gray-500">
+                            <Activity className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                            <div className="font-medium">Không có đơn hàng trong khung giờ này</div>
                           </div>
                         )}
                         {g.samples.map((s) => (
                           <div
                             key={s.id}
-                            className={`p-3 rounded-md ${
-                              g.isPeak ? "bg-yellow-100" : "bg-slate-50"
-                            } border shadow-sm hover:shadow-md transform transition-all duration-150 hover:-translate-y-0.5`}
+                            className={`p-4 rounded-lg border-2 shadow-sm hover:shadow-lg transform transition-all duration-200 hover:-translate-y-1 ${
+                              g.isPeak 
+                                ? "bg-gradient-to-br from-amber-50 to-yellow-50 border-amber-200 hover:border-amber-300" 
+                                : "bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200 hover:border-blue-300"
+                            }`}
                           >
-                            <div className="flex items-center justify-between">
-                              <div className="font-medium text-lg">
-                                Mã: {s.id}
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <div className={`p-1 rounded ${g.isPeak ? 'bg-amber-100' : 'bg-blue-100'}`}>
+                                  <CheckCircle className={`h-3 w-3 ${g.isPeak ? 'text-amber-600' : 'text-blue-600'}`} />
+                                </div>
+                                <div className="font-bold text-gray-800 text-sm">
+                                  #{s.id}
+                                </div>
                               </div>
-                              <div className="text-sm font-semibold">
-                                {s.completionMinutes} phút
-                              </div>
+                              <Badge 
+                                variant={s.completionMinutes > (currentPrepMinutes + 2) ? "destructive" : "secondary"}
+                                className="text-xs font-bold"
+                              >
+                                {s.completionMinutes}p
+                              </Badge>
                             </div>
-                            <div className="text-sm text-muted-foreground">
-                              {formatTimeRange(s.placedAt, s.completedAt)}
+                            <div className="text-xs text-gray-600 font-medium">
+                              🕒 {formatTimeRange(s.placedAt, s.completedAt)}
                             </div>
                           </div>
                         ))}
@@ -714,13 +873,17 @@ export default function VendorItemReportModal({
             </div>
           </div>
 
-          <div className="border-t px-5 py-3 bg-card flex items-center justify-end gap-2 rounded-b-lg">
-            <button
-              className="btn btn-outline"
+          <div className="flex-shrink-0 border-t px-6 py-4 bg-gradient-to-r from-gray-50 to-slate-50 flex items-center justify-between rounded-b-lg">
+            <div className="text-sm text-gray-600 font-medium">
+            </div>
+            {/* <Button
+              variant="outline"
               onClick={() => onOpenChange(false)}
+              className="hover:bg-gray-100 transition-colors"
             >
-              Đóng
-            </button>
+              <XCircle className="h-4 w-4 mr-2" />
+              Đóng báo cáo
+            </Button> */}
           </div>
         </div>
       </div>
