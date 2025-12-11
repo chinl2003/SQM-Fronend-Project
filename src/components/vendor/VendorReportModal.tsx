@@ -229,7 +229,6 @@ export default function VendorReportModal({ open, onOpenChange, vendorId }: Prop
             </div>
 
             <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)} className="rounded-full hover:bg-orange-100" aria-label="Đóng">
-              <X className="w-5 h-5 text-[#5A402B]" />
             </Button>
           </div>
         </DialogHeader>
