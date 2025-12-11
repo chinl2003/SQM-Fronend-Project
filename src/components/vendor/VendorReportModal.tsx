@@ -286,7 +286,7 @@ export default function VendorReportModal({ open, onOpenChange, vendorId }: Prop
             </div>
 
             <div className="lg:col-span-2 rounded-2xl border border-[#F2E4D9] shadow p-5">
-              <RecommendationsCard suggestions={dto?.preOrderSuggestions ?? []} loading={loading} />
+              <RecommendationsCard vendorId={vendorId} suggestions={dto?.preOrderSuggestions ?? []} loading={loading} />
             </div>
           </div>
         </ScrollArea>
