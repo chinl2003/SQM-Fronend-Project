@@ -1,3 +1,4 @@
+// src/components/vendor/dashboard/StatCard.tsx
 import { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -29,12 +30,7 @@ export function StatCard({ title, value, subtitle, icon: Icon, trend, variant = 
           <div className="flex items-baseline gap-2">
             <p className="text-3xl font-bold tracking-tight">{value}</p>
             {trend && (
-              <span
-                className={cn(
-                  "text-sm font-medium",
-                  trend.isPositive ? "text-success" : "text-destructive"
-                )}
-              >
+              <span className={cn("text-sm font-medium", trend.isPositive ? "text-success" : "text-destructive")}>
                 {trend.isPositive ? "↑" : "↓"} {Math.abs(trend.value)}%
               </span>
             )}
