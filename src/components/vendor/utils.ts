@@ -14,6 +14,7 @@ export type OrderWithDetailsDto = {
     servedAt?: string | null;
     status?: number | string;
     estimatedServeTime?: string | null;
+    estimatedWaitTime?: string | null;
   } | null;
   details?: Array<{
     id?: string;

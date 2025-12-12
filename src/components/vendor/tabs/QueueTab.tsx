@@ -44,10 +44,49 @@ type Props = {
 export default function QueueTab({ vendor }: Props) {
   const [liveCount, setLiveCount] = useState<number>(0);
   const [preCount, setPreCount] = useState<number>(0);
+  const [loading, setLoading] = useState(false);
+
+  // Load both queue types simultaneously
+  const loadAllQueues = async () => {
+    if (!vendor?.id) {
+      setLiveCount(0);
+      setPreCount(0);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const token = localStorage.getItem("accessToken") || "";
+      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+
+      // Load both queue types in parallel
+      const [liveRes, preRes] = await Promise.all([
+        api.get(`/api/order/by-customer?vendorId=${encodeURIComponent(vendor.id)}&queueType=1&pageNumber=1&pageSize=20`, headers),
+        api.get(`/api/order/by-customer?vendorId=${encodeURIComponent(vendor.id)}&queueType=2&pageNumber=1&pageSize=20`, headers)
+      ]);
+
+      // Parse live queue response
+      const liveData = (liveRes as any)?.data ?? liveRes;
+      const liveTotal = Number(liveData?.totalRecords ?? liveData?.total ?? 0);
+      setLiveCount(liveTotal);
+
+      // Parse preorder queue response
+      const preData = (preRes as any)?.data ?? preRes;
+      const preTotal = Number(preData?.totalRecords ?? preData?.total ?? 0);
+      setPreCount(preTotal);
+
+    } catch (err) {
+      console.error("[QueueTab] loadAllQueues error", err);
+      toast.error("Không tải được hàng đợi.");
+      setLiveCount(0);
+      setPreCount(0);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    setLiveCount(0);
-    setPreCount(0);
+    loadAllQueues();
   }, [vendor?.id]);
 
   const badgeCls =
@@ -55,6 +94,18 @@ export default function QueueTab({ vendor }: Props) {
 
   return (
     <div className="space-y-4">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-semibold">Hàng đợi</h2>
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={loadAllQueues}
+          disabled={loading}
+        >
+          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+        </Button>
+      </div>
+
       <Tabs defaultValue="live" className="space-y-4">
         <TabsList className="w-full grid grid-cols-2">
           <TabsTrigger value="live" className="flex items-center">
@@ -77,6 +128,7 @@ export default function QueueTab({ vendor }: Props) {
             vendorId={vendor?.id}
             queueType={1}
             onCountChange={(n) => setLiveCount(n)}
+            onRefresh={loadAllQueues}
           />
         </TabsContent>
 
@@ -85,6 +137,7 @@ export default function QueueTab({ vendor }: Props) {
             vendorId={vendor?.id}
             queueType={2}
             onCountChange={(n) => setPreCount(n)}
+            onRefresh={loadAllQueues}
           />
         </TabsContent>
       </Tabs>
@@ -96,10 +149,12 @@ function QueueList({
   vendorId,
   queueType,
   onCountChange,
+  onRefresh,
 }: {
   vendorId?: string;
   queueType: 1 | 2;
   onCountChange?: (n: number) => void;
+  onRefresh?: () => void;
 }) {
   const [items, setItems] = useState<OrderWithDetailsDto[]>([]);
   const [loading, setLoading] = useState(false);
@@ -393,7 +448,7 @@ function QueueList({
       );
 
       toast.success("Cập nhật trạng thái đơn hàng thành công.");
-      await load(page);
+      onRefresh?.();
     } catch (err) {
       console.error("[QueueTab] updateOrderStatus error", err);
       toast.error("Cập nhật trạng thái đơn hàng thất bại.");
@@ -424,8 +479,10 @@ function QueueList({
         reason?: string;
         orderDetailIds?: string[];
         delayType?: number;
+        isPreorder?: boolean;
       } = {
         isOnTime,
+        isPreorder: queueType === 2,
       };
       if (!isOnTime) {
         const d = Math.max(
@@ -455,7 +512,7 @@ function QueueList({
       setDelayMinutes(0);
       setDelayReason("");
       setConfirmItemIds([]);
-      await load(page);
+      onRefresh?.();
     } catch (err) {
       console.error("[QueueTab] confirm-cooking error", err);
       toast.error("Xác nhận tiến độ thất bại.");
@@ -475,9 +532,11 @@ function QueueList({
         orderDetailIds?: string[];
         reason?: string;
         delayType?: number;
+        isPreorder?: boolean;
       } = {
         isOnTime: false,
         delayMinutes: Math.max(1, Math.min(30, delayUiMinutes)),
+        isPreorder: queueType === 2,
       };
       payload.delayType = delayUiType;
       if (
@@ -501,7 +560,7 @@ function QueueList({
       setDelayUiReason("");
       setDelayUiType(1);
       setDelayDialogOpen(false);
-      await load(page);
+      onRefresh?.();
     } catch (err) {
       console.error("[QueueTab] submitDelayForOrder error", err);
       toast.error("Báo trễ thất bại.");
@@ -534,7 +593,10 @@ function QueueList({
         <Button
           variant="outline"
           size="icon"
-          onClick={() => setPage(1)}
+          onClick={() => {
+            setPage(1);
+            onRefresh?.();
+          }}
           disabled={loading}
         >
           <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
@@ -592,8 +654,8 @@ function QueueList({
             const waitText =
               queueType === 2
                 ? formatPreorderWait(queueInfo?.estimatedServeTime)
-                : queueInfo?.estimatedWaitTime
-                ? formatWaitMinutes(queueInfo.estimatedWaitTime)
+                : (queueInfo as any)?.estimatedWaitTime
+                ? formatWaitMinutes((queueInfo as any).estimatedWaitTime)
                 : "—";
             const rawStatus = Number((it as any).status ?? -1);
 
@@ -686,13 +748,15 @@ function QueueList({
                           <span>{formatDate(it.createdAt)}</span>
                         </div>
 
-                        <div className="flex items-center gap-2">
-                          <Hourglass className="h-4 w-4 text-amber-600" />
-                          <span className="font-semibold text-foreground">
-                            Thời gian đợi:
-                          </span>
-                          <span>{waitText}</span>
-                        </div>
+                        {queueType !== 2 && (
+                          <div className="flex items-center gap-2">
+                            <Hourglass className="h-4 w-4 text-amber-600" />
+                            <span className="font-semibold text-foreground">
+                              Thời gian đợi:
+                            </span>
+                            <span>{waitText}</span>
+                          </div>
+                        )}
 
                         <div className="flex items-center gap-2">
                           <Clock className="h-4 w-4 text-sky-600" />
@@ -782,6 +846,23 @@ function QueueList({
                       <Button
                         variant="default"
                         className="w-full bg-amber-500 hover:bg-amber-600 text-white"
+                        onClick={() => {
+                          setDelayUiOrderId(it.id);
+                          setDelayUiItemIds([]);
+                          setDelayUiMinutes(5);
+                          setDelayUiReason("");
+                          setDelayMenuItems(it.details as any);
+                          setDelayUiType(2);
+                          setDelayDialogOpen(true);
+                        }}
+                      >
+                        Báo trễ
+                      </Button>
+                    )}
+                    {queueType === 2 && rawStatus === 5 && !hasDelay && (
+                      <Button
+                        variant="default"
+                        className="w-full bg-orange-500 hover:bg-orange-600 text-white"
                         onClick={() => {
                           setDelayUiOrderId(it.id);
                           setDelayUiItemIds([]);
@@ -1168,8 +1249,8 @@ function QueueList({
                     const waitText =
                       queueType === 2
                         ? formatPreorderWait(queueInfo?.estimatedServeTime)
-                        : queueInfo?.estimatedWaitTime
-                        ? formatWaitMinutes(queueInfo.estimatedWaitTime)
+                        : (queueInfo as any)?.estimatedWaitTime
+                        ? formatWaitMinutes((queueInfo as any).estimatedWaitTime)
                         : "—";
 
                     return (
@@ -1217,10 +1298,6 @@ function QueueList({
 
                           {queueType === 2 ? (
                             <>
-                              <div className="flex items-center space-x-2 text-muted-foreground">
-                                <Clock className="h-4 w-4" />
-                                <span>Thời gian đợi đến lượt: {waitText}</span>
-                              </div>
                               <div className="flex items-center space-x-2 text-muted-foreground">
                                 <Clock className="h-4 w-4" />
                                 <span>
