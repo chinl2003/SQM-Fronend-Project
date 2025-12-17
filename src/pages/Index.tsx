@@ -38,7 +38,7 @@ type ApiVendor = {
   queueCount?: number | null;
   allowPreorder?: boolean | null;
   distance?: number | null;
-
+  act?: number | null;
   businessTypeId?: string | null;
 };
 
@@ -74,6 +74,7 @@ function extractVendorsFromResponse(res: any): ApiVendor[] {
     queueCount: v.queueCount,
     allowPreorder: v.allowPreorder,
     distance: v.distance,
+    act: v.act ?? v.eta ?? null,
     businessTypeId:
       v.businessTypeId ??
       v.BusinessTypeId ??
@@ -249,7 +250,7 @@ export default function Index() {
         coverImage: buildMediaUrl(v.logoUrl) || heroImage,
         rating: typeof v.averageRating === "number" ? v.averageRating : 0,
         reviewCount: 0,
-        eta: "",
+        eta: v.act != null ? String(v.act) : "0",
         queueSize: v.queueCount ?? 0,
         distance: getVendorDistance(v),
         cuisineType: "",
