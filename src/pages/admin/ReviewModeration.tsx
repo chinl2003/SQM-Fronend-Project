@@ -113,6 +113,24 @@ const ReviewModeration = () => {
 }, [page]);
 
 
+  const handleApprove = async (ratingId: string, isApproved: boolean) => {
+    try {
+      const token = localStorage.getItem("accessToken");
+
+      await api.put(
+        `/api/Rating/${ratingId}/approval`,
+        { isApproved },
+        {
+          Authorization: `Bearer ${token}`,
+        }
+      );
+
+      setReviews((prev) => prev.filter((r) => r.id !== ratingId));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
 
   const renderStars = (rating: number) =>
     Array.from({ length: 5 }, (_, i) => (
@@ -251,26 +269,25 @@ const ReviewModeration = () => {
                         <Badge variant="secondary">Chờ duyệt</Badge>
 
                         <div className="flex flex-col gap-2">
-                          <Button size="sm">
+                          <Button
+                            size="sm"
+                            className="bg-emerald-500 hover:bg-emerald-600 text-white"
+                            onClick={() => handleApprove(review.id, true)}
+                          >
                             <CheckCircle className="w-4 h-4 mr-2" />
                             Duyệt
                           </Button>
-                          <Button size="sm" variant="destructive">
-                            <XCircle className="w-4 h-4 mr-2" />
-                            Từ chối
-                          </Button>
+
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => {
-                              setSelectedReview(review);
-                              setReplyContent("");
-                              setReplyDialogOpen(true);
-                            }}
+                            className="border-orange-400 text-orange-600 hover:bg-orange-50"
+                            onClick={() => handleApprove(review.id, false)}
                           >
-                            <MessageSquare className="w-4 h-4 mr-2" />
-                            Phản hồi
+                            <XCircle className="w-4 h-4 mr-2" />
+                            Từ chối
                           </Button>
+
 
                         </div>
                       </div>
@@ -307,9 +324,6 @@ const ReviewModeration = () => {
       </div>
       <Dialog open={replyDialogOpen} onOpenChange={setReplyDialogOpen}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Phản hồi đánh giá (Admin)</DialogTitle>
-          </DialogHeader>
 
           {selectedReview && (
             <div className="space-y-3">
