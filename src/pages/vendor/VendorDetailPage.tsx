@@ -123,6 +123,7 @@ type OrderCreateRequest = {
   paymentMethod?: number | null;
   pickupTime?: string | null;
   position?: number | null;
+  note?: string | null;
 };
 
 type RatingReplyResponse = {
@@ -223,6 +224,7 @@ type Mode = "QUEUE" | "PREORDER";
 const REVIEWS_PER_PAGE = 2;
 
 export default function VendorDetailPage() {
+  const [orderNote, setOrderNote] = useState("");
   const { vendorId } = useParams<{ vendorId: string }>();
   const navigate = useNavigate();
   const [data, setData] = useState<VendorWithMenuResponse | null>(null);
@@ -282,6 +284,7 @@ export default function VendorDetailPage() {
         if (mounted) {
           setData(payload ?? null);
           setQty({});
+          setOrderNote("");
           setPaymentMethod(isPreOrderMode ? "WALLET" : "CASH");
 
           if (isPreOrderMode) {
@@ -300,6 +303,7 @@ export default function VendorDetailPage() {
         if (mounted) {
           setData(null);
           setQty({});
+          setOrderNote("");
           setPickupTime("");
           setPickupDate(null);
         }
@@ -521,6 +525,7 @@ export default function VendorDetailPage() {
       paymentMethod: paymentMethodEnumValue,
       pickupTime: isPreOrderMode ? pickupTime : undefined,
       position: preOrderPosition ?? null,
+      note: orderNote?.trim() || null,
     };
 
     try {
@@ -559,6 +564,7 @@ export default function VendorDetailPage() {
 
       if (isPreOrderMode) {
         setQty({});
+        setOrderNote("");
         setConfirmOpen(false);
         toast.success("Đặt trước thành công!");
         navigate("/customer/active-queue");
@@ -576,6 +582,7 @@ export default function VendorDetailPage() {
 
       setOrderInfo(detailPayload ?? { orderId });
       setQty({});
+      setOrderNote("");
       setConfirmOpen(false);
       setSuccessOpen(true);
       toast.success("Tham gia hàng đợi thành công!");
@@ -1079,7 +1086,10 @@ export default function VendorDetailPage() {
 
       {/* Dialog xác nhận */}
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className={cn(
+          "sm:max-w-md",
+          "max-h-[85vh] overflow-y-auto"
+        )}>
           <DialogHeader>
             <DialogTitle>
               {isPreOrderMode ? "Xác nhận đặt trước" : "Xác nhận xếp hàng"}
@@ -1208,6 +1218,28 @@ export default function VendorDetailPage() {
                   </div>
                 </div>
               )}
+            </div>
+
+            <div className="rounded-xl border p-4 space-y-2 bg-background">
+              <div className="font-medium text-sm">
+                Ghi chú cho đơn hàng
+              </div>
+
+              <textarea
+                value={orderNote}
+                onChange={(e) => setOrderNote(e.target.value)}
+                placeholder="Ví dụ: Không hành, ít cay, đến trễ 10 phút..."
+                rows={3}
+                maxLength={500}
+                className={cn(
+                  "w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                )}
+              />
+
+              <div className="text-xs text-muted-foreground text-right">
+                {orderNote.length}/500 ký tự
+              </div>
             </div>
 
             <div className="rounded-xl border p-4 space-y-2">
