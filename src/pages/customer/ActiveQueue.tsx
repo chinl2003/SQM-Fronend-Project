@@ -51,6 +51,7 @@ type OrderWithDetailsDto = {
   status: number | string | null;
   createdAt?: string;
   lastUpdatedTime?: string;
+  note?: string | null;
   queueEntry?: {
     id: string;
     queueId?: string | null;
@@ -126,6 +127,7 @@ interface QueueItem {
   estimatedServeTimeRaw?: string | null;
   rating?: RatingDto | null;
   completedTimeRaw?: string | null;
+  note?: string | null;
 }
 
 type OrderStatusNumber = 0 | 1 | 2 | 3 | 4 | 5 | 6;
@@ -481,6 +483,7 @@ function mapOrderToQueueItem(
     estimatedServeTimeRaw: estimatedServeTime,
     rating,
     completedTimeRaw: o.lastUpdatedTime ?? null,
+    note: o.note ?? null,
   };
 }
 
