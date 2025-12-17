@@ -174,6 +174,7 @@ export default function Index() {
 
         if (searchKeyword) {
           params.append("nameSearch", searchKeyword);
+          params.append("categoryFoodSearch", searchKeyword);
         }
 
         if (selectedCategory) {
