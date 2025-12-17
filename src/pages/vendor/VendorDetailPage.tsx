@@ -71,6 +71,7 @@ type OrderQueueInfo = {
   vendorId?: string | null;
   vendorName?: string | null;
   vendorAddress?: string | null;
+  bufferMinutes?: number | null;
 };
 
 type EtaResponse = {
@@ -1347,6 +1348,15 @@ export default function VendorDetailPage() {
                   {orderInfo?.estimatedWaitMinutes != null
                     ? `${orderInfo.estimatedWaitMinutes} phút`
                     : "—"}
+                </span>
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <span className="font-semibold">Thời gian chờ quán chế biến</span>
+                <span>~
+                  {orderInfo?.bufferMinutes != null
+                    ? `${orderInfo.bufferMinutes} phút`
+                    : ""}
                 </span>
               </div>
 
