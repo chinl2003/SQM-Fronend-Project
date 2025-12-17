@@ -603,13 +603,15 @@ export default function ActiveQueue() {
                   </span>
                 </div>
 
-                <div className="flex items-center space-x-1">
-                  <Users className="h-3 w-3 text-sky-500" />
-                  <span>
-                    <span className="font-semibold">Vị trí:</span>{" "}
-                    {queueItem.position ?? "—"}
-                  </span>
-                </div>
+                {!isReadyTab && !isCompletedTab && (
+                  <div className="flex items-center space-x-1">
+                    <Users className="h-3 w-3 text-sky-500" />
+                    <span>
+                      <span className="font-semibold">Vị trí:</span>{" "}
+                      {queueItem.position ?? ""}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Thời gian dự kiến / hoàn tất */}
