@@ -246,6 +246,9 @@ export default function VendorDetailPage() {
   const [ratingsPage, setRatingsPage] = useState(1);
   const [totalRecord, setTotalRecords] = useState(0);
   const [ratingsTotalPages, setRatingsTotalPages] = useState(1);
+  const [insufficientBalanceOpen, setInsufficientBalanceOpen] = useState(false);
+  const [insufficientBalanceMessage, setInsufficientBalanceMessage] = useState("");
+
 
   // ================= state search
   const [searchTerm, setSearchTerm] = useState("");
@@ -577,12 +580,26 @@ export default function VendorDetailPage() {
       setSuccessOpen(true);
       toast.success("Tham gia hàng đợi thành công!");
     } catch (e: any) {
-      console.error(e);
-      toast.error(e?.message || "Tạo đơn hàng thất bại.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
+
+        const message =
+          typeof e?.message === "string"
+            ? e.message
+            : "Tạo đơn hàng thất bại.";
+
+            console.log("message", message);
+        if (message.includes("Ví không đủ tiền")) {
+          setInsufficientBalanceMessage(message);
+          setInsufficientBalanceOpen(true);
+          return;
+        }
+
+        toast.error(message);
+      }
+
+    finally {
+          setSubmitting(false);
+        }
+      };
 
   const renderStars = (rating: number) => (
     <div className="flex items-center gap-0.5">
@@ -1338,6 +1355,44 @@ export default function VendorDetailPage() {
           </div>
         </DialogContent>
       </Dialog>
+      {/* Dialog insufficient balance */}
+      <Dialog
+        open={insufficientBalanceOpen}
+        onOpenChange={setInsufficientBalanceOpen}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-destructive">
+              Thanh toán thất bại
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              {insufficientBalanceMessage}
+            </p>
+
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setInsufficientBalanceOpen(false)}
+              >
+                Đóng
+              </Button>
+
+              <Button
+                onClick={() => {
+                  setInsufficientBalanceOpen(false);
+                  navigate("/customer/wallet");
+                }}
+              >
+                Nạp tiền
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }
