@@ -1356,31 +1356,56 @@ export default function VendorDetailPage() {
         </DialogContent>
       </Dialog>
       {/* Dialog insufficient balance */}
+      {/* Dialog insufficient balance */}
+      {/* Dialog warning - insufficient balance */}
       <Dialog
         open={insufficientBalanceOpen}
         onOpenChange={setInsufficientBalanceOpen}
       >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-destructive">
-              Thanh toán thất bại
-            </DialogTitle>
-          </DialogHeader>
+        <DialogContent className="sm:max-w-md rounded-2xl">
+          <div className="flex flex-col items-center text-center space-y-4 py-2">
 
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              {insufficientBalanceMessage}
+            {/* Icon warning */}
+            <div className="flex items-center justify-center w-16 h-16 rounded-full bg-orange-100">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-8 w-8 text-orange-500"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 9v2m0 4h.01M10.29 3.86l-7.09 12.26A1 1 0 004.09 18h15.82a1 1 0 00.86-1.5L13.71 3.86a1 1 0 00-1.72 0z"
+                />
+              </svg>
+            </div>
+
+            {/* Title */}
+            <h2 className="text-xl font-semibold text-foreground">
+              Không thể thanh toán
+            </h2>
+
+            {/* Message */}
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              {insufficientBalanceMessage ||
+                "Số dư trong ví không đủ để hoàn tất đơn hàng này."}
             </p>
 
-            <div className="flex justify-end gap-2">
+            {/* Actions */}
+            <div className="flex gap-3 pt-2 w-full">
               <Button
                 variant="outline"
+                className="flex-1"
                 onClick={() => setInsufficientBalanceOpen(false)}
               >
                 Đóng
               </Button>
 
               <Button
+                className="flex-1 bg-orange-500 hover:bg-orange-600 text-white"
                 onClick={() => {
                   setInsufficientBalanceOpen(false);
                   navigate("/customer/wallet");
