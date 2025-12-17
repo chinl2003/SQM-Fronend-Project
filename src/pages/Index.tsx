@@ -290,13 +290,13 @@ export default function Index() {
             <p className="text-lg md:text-xl mb-6 opacity-90">
               Tham gia xếp hàng từ xa và nhận cập nhật thời gian thực
             </p>
-            <Button
+            {/* <Button
               size="lg"
               className="bg-primary hover:bg-primary-dark text-primary-foreground"
             >
               <MapPin className="mr-2 h-5 w-5" />
               Tìm nhà hàng gần bạn
-            </Button>
+            </Button> */}
           </div>
         </div>
       </section>
