@@ -131,7 +131,7 @@ interface QueueItem {
 }
 
 type OrderStatusNumber = 0 | 1 | 2 | 3 | 4 | 5 | 6;
-type StatusTab = "pending" | "confirmed" | "preparing" | "ready" | "completed";
+type StatusTab = "pending" | "confirmed" | "preparing" | "ready" | "completed" | "cancelled";
 type ReviewMode = "create" | "view" | "update";
 
 const uiStatusFromApi = (
@@ -427,6 +427,36 @@ const mapRatingFromOrder = (r: OrderRatingApi): RatingDto => {
   };
 };
 
+const handleForceCancelOrder = async (orderId: string) => {
+  try {
+    const token = localStorage.getItem("accessToken") || "";
+
+    await api.post(
+      `/api/order/${orderId}/force-cancel`,
+      null,
+      {
+        Authorization: `Bearer ${token}`,
+      }
+    );
+
+    toast({
+      title: "Hủy đơn hàng thành công",
+      description: "Đơn hàng đã được hủy.",
+    });
+
+    // reload danh sách
+    setReloadKey((prev) => prev + 1);
+  } catch (error: any) {
+    console.error(error);
+    toast({
+      title: "Hủy đơn hàng thất bại",
+      description:
+        error?.response?.data?.message || "Vui lòng thử lại sau.",
+      variant: "destructive",
+    });
+  }
+};
+
 function mapOrderToQueueItem(
   o: OrderWithDetailsDto,
   vendor?: VendorMini
@@ -493,6 +523,7 @@ const tabToApiStatus: Record<StatusTab, number> = {
   preparing: 5,
   ready: 6,    
   completed: 2,
+   cancelled: 3,
 };
 
 export default function ActiveQueue() {
@@ -518,6 +549,35 @@ export default function ActiveQueue() {
     setReviewMode(mode);
     setCurrentRating(queueItem.rating ?? null);
     setShowReviewDialog(true);
+  };
+
+  const handleForceCancelOrder = async (orderId: string) => {
+    try {
+      const token = localStorage.getItem("accessToken") || "";
+
+      await api.post(
+        `/api/order/${orderId}/force-cancel`,
+        null,
+        {
+          Authorization: `Bearer ${token}`,
+        }
+      );
+
+      toast({
+        title: "Hủy đơn hàng thành công",
+        description: "Đơn hàng đã được hủy.",
+      });
+
+      setShowCancelDialog(false);
+      setReloadKey((prev) => prev + 1);
+    } catch (error: any) {
+      toast({
+        title: "Hủy đơn hàng thất bại",
+        description:
+          error?.response?.data?.message || "Vui lòng thử lại.",
+        variant: "destructive",
+      });
+    }
   };
 
   useEffect(() => {
@@ -769,22 +829,16 @@ export default function ActiveQueue() {
                           </Button>
                         )}
 
-                      {queueItem.canCancel &&
-                        statusTab !== "confirmed" &&
-                        statusTab !== "preparing" && 
-                        statusTab !== "ready" &&(
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              setSelectedQueueItem(queueItem);
-                              setShowCancelDialog(true);
-                            }}
-                          >
-                            <CloseIcon className="h-3 w-3 mr-1" />
-                            Hủy
-                          </Button>
-                        )}
+                      {(statusTab === "pending" || statusTab === "confirmed") && (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleForceCancelOrder(queueItem.id)}
+                        >
+                          <CloseIcon className="h-3 w-3 mr-1" />
+                          Hủy
+                        </Button>
+                      )}
                     </>
                   )}
                 </div>
@@ -823,7 +877,7 @@ export default function ActiveQueue() {
         >
           <TabsList className="w-full grid grid-cols-5 gap-2 bg-transparent p-0">
             {(
-              ["pending", "confirmed", "preparing", "ready", "completed"] as StatusTab[]
+              ["pending", "confirmed", "preparing", "ready", "completed", "cancelled"] as StatusTab[]
             ).map((tab) => (
               <TabsTrigger
                 key={tab}
@@ -845,6 +899,7 @@ export default function ActiveQueue() {
                 {tab === "preparing" && "Đang chế biến"}
                 {tab === "ready" && "Chờ nhận đơn"}    
                 {tab === "completed" && "Hoàn tất"}
+                {tab === "cancelled" && "Đã hủy"}
               </TabsTrigger>
             ))}
           </TabsList>
@@ -875,6 +930,8 @@ export default function ActiveQueue() {
                             "Chưa có đơn hàng nào hoàn tất"}
                           {statusTab === "ready" &&
                             "Không có đơn hàng nào đang chờ nhận"}
+                          {statusTab === "cancelled" &&
+                            "Không có đơn hàng nào đã bị hủy"}
                         </h3>
 
                         {statusTab === "pending" && (
