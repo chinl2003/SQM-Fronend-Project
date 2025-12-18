@@ -1,6 +1,6 @@
 // src/components/vendor/SettingsAccount.tsx
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
@@ -18,7 +18,7 @@ import { api, ApiResponse } from "@/lib/api";
 import { toast } from "sonner";
 
 type SettingsAccountProps = {
-  vendorId: string; // cần truyền vào từ SettingsTab
+  vendorId: string;
 };
 
 export default function SettingsAccount({ vendorId }: SettingsAccountProps) {
@@ -29,12 +29,14 @@ export default function SettingsAccount({ vendorId }: SettingsAccountProps) {
   const [toggling, setToggling] = useState(false);
 
   useEffect(() => {
-    const fetchEtaSetting = async () => {
-      if (!vendorId) return;
+    if (!vendorId) return;
 
+    const fetchSettings = async () => {
       try {
         const token = localStorage.getItem("accessToken") || "";
-        const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+        const headers = token
+          ? { Authorization: `Bearer ${token}` }
+          : undefined;
 
         const res = await api.get<ApiResponse<any>>(
           `/api/vendor/${vendorId}/eta-setting`,
@@ -53,12 +55,20 @@ export default function SettingsAccount({ vendorId }: SettingsAccountProps) {
             setShortThresholdMinutes(data.shortThresholdMinutes);
           }
         }
+
+        if (typeof data?.shortThresholdMinutes === "number") {
+          setShortThresholdMinutes(data.shortThresholdMinutes);
+        }
+
+        if (typeof data?.maxPrepMinutes === "number") {
+          setMaxPrepMinutes(data.maxPrepMinutes);
+        }
       } catch (err) {
         console.error(err);
       }
     };
 
-    fetchEtaSetting();
+    fetchSettings();
   }, [vendorId]);
 
   const handleToggleActive = async (value: boolean) => {
@@ -112,7 +122,9 @@ export default function SettingsAccount({ vendorId }: SettingsAccountProps) {
       }
 
       const token = localStorage.getItem("accessToken") || "";
-      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+      const headers = token
+        ? { Authorization: `Bearer ${token}` }
+        : undefined;
 
       await api.put<ApiResponse<any>>(
         `/api/vendor/${vendorId}/eta-setting`,
@@ -134,7 +146,6 @@ export default function SettingsAccount({ vendorId }: SettingsAccountProps) {
 
   return (
     <div className="space-y-4">
-      {/* Header nhỏ phía trên card cho có cảm giác page config */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100">
@@ -160,29 +171,13 @@ export default function SettingsAccount({ vendorId }: SettingsAccountProps) {
       </div>
 
       <Card className="border border-emerald-50 shadow-sm bg-gradient-to-br from-emerald-50/40 via-background to-background">
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100">
-              <Store className="h-3.5 w-3.5 text-emerald-700" />
-            </span>
-            Cấu hình quán của bạn
-          </CardTitle>
-        </CardHeader>
-
         <CardContent className="space-y-6 pt-2">
-          {/* Section: Trạng thái hoạt động */}
-          <section className="rounded-xl border border-emerald-100 bg-white/80 p-4 shadow-[0_1px_4px_rgba(0,0,0,0.02)] space-y-3">
+          <section className="rounded-xl border border-emerald-100 bg-white/80 p-4 space-y-3">
             <div className="flex items-center justify-between gap-4">
               <div className="space-y-1">
                 <p className="flex items-center gap-2 font-semibold">
-                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100">
-                    <Activity className="h-3 w-3 text-emerald-700" />
-                  </span>
+                  <Activity className="h-4 w-4 text-emerald-700" />
                   Trạng thái hoạt động
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Khi tắt, khách hàng sẽ không thể tạo đơn mới tại quán trên hệ thống SQM.
-                  Trạng thái này không ảnh hưởng đến các đơn đang xử lý.
                 </p>
               </div>
 
@@ -191,19 +186,17 @@ export default function SettingsAccount({ vendorId }: SettingsAccountProps) {
                   checked={isOpen}
                   disabled={toggling}
                   onCheckedChange={handleToggleActive}
-                  aria-label="Bật/tắt trạng thái quán"
                   className="data-[state=checked]:bg-emerald-500"
                 />
                 <Badge
                   variant={isOpen ? "default" : "secondary"}
                   className={
-                    "flex items-center gap-1 text-xs " +
+                    "text-xs " +
                     (isOpen
                       ? "bg-emerald-500 hover:bg-emerald-600"
-                      : "bg-slate-200 text-slate-700 hover:bg-slate-300")
+                      : "bg-slate-200 text-slate-700")
                   }
                 >
-                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-white" />
                   {isOpen ? "Đang mở bán" : "Tạm đóng"}
                 </Badge>
               </div>
@@ -286,10 +279,9 @@ export default function SettingsAccount({ vendorId }: SettingsAccountProps) {
             </div>
           </section>
 
-          {/* Footer: nút lưu */}
           <div className="flex items-center justify-between pt-1">
             <p className="text-xs text-muted-foreground">
-              Hãy kiểm tra kỹ trước khi lưu cấu hình, thay đổi sẽ áp dụng ngay cho các đơn mới.
+              Thay đổi sẽ áp dụng ngay cho các đơn mới.
             </p>
             <Button
               onClick={handleSave}
