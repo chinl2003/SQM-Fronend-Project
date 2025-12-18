@@ -1102,6 +1102,7 @@ export default function ActiveQueue() {
             onClose={() => setShowCancelDialog(false)}
             onConfirm={() => handleForceCancelOrder(selectedQueueItem.id)}
             queueItem={selectedQueueItem}
+            isLoading={cancelLoading}
           />
 
           <VendorReviewDialog
