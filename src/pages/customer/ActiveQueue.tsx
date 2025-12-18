@@ -537,6 +537,7 @@ export default function ActiveQueue() {
   const [statusTab, setStatusTab] = useState<StatusTab>("pending");
   const [activeQueues, setActiveQueues] = useState<QueueItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [cancelLoading, setCancelLoading] = useState(false);
   const [selectedQueueItem, setSelectedQueueItem] = useState<QueueItem | null>(
     null
   );
@@ -559,6 +560,7 @@ export default function ActiveQueue() {
 
   const handleForceCancelOrder = async (orderId: string) => {
     try {
+      setCancelLoading(true);
       const token = localStorage.getItem("accessToken") || "";
 
       await api.post(
@@ -583,6 +585,8 @@ export default function ActiveQueue() {
           error?.response?.data?.message || "Vui lòng thử lại.",
         variant: "destructive",
       });
+    } finally {
+      setCancelLoading(false);
     }
   };
 

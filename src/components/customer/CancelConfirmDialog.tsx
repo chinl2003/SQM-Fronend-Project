@@ -7,7 +7,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Card, CardContent } from "@/components/ui/card";
-import { AlertTriangle, Clock } from "lucide-react";
+import { AlertTriangle, Clock, Loader2 } from "lucide-react";
 
 interface QueueItem {
   id: string;
@@ -17,12 +17,12 @@ interface QueueItem {
   paymentStatus: "pending" | "paid" | "refunded";
   paymentMethod: "vnpay" | "cash";
   status:
-    | "pending"
-    | "confirmed"
-    | "preparing"
-    | "ready"
-    | "completed"
-    | "cancelled";
+  | "pending"
+  | "confirmed"
+  | "preparing"
+  | "ready"
+  | "completed"
+  | "cancelled";
 }
 
 interface CancelConfirmDialogProps {
@@ -30,6 +30,7 @@ interface CancelConfirmDialogProps {
   onClose: () => void;
   onConfirm: () => void;
   queueItem: QueueItem;
+  isLoading?: boolean;
 }
 
 export function CancelConfirmDialog({
@@ -37,6 +38,7 @@ export function CancelConfirmDialog({
   onClose,
   onConfirm,
   queueItem,
+  isLoading = false,
 }: CancelConfirmDialogProps) {
   const canRefund =
     queueItem.paymentStatus === "paid" && queueItem.status !== "preparing";
@@ -105,16 +107,22 @@ export function CancelConfirmDialog({
           </Card>
 
           <div className="flex space-x-3">
-            <Button variant="outline" onClick={onClose} className="flex-1">
+            <Button
+              variant="outline"
+              onClick={onClose}
+              className="flex-1"
+              disabled={isLoading}
+            >
               Không hủy
             </Button>
             <Button
               variant="destructive"
               onClick={onConfirm}
               className="flex-1"
-              disabled={isPreparingOrReady}
+              disabled={isPreparingOrReady || isLoading}
             >
-              Xác nhận hủy
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isLoading ? "Đang hủy..." : "Xác nhận hủy"}
             </Button>
           </div>
         </div>
