@@ -435,36 +435,6 @@ const mapRatingFromOrder = (r: OrderRatingApi): RatingDto => {
   };
 };
 
-const handleForceCancelOrder = async (orderId: string) => {
-  try {
-    const token = localStorage.getItem("accessToken") || "";
-
-    await api.post(
-      `/api/order/${orderId}/force-cancel`,
-      null,
-      {
-        Authorization: `Bearer ${token}`,
-      }
-    );
-
-    toast({
-      title: "Hủy đơn hàng thành công",
-      description: "Đơn hàng đã được hủy.",
-    });
-
-    // reload danh sách
-    setReloadKey((prev) => prev + 1);
-  } catch (error: any) {
-    console.error(error);
-    toast({
-      title: "Hủy đơn hàng thất bại",
-      description:
-        error?.response?.data?.message || "Vui lòng thử lại sau.",
-      variant: "destructive",
-    });
-  }
-};
-
 function mapOrderToQueueItem(
   o: OrderWithDetailsDto,
   vendor?: VendorMini
@@ -1126,7 +1096,7 @@ export default function ActiveQueue() {
           <CancelConfirmDialog
             isOpen={showCancelDialog}
             onClose={() => setShowCancelDialog(false)}
-            onConfirm={() => handleCancelOrder(selectedQueueItem.id)}
+            onConfirm={() => handleForceCancelOrder(selectedQueueItem.id)}
             queueItem={selectedQueueItem}
           />
 
