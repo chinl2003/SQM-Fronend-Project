@@ -31,10 +31,19 @@ interface ApiEnvelope<T> {
   code: string;
 }
 
+interface PeakHour {
+  hour: number;
+  totalOrders: number;
+}
+
+
 /* ================= COMPONENT ================= */
 const Analytics = () => {
   const [topVendors, setTopVendors] = useState<TopVendor[]>([]);
   const [loadingTopVendors, setLoadingTopVendors] = useState(false);
+  const [peakHours, setPeakHours] = useState<PeakHour[]>([]);
+  const [loadingPeakHours, setLoadingPeakHours] = useState(false);
+
 
   /* ---------- FETCH TOP VENDORS ---------- */
   const fetchTopVendors = async () => {
@@ -54,17 +63,38 @@ const Analytics = () => {
     }
   };
 
+  const getPeakLevel = (totalOrders: number) => {
+    if (totalOrders > 10) {
+      return { label: "cao", variant: "destructive" as const };
+    }
+    if (totalOrders >= 5) {
+      return { label: "trung bình", variant: "secondary" as const };
+    }
+    return { label: "thấp", variant: "outline" as const };
+  };
+
+  const fetchPeakHours = async () => {
+    try {
+      setLoadingPeakHours(true);
+
+      const res = await api.get<ApiEnvelope<PeakHour[]>>(
+        "/api/order/peak-delay-hours?top=5"
+      );
+
+      setPeakHours(res.data ?? []);
+    } catch (err) {
+      console.error("Failed to fetch peak hours", err);
+      setPeakHours([]);
+    } finally {
+      setLoadingPeakHours(false);
+    }
+  };
+
+
   useEffect(() => {
     fetchTopVendors();
+    fetchPeakHours();
   }, []);
-
-  /* ---------- MOCK (CHƯA LÀM API) ---------- */
-  const peakHours = [
-    { hour: "12:00 PM", orders: 89, load: "cao" },
-    { hour: "1:00 PM", orders: 95, load: "cao" },
-    { hour: "7:00 PM", orders: 67, load: "trung bình" },
-    { hour: "8:00 PM", orders: 72, load: "trung bình" },
-  ];
 
   const anomalies = [
     {
@@ -159,40 +189,51 @@ const Analytics = () => {
 
           {/* ================= PEAK HOURS (MOCK) ================= */}
           <Card>
-            <CardHeader>
-              <CardTitle>Phân tích giờ cao điểm</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {peakHours.map((hour, index) => (
+          <CardHeader>
+            <CardTitle>Phân tích giờ cao điểm (đơn trễ)</CardTitle>
+          </CardHeader>
+
+          <CardContent>
+            {loadingPeakHours && (
+              <p className="text-sm text-muted-foreground">Đang tải dữ liệu...</p>
+            )}
+
+            {!loadingPeakHours && peakHours.length === 0 && (
+              <p className="text-sm text-muted-foreground">Không có dữ liệu.</p>
+            )}
+
+            <div className="space-y-4">
+              {peakHours.map((h) => {
+                const label = `${h.hour}:00 – ${h.hour}:59`;
+                const level = getPeakLevel(h.totalOrders);
+
+                return (
                   <div
-                    key={index}
+                    key={h.hour}
                     className="flex items-center justify-between p-3 border rounded-lg"
                   >
                     <div className="flex items-center gap-3">
                       <Clock className="w-5 h-5 text-muted-foreground" />
-                      <span className="font-medium">{hour.hour}</span>
+                      <span className="font-medium">{label}</span>
                     </div>
+
                     <div className="flex items-center gap-3">
                       <span className="font-semibold">
-                        {hour.orders} đơn
+                        {h.totalOrders} đơn trễ
                       </span>
-                      <Badge
-                        variant={
-                          hour.load === "cao"
-                            ? "destructive"
-                            : "secondary"
-                        }
-                        className="text-xs"
-                      >
-                        {hour.load}
+
+                      <Badge variant={level.variant} className="text-xs">
+                        {level.label}
                       </Badge>
                     </div>
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+                );
+              })}
+            </div>
+
+          </CardContent>
+        </Card>
+
         </div>
 
         {/* ================= ANOMALIES (MOCK) ================= */}
