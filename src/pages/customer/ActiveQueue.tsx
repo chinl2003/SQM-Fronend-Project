@@ -873,7 +873,7 @@ export default function ActiveQueue() {
                       </Button> */}
 
                       {/* Ẩn Hủy & Cập nhật ở tab Đã xác nhận và Đang chế biến */}
-                      {queueItem.canUpdate &&
+                      {/* {queueItem.canUpdate &&
                         statusTab !== "confirmed" &&
                         statusTab !== "preparing" &&
                         statusTab !== "ready" && (
@@ -888,7 +888,7 @@ export default function ActiveQueue() {
                             <Edit className="h-3 w-3 mr-1" />
                             Cập nhật
                           </Button>
-                        )}
+                        )} */}
 
                       {queueItem.canCancel &&
                         statusTab !== "confirmed" &&
