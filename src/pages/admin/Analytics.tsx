@@ -5,15 +5,31 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-  TrendingUp,
   Clock,
   AlertTriangle,
-  Users,
-  BarChart3,
   PieChart,
   Activity,
-  Download,
 } from "lucide-react";
+
+/* ===== CHART ===== */
+import {
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+} from "recharts";
+
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 /* ================= TYPES ================= */
 interface TopVendor {
@@ -24,6 +40,11 @@ interface TopVendor {
   growthPercent: number;
 }
 
+interface PeakHour {
+  hour: number;
+  totalOrders: number;
+}
+
 interface ApiEnvelope<T> {
   data: T;
   message?: string;
@@ -31,92 +52,61 @@ interface ApiEnvelope<T> {
   code: string;
 }
 
-interface PeakHour {
-  hour: number;
-  totalOrders: number;
-}
-
-
 /* ================= COMPONENT ================= */
 const Analytics = () => {
   const [topVendors, setTopVendors] = useState<TopVendor[]>([]);
-  const [loadingTopVendors, setLoadingTopVendors] = useState(false);
   const [peakHours, setPeakHours] = useState<PeakHour[]>([]);
+
+  const [loadingTopVendors, setLoadingTopVendors] = useState(false);
   const [loadingPeakHours, setLoadingPeakHours] = useState(false);
 
+  const [openVendorChart, setOpenVendorChart] = useState(false);
+  const [openPeakChart, setOpenPeakChart] = useState(false);
 
-  /* ---------- FETCH TOP VENDORS ---------- */
+  /* ================= FETCH ================= */
   const fetchTopVendors = async () => {
     try {
       setLoadingTopVendors(true);
-
       const res = await api.get<ApiEnvelope<TopVendor[]>>(
-        "/api/vendor/top-vendors?limit=3"
+        "/api/vendor/top-vendors?limit=5"
       );
-
       setTopVendors(res.data ?? []);
-    } catch (error) {
-      console.error("Failed to fetch top vendors", error);
+    } catch {
       setTopVendors([]);
     } finally {
       setLoadingTopVendors(false);
     }
   };
 
-  const getPeakLevel = (totalOrders: number) => {
-    if (totalOrders > 10) {
-      return { label: "cao", variant: "destructive" as const };
-    }
-    if (totalOrders >= 5) {
-      return { label: "trung bình", variant: "secondary" as const };
-    }
-    return { label: "thấp", variant: "outline" as const };
-  };
-
   const fetchPeakHours = async () => {
     try {
       setLoadingPeakHours(true);
-
       const res = await api.get<ApiEnvelope<PeakHour[]>>(
         "/api/order/peak-delay-hours?top=5"
       );
-
       setPeakHours(res.data ?? []);
-    } catch (err) {
-      console.error("Failed to fetch peak hours", err);
+    } catch {
       setPeakHours([]);
     } finally {
       setLoadingPeakHours(false);
     }
   };
 
-
   useEffect(() => {
     fetchTopVendors();
     fetchPeakHours();
   }, []);
 
-  const anomalies = [
-    {
-      id: 1,
-      description: "Đột biến đơn hàng bất thường tại chi nhánh Quận 1",
-      time: "2 giờ trước",
-      severity: "trung bình",
-    },
-    {
-      id: 2,
-      description: "Giảm số lượng đơn ở nhóm cửa hàng cà phê",
-      time: "4 giờ trước",
-      severity: "thấp",
-    },
-    {
-      id: 3,
-      description: "Tỷ lệ hủy đơn cao bất thường",
-      time: "6 giờ trước",
-      severity: "cao",
-    },
-  ];
+  /* ================= HELPERS ================= */
+  const getPeakLevel = (total: number) => {
+    if (total > 10)
+      return { label: "cao", variant: "destructive" as const };
+    if (total >= 5)
+      return { label: "trung bình", variant: "secondary" as const };
+    return { label: "thấp", variant: "outline" as const };
+  };
 
+  /* ================= RENDER ================= */
   return (
     <AdminLayout title="Phân tích & Thống kê">
       <div className="space-y-6">
@@ -124,61 +114,51 @@ const Analytics = () => {
         {/* ================= TOP VENDORS ================= */}
         <div className="grid lg:grid-cols-2 gap-6">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
+            <CardHeader className="flex flex-row justify-between items-center">
               <CardTitle>Nhà hàng bán chạy nhất</CardTitle>
-              <Button variant="outline" size="sm">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setOpenVendorChart(true)}
+              >
                 <PieChart className="w-4 h-4 mr-2" />
                 Xem biểu đồ
               </Button>
             </CardHeader>
 
             <CardContent>
-              {loadingTopVendors && (
-                <p className="text-sm text-muted-foreground">
-                  Đang tải dữ liệu...
-                </p>
-              )}
-
+              {loadingTopVendors && <p>Đang tải...</p>}
               {!loadingTopVendors && topVendors.length === 0 && (
-                <p className="text-sm text-muted-foreground">
-                  Không có dữ liệu.
-                </p>
+                <p>Không có dữ liệu</p>
               )}
 
-              <div className="space-y-4">
-                {topVendors.map((vendor, index) => (
+              <div className="space-y-3">
+                {topVendors.map((v, i) => (
                   <div
-                    key={vendor.vendorId}
-                    className="flex items-center justify-between p-3 border rounded-lg"
+                    key={v.vendorId}
+                    className="flex justify-between items-center p-3 border rounded-lg"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-                        <span className="text-sm font-semibold text-primary">
-                          #{index + 1}
-                        </span>
-                      </div>
-                      <div>
-                        <p className="font-medium">{vendor.vendorName}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {vendor.totalOrders} đơn hàng
-                        </p>
-                      </div>
+                    <div>
+                      <p className="font-medium">
+                        #{i + 1} {v.vendorName}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {v.totalOrders} đơn
+                      </p>
                     </div>
-
                     <div className="text-right">
                       <p className="font-semibold">
-                        {vendor.totalRevenue.toLocaleString()} đ
+                        {v.totalRevenue.toLocaleString()} đ
                       </p>
                       <Badge
                         variant={
-                          vendor.growthPercent >= 0
+                          v.growthPercent >= 0
                             ? "secondary"
                             : "destructive"
                         }
-                        className="text-xs"
                       >
-                        {vendor.growthPercent >= 0 ? "+" : ""}
-                        {vendor.growthPercent}%
+                        {v.growthPercent >= 0 ? "+" : ""}
+                        {v.growthPercent}%
                       </Badge>
                     </div>
                   </div>
@@ -187,57 +167,54 @@ const Analytics = () => {
             </CardContent>
           </Card>
 
-          {/* ================= PEAK HOURS (MOCK) ================= */}
+          {/* ================= PEAK HOURS ================= */}
           <Card>
-          <CardHeader>
-            <CardTitle>Phân tích giờ cao điểm (đơn trễ)</CardTitle>
-          </CardHeader>
+            <CardHeader className="flex justify-between items-center">
+              <CardTitle>Giờ cao điểm (đơn trễ)</CardTitle>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setOpenPeakChart(true)}
+              >
+                <Activity className="w-4 h-4 mr-2" />
+                Xem biểu đồ
+              </Button>
+            </CardHeader>
 
-          <CardContent>
-            {loadingPeakHours && (
-              <p className="text-sm text-muted-foreground">Đang tải dữ liệu...</p>
-            )}
+            <CardContent>
+              {loadingPeakHours && <p>Đang tải...</p>}
+              {!loadingPeakHours && peakHours.length === 0 && (
+                <p>Không có dữ liệu</p>
+              )}
 
-            {!loadingPeakHours && peakHours.length === 0 && (
-              <p className="text-sm text-muted-foreground">Không có dữ liệu.</p>
-            )}
-
-            <div className="space-y-4">
-              {peakHours.map((h) => {
-                const label = `${h.hour}:00 – ${h.hour}:59`;
-                const level = getPeakLevel(h.totalOrders);
-
-                return (
-                  <div
-                    key={h.hour}
-                    className="flex items-center justify-between p-3 border rounded-lg"
-                  >
-                    <div className="flex items-center gap-3">
-                      <Clock className="w-5 h-5 text-muted-foreground" />
-                      <span className="font-medium">{label}</span>
+              <div className="space-y-3">
+                {peakHours.map((h) => {
+                  const level = getPeakLevel(h.totalOrders);
+                  return (
+                    <div
+                      key={h.hour}
+                      className="flex justify-between items-center p-3 border rounded-lg"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-4 h-4" />
+                        <span>
+                          {h.hour}:00 – {h.hour}:59
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span>{h.totalOrders} đơn</span>
+                        <Badge variant={level.variant}>{level.label}</Badge>
+                      </div>
                     </div>
-
-                    <div className="flex items-center gap-3">
-                      <span className="font-semibold">
-                        {h.totalOrders} đơn trễ
-                      </span>
-
-                      <Badge variant={level.variant} className="text-xs">
-                        {level.label}
-                      </Badge>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-          </CardContent>
-        </Card>
-
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* ================= ANOMALIES (MOCK) ================= */}
-        <Card>
+        {/* ================= ANOMALY MOCK ================= */}
+        {/* <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <AlertTriangle className="w-5 h-5" />
@@ -245,33 +222,62 @@ const Analytics = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {anomalies.map((a) => (
-                <div
-                  key={a.id}
-                  className="flex items-center justify-between p-4 border rounded-lg"
-                >
-                  <div>
-                    <p className="font-medium">{a.description}</p>
-                    <p className="text-sm text-muted-foreground">{a.time}</p>
-                  </div>
-                  <Badge
-                    variant={
-                      a.severity === "cao"
-                        ? "destructive"
-                        : a.severity === "trung bình"
-                        ? "secondary"
-                        : "outline"
-                    }
-                  >
-                    {a.severity}
-                  </Badge>
-                </div>
-              ))}
-            </div>
+            <p className="text-muted-foreground">
+              (Chưa triển khai – để demo UI)
+            </p>
           </CardContent>
-        </Card>
+        </Card> */}
       </div>
+
+      {/* ================= VENDOR CHART ================= */}
+      <Dialog open={openVendorChart} onOpenChange={setOpenVendorChart}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Doanh thu Top Nhà hàng</DialogTitle>
+          </DialogHeader>
+
+          <div className="h-96">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={topVendors}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="vendorName" />
+                <YAxis />
+                <Tooltip />
+                <Bar dataKey="totalRevenue" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ================= PEAK CHART ================= */}
+      <Dialog open={openPeakChart} onOpenChange={setOpenPeakChart}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Đơn trễ theo giờ</DialogTitle>
+          </DialogHeader>
+
+          <div className="h-96">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={peakHours}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="hour"
+                  tickFormatter={(h) => `${h}:00`}
+                />
+                <YAxis />
+                <Tooltip />
+                <Line
+                  type="monotone"
+                  dataKey="totalOrders"
+                  strokeWidth={3}
+                  dot={{ r: 5 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 };
