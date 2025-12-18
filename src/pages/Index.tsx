@@ -13,6 +13,8 @@ import heroImage from "@/assets/hero-image.jpg";
 import { api, ApiResponse } from "@/lib/api";
 import { useGeolocation } from "@/hooks/useGeolocation";
 import { calculateDistance, formatDistance } from "@/lib/geolocation";
+import { MessageCircle } from "lucide-react";
+import { ChatDialog } from "@/components/ui/chat";
 
 // ---------- Types ----------
 type VendorFilter = "Rating" | "Queue" | "NearestMe" | "MostSelling";
@@ -38,7 +40,7 @@ type ApiVendor = {
   queueCount?: number | null;
   allowPreorder?: boolean | null;
   distance?: number | null;
-
+  act?: number | null;
   businessTypeId?: string | null;
 };
 
@@ -74,6 +76,7 @@ function extractVendorsFromResponse(res: any): ApiVendor[] {
     queueCount: v.queueCount,
     allowPreorder: v.allowPreorder,
     distance: v.distance,
+    act: v.act ?? v.eta ?? null,
     businessTypeId:
       v.businessTypeId ??
       v.BusinessTypeId ??
@@ -99,6 +102,7 @@ function extractBusinessTypesFromResponse(res: any): BusinessType[] {
 
 export default function Index() {
   const navigate = useNavigate();
+  const [isChatOpen, setIsChatOpen] = useState(false);
   const location = useLocation()
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -174,6 +178,7 @@ export default function Index() {
 
         if (searchKeyword) {
           params.append("nameSearch", searchKeyword);
+          params.append("categoryFoodSearch", searchKeyword);
         }
 
         if (selectedCategory) {
@@ -248,7 +253,7 @@ export default function Index() {
         coverImage: buildMediaUrl(v.logoUrl) || heroImage,
         rating: typeof v.averageRating === "number" ? v.averageRating : 0,
         reviewCount: 0,
-        eta: "",
+        eta: v.act != null ? String(v.act) : "0",
         queueSize: v.queueCount ?? 0,
         distance: getVendorDistance(v),
         cuisineType: "",
@@ -288,13 +293,13 @@ export default function Index() {
             <p className="text-lg md:text-xl mb-6 opacity-90">
               Tham gia xếp hàng từ xa và nhận cập nhật thời gian thực
             </p>
-            <Button
+            {/* <Button
               size="lg"
               className="bg-primary hover:bg-primary-dark text-primary-foreground"
             >
               <MapPin className="mr-2 h-5 w-5" />
               Tìm nhà hàng gần bạn
-            </Button>
+            </Button> */}
           </div>
         </div>
       </section>
@@ -444,6 +449,26 @@ export default function Index() {
             </div>
           )}
         </section>
+        {/* Floating Chat Button */}
+          <button
+            onClick={() => setIsChatOpen(true)}
+            className="
+              fixed bottom-6 right-6 z-50
+              h-14 w-14 rounded-full
+              bg-primary text-primary-foreground
+              flex items-center justify-center
+              shadow-lg
+              hover:scale-105 transition-transform
+            "
+            aria-label="Chat hỗ trợ"
+          >
+            <MessageCircle className="h-6 w-6" />
+          </button>
+
+          <ChatDialog
+            isOpen={isChatOpen}
+            onClose={() => setIsChatOpen(false)}
+          />
       </div>
 
       <div className="h-16 md:h-0" />

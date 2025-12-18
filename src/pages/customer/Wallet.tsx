@@ -107,7 +107,9 @@ export default function Wallet() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalRecords, setTotalRecords] = useState(0);
   const [walletId, setWalletId] = useState<string | null>(null);
-
+  const [totalIn, setTtotalIn] = useState(0);
+  const [totalOut, setTotalOut] = useState(0);
+  const [totalTransaction, setTotalTransaction] = useState(0);
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -117,7 +119,7 @@ export default function Wallet() {
   const handleTopupAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const numeric = e.target.value.replace(/,/g, "").replace(/\D/g, "");
     setTopupAmount(numeric ? numeric.replace(/\B(?=(\d{3})+(?!\d))/g, ",") : "");
-  };
+  }
 
   const handleConfirmTopup = async () => {
     try {
@@ -167,25 +169,23 @@ export default function Wallet() {
           return;
         }
 
-        setWalletId(id);
-
-        const r = await api.get<ApiResponse<any>>(`/api/wallet/${encodeURIComponent(id)}`, headers);
-        const payload2 = (r?.data as any)?.data ?? r?.data ?? r;
-        const d = payload2 ?? null;
-
-        if (d) {
-          const bal = Number(d.balance ?? d.Balance ?? 0);
-          const held = Number(d.heldBalance ?? d.HeldBalance ?? 0);
-          const avail = Number(d.availableBalance ?? d.AvailableBalance ?? bal - held);
-
+        else {
+          const bal = Number(walletInfo.balance ?? 0);
+          const held = Number(walletInfo.heldBalance  ?? 0);
+          const avail = Number(walletInfo.availableBalance ?? 0);
+          const totalIn = Number(walletInfo.totalIn ?? 0);
+          const totalOut = Number(walletInfo.totalOut ?? 0);
+          const totalTransaction = Number(walletInfo.totalTransaction ?? 0);
           setBalance(bal);
           setAvailableBalance(avail);
           setHeldBalance(held);
-        } else {
-          setBalance(0);
-          setAvailableBalance(0);
-          setHeldBalance(0);
+          setTtotalIn(totalIn);
+          setTotalOut(totalOut);
+          setTotalTransaction(totalTransaction);
         }
+
+        setWalletId(id);
+        
       } catch (err) {
         console.error(err);
         toast.error("Không lấy được thông tin ví. Vui lòng thử lại.");
@@ -399,7 +399,7 @@ export default function Wallet() {
                 <div>
                   <p className="text-sm mb-1">Tổng nạp</p>
                   <p className="text-2xl font-bold text-green-600">
-                    {formatCurrency(totalDeposit)}
+                    {formatCurrency(totalIn)}
                   </p>
                 </div>
                 <div className="p-3 bg-green-200 rounded-lg">
@@ -415,7 +415,7 @@ export default function Wallet() {
                 <div>
                   <p className="text-sm mb-1">Tổng chi tiêu</p>
                   <p className="text-2xl font-bold text-red-600">
-                    {formatCurrency(Math.abs(totalSpending))}
+                    {formatCurrency(totalOut)}
                   </p>
                 </div>
                 <div className="p-3 bg-red-200 rounded-lg">
@@ -430,7 +430,7 @@ export default function Wallet() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm mb-1">Giao dịch</p>
-                  <p className="text-2xl font-bold">{transactions.length}</p>
+                  <p className="text-2xl font-bold">{totalTransaction}</p>
                 </div>
                 <div className="p-3 bg-primary/20 rounded-lg">
                   <Clock className="h-6 w-6 text-primary" />

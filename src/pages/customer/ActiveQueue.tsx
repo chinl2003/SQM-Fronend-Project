@@ -58,6 +58,7 @@ type OrderWithDetailsDto = {
   status: number | string | null;
   createdAt?: string;
   lastUpdatedTime?: string;
+  note?: string | null;
   queueEntry?: {
     id: string;
     queueId?: string | null;
@@ -139,6 +140,7 @@ interface QueueItem {
   delayMinutes?: number | null;
   delayReason?: string | null;
   hasDelay?: boolean;
+  note?: string | null;
 }
 
 type OrderStatusNumber = 0 | 1 | 2 | 3 | 4 | 5 | 6;
@@ -433,6 +435,36 @@ const mapRatingFromOrder = (r: OrderRatingApi): RatingDto => {
   };
 };
 
+const handleForceCancelOrder = async (orderId: string) => {
+  try {
+    const token = localStorage.getItem("accessToken") || "";
+
+    await api.post(
+      `/api/order/${orderId}/force-cancel`,
+      null,
+      {
+        Authorization: `Bearer ${token}`,
+      }
+    );
+
+    toast({
+      title: "Hủy đơn hàng thành công",
+      description: "Đơn hàng đã được hủy.",
+    });
+
+    // reload danh sách
+    setReloadKey((prev) => prev + 1);
+  } catch (error: any) {
+    console.error(error);
+    toast({
+      title: "Hủy đơn hàng thất bại",
+      description:
+        error?.response?.data?.message || "Vui lòng thử lại sau.",
+      variant: "destructive",
+    });
+  }
+};
+
 function mapOrderToQueueItem(
   o: OrderWithDetailsDto,
   vendor?: VendorMini
@@ -516,6 +548,7 @@ function mapOrderToQueueItem(
     delayMinutes,
     delayReason,
     hasDelay,
+    note: o.note ?? null,
   };
 }
 
@@ -552,6 +585,35 @@ export default function ActiveQueue() {
     setReviewMode(mode);
     setCurrentRating(queueItem.rating ?? null);
     setShowReviewDialog(true);
+  };
+
+  const handleForceCancelOrder = async (orderId: string) => {
+    try {
+      const token = localStorage.getItem("accessToken") || "";
+
+      await api.post(
+        `/api/order/${orderId}/force-cancel`,
+        null,
+        {
+          Authorization: `Bearer ${token}`,
+        }
+      );
+
+      toast({
+        title: "Hủy đơn hàng thành công",
+        description: "Đơn hàng đã được hủy.",
+      });
+
+      setShowCancelDialog(false);
+      setReloadKey((prev) => prev + 1);
+    } catch (error: any) {
+      toast({
+        title: "Hủy đơn hàng thất bại",
+        description:
+          error?.response?.data?.message || "Vui lòng thử lại.",
+        variant: "destructive",
+      });
+    }
   };
 
   useEffect(() => {
@@ -669,13 +731,15 @@ export default function ActiveQueue() {
                   </span>
                 </div>
 
-                <div className="flex items-center space-x-1">
-                  <Users className="h-3 w-3 text-sky-500" />
-                  <span>
-                    <span className="font-semibold">Vị trí:</span>{" "}
-                    {queueItem.position ?? "—"}
-                  </span>
-                </div>
+                {!isReadyTab && !isCompletedTab && (
+                  <div className="flex items-center space-x-1">
+                    <Users className="h-3 w-3 text-sky-500" />
+                    <span>
+                      <span className="font-semibold">Vị trí:</span>{" "}
+                      {queueItem.position ?? ""}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Delay Alert - only show if order has delay */}

@@ -318,7 +318,7 @@ export function Navigation({
                     <Heart className="h-4 w-4" />
                   </Button>
                 </Link> */}
-                <Link to="/customer/active-queue">
+                {/* <Link to="/customer/active-queue">
                   <Button variant="ghost" size="sm" className="relative">
                     <ShoppingBag className="h-4 w-4" />
                     {queueCount > 0 && (
@@ -327,12 +327,12 @@ export function Navigation({
                       </Badge>
                     )}
                   </Button>
-                </Link>
+                </Link> */}
               </>
             )}
 
             {/* Chat button - only for authenticated customers */}
-            {userId && (userType === "customer" || userType === "guest") && (
+            {/* {userId && (userType === "customer" || userType === "guest") && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -341,7 +341,7 @@ export function Navigation({
               >
                 <MessageCircle className="h-4 w-4" />
               </Button>
-            )}
+            )} */}
 
             <Button
               variant="ghost"
