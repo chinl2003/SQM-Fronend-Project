@@ -3,6 +3,7 @@ import StatCard from "@/components/admin/StatCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
 import { getVendorStatusLabel, getVendorStatusBadge } from "@/constaints/statusVendorConsts";
 import {
 Users, ShoppingBag, Clock, DollarSign,
@@ -553,27 +554,42 @@ return ( <AdminLayout title="Tổng quan hệ thống"> <div className="space-y-
       <CardHeader>
         <CardTitle>Hành động nhanh</CardTitle>
       </CardHeader>
+
       <CardContent>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Button className="h-auto py-4 flex-col gap-2" variant="outline">
-            <CheckCircle className="w-6 h-6" />
-            Duyệt nhà cung cấp
-          </Button>
-          <Button className="h-auto py-4 flex-col gap-2" variant="outline">
-            <TrendingUp className="w-6 h-6" />
-            Xem phân tích
-          </Button>
-          <Button className="h-auto py-4 flex-col gap-2" variant="outline">
-            <Users className="w-6 h-6" />
-            Quản lý người dùng
-          </Button>
-          <Button className="h-auto py-4 flex-col gap-2" variant="outline">
-            <DollarSign className="w-6 h-6" />
-            Báo cáo doanh thu
-          </Button>
+
+          <Link to="/admin/vendor-management">
+            <Button className="h-auto py-4 flex-col gap-2 w-full" variant="outline">
+              <CheckCircle className="w-6 h-6" />
+              Duyệt nhà cung cấp
+            </Button>
+          </Link>
+
+          <Link to="/admin/analytics">
+            <Button className="h-auto py-4 flex-col gap-2 w-full" variant="outline">
+              <TrendingUp className="w-6 h-6" />
+              Xem phân tích
+            </Button>
+          </Link>
+
+          <Link to="/admin/user-management">
+            <Button className="h-auto py-4 flex-col gap-2 w-full" variant="outline">
+              <Users className="w-6 h-6" />
+              Quản lý người dùng
+            </Button>
+          </Link>
+
+          <Link to="/admin/payments">
+            <Button className="h-auto py-4 flex-col gap-2 w-full" variant="outline">
+              <DollarSign className="w-6 h-6" />
+              Báo cáo doanh thu
+            </Button>
+          </Link>
+
         </div>
       </CardContent>
     </Card>
+
   </div>
 </AdminLayout>
 
