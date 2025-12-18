@@ -326,7 +326,7 @@ const QueueMonitoring = () => {
         </Card>
 
         {/* Danh sách khiếu nại */}
-        <Card>
+        {/* <Card>
           <CardHeader>
             <CardTitle>Phàn nàn gần đây</CardTitle>
           </CardHeader>
@@ -363,7 +363,7 @@ const QueueMonitoring = () => {
               ))}
             </div>
           </CardContent>
-        </Card>
+        </Card> */}
       </div>
     </AdminLayout>
   );

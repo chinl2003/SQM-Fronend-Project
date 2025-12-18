@@ -33,12 +33,12 @@ interface QueueItem {
   position?: number;
   estimatedTime: string;
   status:
-    | "pending"
-    | "confirmed"
-    | "preparing"
-    | "ready"
-    | "completed"
-    | "cancelled";
+  | "pending"
+  | "confirmed"
+  | "preparing"
+  | "ready"
+  | "completed"
+  | "cancelled";
   items: Array<{
     id: string;
     name: string;
@@ -53,6 +53,9 @@ interface QueueItem {
   canUpdate: boolean;
   estimatedWaitTimeRaw?: string | null;
   estimatedServeTimeRaw?: string | null;
+  delayMinutes?: number | null;
+  delayReason?: string | null;
+  hasDelay?: boolean;
   note?: string | null;
 }
 
@@ -163,7 +166,7 @@ export function ViewQueueDetailDialog({
     switch (status) {
       case "paid":
         return "Đã thanh toán";
-    case "pending":
+      case "pending":
         return "Chờ thanh toán";
       case "refunded":
         return "Đã hoàn tiền";
@@ -279,6 +282,42 @@ export function ViewQueueDetailDialog({
             </CardContent>
           </Card>
 
+          {/* Delay Information Card - only show if order has delay */}
+          {queueItem.hasDelay && (
+            <Card className="border-amber-500 bg-amber-50">
+              <CardContent className="p-4">
+                <div className="flex items-start space-x-3">
+                  <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <h4 className="font-semibold text-amber-900 mb-2">
+                      Thông báo trễ đơn hàng
+                    </h4>
+                    <div className="space-y-1 text-sm">
+                      {queueItem.delayMinutes && (
+                        <div className="flex items-center space-x-2">
+                          <Clock className="h-4 w-4 text-amber-700" />
+                          <span className="text-amber-900">
+                            <span className="font-medium">Thời gian trễ:</span>{" "}
+                            {queueItem.delayMinutes} phút
+                          </span>
+                        </div>
+                      )}
+                      {queueItem.delayReason && (
+                        <div className="flex items-start space-x-2">
+                          <AlertCircle className="h-4 w-4 text-amber-700 flex-shrink-0 mt-0.5" />
+                          <span className="text-amber-900">
+                            <span className="font-medium">Lý do:</span>{" "}
+                            {queueItem.delayReason}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
             <CardContent className="p-4">
               <h4 className="font-medium mb-3">Chi tiết đơn hàng</h4>
@@ -306,7 +345,7 @@ export function ViewQueueDetailDialog({
               </div>
             </CardContent>
           </Card>
-          
+
           {queueItem.note && (
             <Card>
               <CardContent className="p-4">

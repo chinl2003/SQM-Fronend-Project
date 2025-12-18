@@ -29,6 +29,14 @@ interface RatingReplyResponseDto {
   content: string;
   createdTime: string;
 }
+
+interface RatingStatsResponse {
+  pending: number;
+  flagged: number;
+  approved: number;
+  averageRating: number;
+}
+
 interface RatingAdminResponse {
   id: string;
   customerName: string;
@@ -69,7 +77,25 @@ const ReviewModeration = () => {
     useState<RatingAdminResponse | null>(null);
   const [replyContent, setReplyContent] = useState("");
   const [submittingReply, setSubmittingReply] = useState(false);
+  const [stats, setStats] = useState<RatingStatsResponse>({
+    pending: 0,
+    flagged: 0,
+    approved: 0,
+    averageRating: 0,
+  });
 
+
+  const fetchRatingStats = async () => {
+  try {
+    const res = await api.get<ApiEnvelope<RatingStatsResponse>>(
+      "/api/rating/admin/stats"
+    );
+
+    setStats(res.data);
+  } catch (err) {
+    console.error("Failed to fetch rating stats", err);
+  }
+};
 
   useEffect(() => {
   let mounted = true;
@@ -98,6 +124,7 @@ const ReviewModeration = () => {
 
       setTotalPages(paging.totalPages || 1);
       setTotalRecords(paging.totalRecords || 0);
+      fetchRatingStats();
     } catch (err) {
       console.error(err);
       setReviews([]);
@@ -148,7 +175,10 @@ const ReviewModeration = () => {
           <Card>
             <CardContent className="pt-6">
               <div className="text-center">
-                <div className="text-3xl font-bold text-warning">12</div>
+                <div className="text-3xl font-bold text-warning">
+                  {stats.pending}
+                </div>
+
                 <p className="text-muted-foreground">Đánh giá chờ duyệt</p>
               </div>
             </CardContent>
@@ -156,7 +186,10 @@ const ReviewModeration = () => {
           <Card>
             <CardContent className="pt-6">
               <div className="text-center">
-                <div className="text-3xl font-bold text-destructive">3</div>
+                <div className="text-3xl font-bold text-destructive">
+                  {stats.flagged}
+                </div>
+
                 <p className="text-muted-foreground">Đánh giá bị gắn cờ</p>
               </div>
             </CardContent>
@@ -164,7 +197,10 @@ const ReviewModeration = () => {
           <Card>
             <CardContent className="pt-6">
               <div className="text-center">
-                <div className="text-3xl font-bold text-success">456</div>
+                <div className="text-3xl font-bold text-success">
+                  {stats.approved}
+                </div>
+
                 <p className="text-muted-foreground">Đã duyệt</p>
               </div>
             </CardContent>
@@ -172,7 +208,10 @@ const ReviewModeration = () => {
           <Card>
             <CardContent className="pt-6">
               <div className="text-center">
-                <div className="text-3xl font-bold">4.6</div>
+                <div className="text-3xl font-bold">
+                  {stats.averageRating.toFixed(1)}
+                </div>
+
                 <p className="text-muted-foreground">Điểm đánh giá trung bình</p>
               </div>
             </CardContent>

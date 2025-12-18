@@ -1,138 +1,164 @@
+import { useEffect, useState } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
+import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { 
-  TrendingUp, Clock, AlertTriangle, Users,
-  BarChart3, PieChart, Activity, Download
+import {
+  Clock,
+  AlertTriangle,
+  PieChart,
+  Activity,
 } from "lucide-react";
 
+/* ===== CHART ===== */
+import {
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+} from "recharts";
+
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+
+/* ================= TYPES ================= */
+interface TopVendor {
+  vendorId: string;
+  vendorName: string;
+  totalOrders: number;
+  totalRevenue: number;
+  growthPercent: number;
+}
+
+interface PeakHour {
+  hour: number;
+  totalOrders: number;
+}
+
+interface ApiEnvelope<T> {
+  data: T;
+  message?: string;
+  statusCode: number;
+  code: string;
+}
+
+/* ================= COMPONENT ================= */
 const Analytics = () => {
-  const topVendors = [
-    { name: "Phở Hà Nội", orders: 234, revenue: "$3,450", growth: "+15%" },
-    { name: "Coffee House", orders: 189, revenue: "$2,890", growth: "+8%" },
-    { name: "Bánh Mì Express", orders: 156, revenue: "$2,340", growth: "+12%" }
-  ];
+  const [topVendors, setTopVendors] = useState<TopVendor[]>([]);
+  const [peakHours, setPeakHours] = useState<PeakHour[]>([]);
 
-  const peakHours = [
-    { hour: "12:00 PM", orders: 89, load: "cao" },
-    { hour: "1:00 PM", orders: 95, load: "cao" },
-    { hour: "7:00 PM", orders: 67, load: "trung bình" },
-    { hour: "8:00 PM", orders: 72, load: "trung bình" }
-  ];
+  const [loadingTopVendors, setLoadingTopVendors] = useState(false);
+  const [loadingPeakHours, setLoadingPeakHours] = useState(false);
 
-  const anomalies = [
-    { 
-      id: 1, 
-      type: "spike", 
-      description: "Đột biến đơn hàng bất thường tại chi nhánh Quận 1", 
-      time: "2 giờ trước",
-      severity: "trung bình"
-    },
-    { 
-      id: 2, 
-      type: "drop", 
-      description: "Giảm số lượng đơn ở nhóm cửa hàng cà phê", 
-      time: "4 giờ trước",
-      severity: "thấp"
-    },
-    { 
-      id: 3, 
-      type: "error", 
-      description: "Tỷ lệ hủy đơn cao bất thường", 
-      time: "6 giờ trước",
-      severity: "cao"
+  const [openVendorChart, setOpenVendorChart] = useState(false);
+  const [openPeakChart, setOpenPeakChart] = useState(false);
+
+  /* ================= FETCH ================= */
+  const fetchTopVendors = async () => {
+    try {
+      setLoadingTopVendors(true);
+      const res = await api.get<ApiEnvelope<TopVendor[]>>(
+        "/api/vendor/top-vendors?limit=5"
+      );
+      setTopVendors(res.data ?? []);
+    } catch {
+      setTopVendors([]);
+    } finally {
+      setLoadingTopVendors(false);
     }
-  ];
+  };
 
+  const fetchPeakHours = async () => {
+    try {
+      setLoadingPeakHours(true);
+      const res = await api.get<ApiEnvelope<PeakHour[]>>(
+        "/api/order/peak-delay-hours?top=5"
+      );
+      setPeakHours(res.data ?? []);
+    } catch {
+      setPeakHours([]);
+    } finally {
+      setLoadingPeakHours(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTopVendors();
+    fetchPeakHours();
+  }, []);
+
+  /* ================= HELPERS ================= */
+  const getPeakLevel = (total: number) => {
+    if (total > 10)
+      return { label: "cao", variant: "destructive" as const };
+    if (total >= 5)
+      return { label: "trung bình", variant: "secondary" as const };
+    return { label: "thấp", variant: "outline" as const };
+  };
+
+  /* ================= RENDER ================= */
   return (
     <AdminLayout title="Phân tích & Thống kê">
       <div className="space-y-6">
 
-        {/* Key Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-2xl font-bold">1,234</div>
-                  <p className="text-muted-foreground text-sm">Tổng số đơn hàng</p>
-                  <p className="text-xs text-success">+12% so với hôm qua</p>
-                </div>
-                <BarChart3 className="w-8 h-8 text-muted-foreground" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-2xl font-bold">15.2 phút</div>
-                  <p className="text-muted-foreground text-sm">Thời gian chờ trung bình</p>
-                  <p className="text-xs text-destructive">+2 phút so với hôm qua</p>
-                </div>
-                <Clock className="w-8 h-8 text-muted-foreground" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-2xl font-bold">94.5%</div>
-                  <p className="text-muted-foreground text-sm">Tỷ lệ hoàn tất</p>
-                  <p className="text-xs text-success">+1.2% so với hôm qua</p>
-                </div>
-                <TrendingUp className="w-8 h-8 text-muted-foreground" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-2xl font-bold">8,567</div>
-                  <p className="text-muted-foreground text-sm">Người dùng hoạt động</p>
-                  <p className="text-xs text-success">+5% so với tuần trước</p>
-                </div>
-                <Users className="w-8 h-8 text-muted-foreground" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
+        {/* ================= TOP VENDORS ================= */}
         <div className="grid lg:grid-cols-2 gap-6">
-          {/* Top Vendors */}
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
+            <CardHeader className="flex flex-row justify-between items-center">
               <CardTitle>Nhà hàng bán chạy nhất</CardTitle>
-              <Button variant="outline" size="sm">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setOpenVendorChart(true)}
+              >
                 <PieChart className="w-4 h-4 mr-2" />
                 Xem biểu đồ
               </Button>
             </CardHeader>
+
             <CardContent>
-              <div className="space-y-4">
-                {topVendors.map((vendor, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-                        <span className="text-sm font-semibold text-primary">
-                          #{index + 1}
-                        </span>
-                      </div>
-                      <div>
-                        <p className="font-medium">{vendor.name}</p>
-                        <p className="text-sm text-muted-foreground">{vendor.orders} đơn hàng</p>
-                      </div>
+              {loadingTopVendors && <p>Đang tải...</p>}
+              {!loadingTopVendors && topVendors.length === 0 && (
+                <p>Không có dữ liệu</p>
+              )}
+
+              <div className="space-y-3">
+                {topVendors.map((v, i) => (
+                  <div
+                    key={v.vendorId}
+                    className="flex justify-between items-center p-3 border rounded-lg"
+                  >
+                    <div>
+                      <p className="font-medium">
+                        #{i + 1} {v.vendorName}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {v.totalOrders} đơn
+                      </p>
                     </div>
                     <div className="text-right">
-                      <p className="font-semibold">{vendor.revenue}</p>
-                      <Badge variant="secondary" className="text-xs">
-                        {vendor.growth}
+                      <p className="font-semibold">
+                        {v.totalRevenue.toLocaleString()} đ
+                      </p>
+                      <Badge
+                        variant={
+                          v.growthPercent >= 0
+                            ? "secondary"
+                            : "destructive"
+                        }
+                      >
+                        {v.growthPercent >= 0 ? "+" : ""}
+                        {v.growthPercent}%
                       </Badge>
                     </div>
                   </div>
@@ -141,37 +167,54 @@ const Analytics = () => {
             </CardContent>
           </Card>
 
-          {/* Peak hours */}
+          {/* ================= PEAK HOURS ================= */}
           <Card>
-            <CardHeader>
-              <CardTitle>Phân tích giờ cao điểm</CardTitle>
+            <CardHeader className="flex justify-between items-center">
+              <CardTitle>Giờ cao điểm (đơn trễ)</CardTitle>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setOpenPeakChart(true)}
+              >
+                <Activity className="w-4 h-4 mr-2" />
+                Xem biểu đồ
+              </Button>
             </CardHeader>
+
             <CardContent>
-              <div className="space-y-4">
-                {peakHours.map((hour, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <Clock className="w-5 h-5 text-muted-foreground" />
-                      <span className="font-medium">{hour.hour}</span>
+              {loadingPeakHours && <p>Đang tải...</p>}
+              {!loadingPeakHours && peakHours.length === 0 && (
+                <p>Không có dữ liệu</p>
+              )}
+
+              <div className="space-y-3">
+                {peakHours.map((h) => {
+                  const level = getPeakLevel(h.totalOrders);
+                  return (
+                    <div
+                      key={h.hour}
+                      className="flex justify-between items-center p-3 border rounded-lg"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-4 h-4" />
+                        <span>
+                          {h.hour}:00 – {h.hour}:59
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span>{h.totalOrders} đơn</span>
+                        <Badge variant={level.variant}>{level.label}</Badge>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span className="font-semibold">{hour.orders} đơn</span>
-                      <Badge 
-                        variant={hour.load === "cao" ? "destructive" : "secondary"}
-                        className="text-xs"
-                      >
-                        {hour.load}
-                      </Badge>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Anomalies */}
-        <Card>
+        {/* ================= ANOMALY MOCK ================= */}
+        {/* <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <AlertTriangle className="w-5 h-5" />
@@ -179,66 +222,62 @@ const Analytics = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {anomalies.map((anomaly) => (
-                <div key={anomaly.id} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex items-start gap-3">
-                    <div className={`w-2 h-2 rounded-full mt-2 ${
-                      anomaly.severity === "cao" ? "bg-destructive" :
-                      anomaly.severity === "trung bình" ? "bg-warning" : "bg-info"
-                    }`} />
-                    <div>
-                      <p className="font-medium">{anomaly.description}</p>
-                      <p className="text-sm text-muted-foreground">{anomaly.time}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Badge 
-                      variant={
-                        anomaly.severity === "cao" ? "destructive" : 
-                        anomaly.severity === "trung bình" ? "secondary" : "outline"
-                      }
-                    >
-                      {anomaly.severity}
-                    </Badge>
-                    <Button size="sm" variant="outline">
-                      <Activity className="w-4 h-4 mr-2" />
-                      Xem chi tiết
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <p className="text-muted-foreground">
+              (Chưa triển khai – để demo UI)
+            </p>
           </CardContent>
-        </Card>
-
-        {/* Tools */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Công cụ phân tích</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <Button className="h-auto py-4 flex-col gap-2" variant="outline">
-                <Download className="w-6 h-6" />
-                Xuất dữ liệu
-              </Button>
-              <Button className="h-auto py-4 flex-col gap-2" variant="outline">
-                <BarChart3 className="w-6 h-6" />
-                Báo cáo tùy chỉnh
-              </Button>
-              <Button className="h-auto py-4 flex-col gap-2" variant="outline">
-                <PieChart className="w-6 h-6" />
-                Phân tích doanh thu
-              </Button>
-              <Button className="h-auto py-4 flex-col gap-2" variant="outline">
-                <TrendingUp className="w-6 h-6" />
-                Xu hướng tăng trưởng
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        </Card> */}
       </div>
+
+      {/* ================= VENDOR CHART ================= */}
+      <Dialog open={openVendorChart} onOpenChange={setOpenVendorChart}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Doanh thu Top Nhà hàng</DialogTitle>
+          </DialogHeader>
+
+          <div className="h-96">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={topVendors}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="vendorName" />
+                <YAxis />
+                <Tooltip />
+                <Bar dataKey="totalRevenue" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ================= PEAK CHART ================= */}
+      <Dialog open={openPeakChart} onOpenChange={setOpenPeakChart}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Đơn trễ theo giờ</DialogTitle>
+          </DialogHeader>
+
+          <div className="h-96">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={peakHours}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="hour"
+                  tickFormatter={(h) => `${h}:00`}
+                />
+                <YAxis />
+                <Tooltip />
+                <Line
+                  type="monotone"
+                  dataKey="totalOrders"
+                  strokeWidth={3}
+                  dot={{ r: 5 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 };
