@@ -201,7 +201,7 @@ function QueueList({
     try {
       const arr = unwrapOrders<OrderWithDetailsDto>(res);
       if (Array.isArray(arr) && arr.length > 0) return arr;
-    } catch {}
+    } catch { }
 
     const outer = (res as any)?.data ?? res;
     const pag = outer?.data ?? outer ?? null;
@@ -323,30 +323,30 @@ function QueueList({
   };
 
   const mapPaymentStatus = (
-  ps: number | string | null | undefined
-) => {
-  const n =
-    ps == null
-      ? null
-      : typeof ps === "number"
-      ? ps
-      : Number.parseInt(String(ps), 10);
+    ps: number | string | null | undefined
+  ) => {
+    const n =
+      ps == null
+        ? null
+        : typeof ps === "number"
+          ? ps
+          : Number.parseInt(String(ps), 10);
 
-  switch (n) {
-    case 0:
-      return { text: "Chưa thanh toán", color: "bg-rose-500 text-white" };
-    case 1:
-      return { text: "Đang xử lý", color: "bg-amber-500 text-white" };
-    case 2:
-      return { text: "Đã thanh toán", color: "bg-blue-600 text-white" };
-    case 3:
-      return { text: "Thanh toán thất bại", color: "bg-slate-600 text-white" };
-    case 4:
-      return { text: "Đã hoàn tiền", color: "bg-indigo-500 text-white" };
-    default:
-      return { text: "Không rõ", color: "bg-gray-400 text-white" };
-  }
-};
+    switch (n) {
+      case 0:
+        return { text: "Chưa thanh toán", color: "bg-rose-500 text-white" };
+      case 1:
+        return { text: "Đang xử lý", color: "bg-amber-500 text-white" };
+      case 2:
+        return { text: "Đã thanh toán", color: "bg-blue-600 text-white" };
+      case 3:
+        return { text: "Thanh toán thất bại", color: "bg-slate-600 text-white" };
+      case 4:
+        return { text: "Đã hoàn tiền", color: "bg-indigo-500 text-white" };
+      default:
+        return { text: "Không rõ", color: "bg-gray-400 text-white" };
+    }
+  };
 
 
   const mapOrderStatus = (s?: number | null) => {
@@ -371,25 +371,25 @@ function QueueList({
   };
 
   const getOrderStatusColor = (s?: number | string | null) => {
-  const n = s == null ? null : Number(s);
-  switch (n) {
-    case 0:
-      return "bg-gray-500";
-    case 4:
-      return "bg-blue-500";
-    case 1:
-    case 5:
-      return "bg-amber-500";
-    case 6:
-      return "bg-emerald-500";
-    case 2:
-      return "bg-green-600";
-    case 3:
-      return "bg-rose-500";
-    default:
-      return "bg-slate-400";
-  }
-};
+    const n = s == null ? null : Number(s);
+    switch (n) {
+      case 0:
+        return "bg-gray-500";
+      case 4:
+        return "bg-blue-500";
+      case 1:
+      case 5:
+        return "bg-amber-500";
+      case 6:
+        return "bg-emerald-500";
+      case 2:
+        return "bg-green-600";
+      case 3:
+        return "bg-rose-500";
+      default:
+        return "bg-slate-400";
+    }
+  };
 
 
   const fmtCurrency = (n?: number | null) =>
@@ -449,6 +449,7 @@ function QueueList({
 
       toast.success("Cập nhật trạng thái đơn hàng thành công.");
       onRefresh?.();
+      await load(page); // Reload current page to show updated data
     } catch (err) {
       console.error("[QueueTab] updateOrderStatus error", err);
       toast.error("Cập nhật trạng thái đơn hàng thất bại.");
@@ -513,6 +514,7 @@ function QueueList({
       setDelayReason("");
       setConfirmItemIds([]);
       onRefresh?.();
+      await load(page); // Reload current page to show updated data
     } catch (err) {
       console.error("[QueueTab] confirm-cooking error", err);
       toast.error("Xác nhận tiến độ thất bại.");
@@ -561,6 +563,7 @@ function QueueList({
       setDelayUiType(1);
       setDelayDialogOpen(false);
       onRefresh?.();
+      await load(page); // Reload current page to show updated data
     } catch (err) {
       console.error("[QueueTab] submitDelayForOrder error", err);
       toast.error("Báo trễ thất bại.");
@@ -619,8 +622,8 @@ function QueueList({
               rawPaymentStatus == null
                 ? null
                 : typeof rawPaymentStatus === "number"
-                ? rawPaymentStatus
-                : Number.parseInt(String(rawPaymentStatus), 10)
+                  ? rawPaymentStatus
+                  : Number.parseInt(String(rawPaymentStatus), 10)
             );
 
             const statusRaw =
@@ -629,20 +632,20 @@ function QueueList({
               statusRaw == null
                 ? null
                 : typeof statusRaw === "number"
-                ? statusRaw
-                : Number.parseInt(String(statusRaw), 10);
+                  ? statusRaw
+                  : Number.parseInt(String(statusRaw), 10);
             const statusText = mapOrderStatus(statusNum);
 
             const queueEntryPreOrder = (it as any)
               .queueEntryPreOrder as
               | {
-                  position?: number;
-                  joinedAt?: string;
-                  servedAt?: string;
-                  status?: string | number;
-                  estimatedServeTime?: string;
-                  estimatedWaitTime?: string;
-                }
+                position?: number;
+                joinedAt?: string;
+                servedAt?: string;
+                status?: string | number;
+                estimatedServeTime?: string;
+                estimatedWaitTime?: string;
+              }
               | undefined;
 
             const queueInfo =
@@ -655,25 +658,25 @@ function QueueList({
               queueType === 2
                 ? formatPreorderWait(queueInfo?.estimatedServeTime)
                 : (queueInfo as any)?.estimatedWaitTime
-                ? formatWaitMinutes((queueInfo as any).estimatedWaitTime)
-                : "—";
+                  ? formatWaitMinutes((queueInfo as any).estimatedWaitTime)
+                  : "—";
             const rawStatus = Number((it as any).status ?? -1);
 
             const qeAny = it.queueEntry as any;
 
             const firstNotified = Boolean(
               (it as any)?.FirstNotified ??
-                (it as any)?.firstNotified ??
-                qeAny?.FirstNotified ??
-                qeAny?.firstNotified ??
-                false
+              (it as any)?.firstNotified ??
+              qeAny?.FirstNotified ??
+              qeAny?.firstNotified ??
+              false
             );
             const lastNotified = Boolean(
               (it as any)?.LastNotified ??
-                (it as any)?.lastNotified ??
-                qeAny?.LastNotified ??
-                qeAny?.lastNotified ??
-                false
+              (it as any)?.lastNotified ??
+              qeAny?.LastNotified ??
+              qeAny?.lastNotified ??
+              false
             );
             const delayDetach = Boolean(
               (it as any)?.delayDetach ?? qeAny?.delayDetach ?? false
@@ -795,6 +798,42 @@ function QueueList({
                   </div>
 
                   <div className="flex flex-col items-end gap-2">
+                    {/* Delay Information - Right Side */}
+                    {(() => {
+                      const confirmDelayMin = (it as any).delayConfirmToPreparingMinutes ?? 0;
+                      const preparingDelayMin = (it as any).delayPreparingToReadyMinutes ?? 0;
+                      const totalDelayMin = confirmDelayMin + preparingDelayMin;
+
+                      if (totalDelayMin > 0) {
+                        const reasons: string[] = [];
+                        if ((it as any).delayConfirmToPreparingReason) {
+                          reasons.push((it as any).delayConfirmToPreparingReason);
+                        }
+                        if ((it as any).delayPreparingToReadyReason) {
+                          reasons.push((it as any).delayPreparingToReadyReason);
+                        }
+
+                        return (
+                          <div className="mt-8 mb-2 p-2 border border-amber-500 bg-amber-50 rounded-md w-full max-w-xs">
+                            <div className="flex items-start gap-2">
+                              <AlertTriangle className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                              <div className="flex-1">
+                                <p className="font-semibold text-amber-900 text-xs">
+                                  ⚠️ Trễ {totalDelayMin} phút
+                                </p>
+                                {reasons.length > 0 && (
+                                  <p className="text-amber-800 text-xs mt-0.5">
+                                    {reasons.join(", ")}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+
                     <Button
                       variant="outline"
                       size="sm"
@@ -935,11 +974,10 @@ function QueueList({
           <div className="space-y-4">
             <div className="flex items-center justify-center gap-3">
               <Button
-                className={`px-6 transition-all ${
-                  isOnTime
-                    ? "bg-green-600 text-white shadow-md"
-                    : "bg-white text-green-700 border border-green-600"
-                }`}
+                className={`px-6 transition-all ${isOnTime
+                  ? "bg-green-600 text-white shadow-md"
+                  : "bg-white text-green-700 border border-green-600"
+                  }`}
                 disabled={confirmSubmitting}
                 onClick={() => {
                   setIsOnTime(true);
@@ -950,11 +988,10 @@ function QueueList({
               </Button>
 
               <Button
-                className={`px-6 transition-all ${
-                  !isOnTime
-                    ? "bg-red-600 text-white shadow-md"
-                    : "bg-white text-red-700 border border-red-600"
-                }`}
+                className={`px-6 transition-all ${!isOnTime
+                  ? "bg-red-600 text-white shadow-md"
+                  : "bg-white text-red-700 border border-red-600"
+                  }`}
                 disabled={confirmSubmitting}
                 onClick={() => setIsOnTime(false)}
               >
@@ -1197,231 +1234,231 @@ function QueueList({
           }}
         >
           {detailOrder && (
-        <Dialog
-          open={detailOpen}
-          onOpenChange={(open) => {
-            setDetailOpen(open);
-            if (!open) setDetailOrder(null);
-          }}
-        >
-          <DialogContent className="max-w-lg mx-auto max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="flex items-center space-x-3">
-                <span>Chi tiết đơn hàng</span>
-              </DialogTitle>
-              <DialogDescription>
-                Xem thông tin khách, món và thời gian dự kiến.
-              </DialogDescription>
-            </DialogHeader>
+            <Dialog
+              open={detailOpen}
+              onOpenChange={(open) => {
+                setDetailOpen(open);
+                if (!open) setDetailOrder(null);
+              }}
+            >
+              <DialogContent className="max-w-lg mx-auto max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center space-x-3">
+                    <span>Chi tiết đơn hàng</span>
+                  </DialogTitle>
+                  <DialogDescription>
+                    Xem thông tin khách, món và thời gian dự kiến.
+                  </DialogDescription>
+                </DialogHeader>
 
-            <div className="space-y-4">
-              <Card>
-                <CardContent className="p-4">
-                  {(() => {
-                    const customerName = (detailOrder as any)
-                      .customerName as string | undefined;
-                    const customerPhone = (detailOrder as any)
-                      .customerPhone as string | undefined;
+                <div className="space-y-4">
+                  <Card>
+                    <CardContent className="p-4">
+                      {(() => {
+                        const customerName = (detailOrder as any)
+                          .customerName as string | undefined;
+                        const customerPhone = (detailOrder as any)
+                          .customerPhone as string | undefined;
 
-                    const statusRaw =
-                      (detailOrder as any)
-                        .status as number | string | null | undefined;
-                    const statusNum =
-                      statusRaw == null
-                        ? null
-                        : typeof statusRaw === "number"
-                        ? statusRaw
-                        : Number.parseInt(String(statusRaw), 10);
+                        const statusRaw =
+                          (detailOrder as any)
+                            .status as number | string | null | undefined;
+                        const statusNum =
+                          statusRaw == null
+                            ? null
+                            : typeof statusRaw === "number"
+                              ? statusRaw
+                              : Number.parseInt(String(statusRaw), 10);
 
-                    const statusText = mapOrderStatus(statusNum);
-                    const statusColor = getOrderStatusColor(statusNum);
+                        const statusText = mapOrderStatus(statusNum);
+                        const statusColor = getOrderStatusColor(statusNum);
 
-                    const queueInfo =
-                      queueType === 2
-                        ? (detailOrder as any).queueEntryPreOrder ??
-                          detailOrder.queueEntry
-                        : detailOrder.queueEntry;
+                        const queueInfo =
+                          queueType === 2
+                            ? (detailOrder as any).queueEntryPreOrder ??
+                            detailOrder.queueEntry
+                            : detailOrder.queueEntry;
 
-                    const estServe = queueInfo?.estimatedServeTime
-                      ? formatDate(queueInfo.estimatedServeTime)
-                      : "—";
+                        const estServe = queueInfo?.estimatedServeTime
+                          ? formatDate(queueInfo.estimatedServeTime)
+                          : "—";
 
-                    const waitText =
-                      queueType === 2
-                        ? formatPreorderWait(queueInfo?.estimatedServeTime)
-                        : (queueInfo as any)?.estimatedWaitTime
-                        ? formatWaitMinutes((queueInfo as any).estimatedWaitTime)
-                        : "—";
+                        const waitText =
+                          queueType === 2
+                            ? formatPreorderWait(queueInfo?.estimatedServeTime)
+                            : (queueInfo as any)?.estimatedWaitTime
+                              ? formatWaitMinutes((queueInfo as any).estimatedWaitTime)
+                              : "—";
 
-                    return (
-                      <>
-                        <div className="flex items-center justify-between mb-3">
-                          <h3 className="font-medium">
-                            Khách hàng: {customerName} - {customerPhone}
-                          </h3>
-                          <Badge
-                            className={`${statusColor} text-white flex items-center`}
+                        return (
+                          <>
+                            <div className="flex items-center justify-between mb-3">
+                              <h3 className="font-medium">
+                                Khách hàng: {customerName} - {customerPhone}
+                              </h3>
+                              <Badge
+                                className={`${statusColor} text-white flex items-center`}
+                              >
+                                {statusText}
+                              </Badge>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4 mb-3">
+                              <div>
+                                <p className="text-sm font-medium text-muted-foreground">
+                                  Mã đơn hàng
+                                </p>
+                                <p className="text-base font-semibold">
+                                  #{(detailOrder.code || "").toUpperCase()}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium text-muted-foreground">
+                                  Loại hàng đợi
+                                </p>
+                                <p className="text-base font-semibold">
+                                  {queueType === 2 ? "Đặt trước" : "Xếp hàng ngay"}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="space-y-2 text-sm">
+                              <div className="flex items-center space-x-2 text-muted-foreground">
+                                <MapPin className="h-4 w-4" />
+                                <span>Quán: {detailOrder.code || "—"}</span>
+                              </div>
+
+                              <div className="flex items-center space-x-2 text-muted-foreground">
+                                <Clock className="h-4 w-4" />
+                                <span>Đặt lúc: {formatDate(detailOrder.createdAt)}</span>
+                              </div>
+
+                              {queueType === 2 ? (
+                                <>
+                                  <div className="flex items-center space-x-2 text-muted-foreground">
+                                    <Clock className="h-4 w-4" />
+                                    <span>
+                                      Thời gian nhận hàng dự kiến: {estServe}
+                                    </span>
+                                  </div>
+                                </>
+                              ) : (
+                                <>
+                                  <div className="flex items-center space-x-2 text-muted-foreground">
+                                    <Users className="h-4 w-4" />
+                                    <span>
+                                      Vị trí trong hàng:{" "}
+                                      {queueInfo?.position ?? ""}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center space-x-2 text-muted-foreground">
+                                    <Clock className="h-4 w-4" />
+                                    <span>Thời gian đợi đến lượt: {waitText}</span>
+                                  </div>
+                                  <div className="flex items-center space-x-2 text-muted-foreground">
+                                    <Clock className="h-4 w-4" />
+                                    <span>
+                                      Thời gian nhận hàng dự kiến: {estServe}
+                                    </span>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardContent className="p-4">
+                      <h4 className="font-medium mb-3">Chi tiết đơn hàng</h4>
+
+                      <div className="space-y-2 text-sm">
+                        {detailOrder.details.map((d) => (
+                          <div
+                            key={d.id}
+                            className="flex justify-between items-center"
                           >
-                            {statusText}
-                          </Badge>
+                            <span>
+                              {d.quantity ?? 0}x{" "}
+                              {d.menuItemName || d.menuItemId || "Món"}
+                            </span>
+                            <span className="font-medium">
+                              {fmtCurrency(
+                                (d.unitPrice ?? 0) * (d.quantity ?? 0)
+                              )}
+                            </span>
+                          </div>
+                        ))}
+
+                        <Separator className="my-2" />
+
+                        <div className="flex justify-between font-medium">
+                          <span>Tổng cộng</span>
+                          <span className="text-primary">
+                            {fmtCurrency(detailOrder.totalPrice)}
+                          </span>
                         </div>
-
-                        <div className="grid grid-cols-2 gap-4 mb-3">
-                          <div>
-                            <p className="text-sm font-medium text-muted-foreground">
-                              Mã đơn hàng
-                            </p>
-                            <p className="text-base font-semibold">
-                              #{(detailOrder.code || "").toUpperCase()}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium text-muted-foreground">
-                              Loại hàng đợi
-                            </p>
-                            <p className="text-base font-semibold">
-                              {queueType === 2 ? "Đặt trước" : "Xếp hàng ngay"}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="space-y-2 text-sm">
-                          <div className="flex items-center space-x-2 text-muted-foreground">
-                            <MapPin className="h-4 w-4" />
-                            <span>Quán: {detailOrder.code || "—"}</span>
-                          </div>
-
-                          <div className="flex items-center space-x-2 text-muted-foreground">
-                            <Clock className="h-4 w-4" />
-                            <span>Đặt lúc: {formatDate(detailOrder.createdAt)}</span>
-                          </div>
-
-                          {queueType === 2 ? (
-                            <>
-                              <div className="flex items-center space-x-2 text-muted-foreground">
-                                <Clock className="h-4 w-4" />
-                                <span>
-                                  Thời gian nhận hàng dự kiến: {estServe}
-                                </span>
-                              </div>
-                            </>
-                          ) : (
-                            <>
-                              <div className="flex items-center space-x-2 text-muted-foreground">
-                                <Users className="h-4 w-4" />
-                                <span>
-                                  Vị trí trong hàng:{" "}
-                                  {queueInfo?.position ?? ""}
-                                </span>
-                              </div>
-                              <div className="flex items-center space-x-2 text-muted-foreground">
-                                <Clock className="h-4 w-4" />
-                                <span>Thời gian đợi đến lượt: {waitText}</span>
-                              </div>
-                              <div className="flex items-center space-x-2 text-muted-foreground">
-                                <Clock className="h-4 w-4" />
-                                <span>
-                                  Thời gian nhận hàng dự kiến: {estServe}
-                                </span>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      </>
-                    );
-                  })()}
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="p-4">
-                  <h4 className="font-medium mb-3">Chi tiết đơn hàng</h4>
-
-                  <div className="space-y-2 text-sm">
-                    {detailOrder.details.map((d) => (
-                      <div
-                        key={d.id}
-                        className="flex justify-between items-center"
-                      >
-                        <span>
-                          {d.quantity ?? 0}x{" "}
-                          {d.menuItemName || d.menuItemId || "Món"}
-                        </span>
-                        <span className="font-medium">
-                          {fmtCurrency(
-                            (d.unitPrice ?? 0) * (d.quantity ?? 0)
-                          )}
-                        </span>
                       </div>
-                    ))}
+                    </CardContent>
+                  </Card>
 
-                    <Separator className="my-2" />
+                  <Card>
+                    <CardContent className="p-4">
+                      <h4 className="font-medium mb-3">Thông tin thanh toán</h4>
 
-                    <div className="flex justify-between font-medium">
-                      <span>Tổng cộng</span>
-                      <span className="text-primary">
-                        {fmtCurrency(detailOrder.totalPrice)}
-                      </span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                      {(() => {
+                        const payment = mapPaymentStatus(
+                          (detailOrder as any)
+                            .paymentStatus as number | null | undefined
+                        );
 
-              <Card>
-                <CardContent className="p-4">
-                  <h4 className="font-medium mb-3">Thông tin thanh toán</h4>
+                        const rawMethod = (detailOrder as any)
+                          .paymentMethod as number | null | undefined;
 
-                  {(() => {
-                    const payment = mapPaymentStatus(
-                      (detailOrder as any)
-                        .paymentStatus as number | null | undefined
-                    );
+                        const isWallet = rawMethod === 1;
 
-                    const rawMethod = (detailOrder as any)
-                      .paymentMethod as number | null | undefined;
+                        const paymentMethodIcon = isWallet ? (
+                          <CreditCard className="h-4 w-4 text-primary" />
+                        ) : (
+                          <Banknote className="h-4 w-4 text-green-600" />
+                        );
 
-                    const isWallet = rawMethod === 1;
+                        const paymentMethodText = isWallet
+                          ? "Thanh toán qua ví"
+                          : "Tiền mặt";
 
-                    const paymentMethodIcon = isWallet ? (
-                      <CreditCard className="h-4 w-4 text-primary" />
-                    ) : (
-                      <Banknote className="h-4 w-4 text-green-600" />
-                    );
+                        return (
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                              {paymentMethodIcon}
+                              <span className="text-sm">{paymentMethodText}</span>
+                            </div>
 
-                    const paymentMethodText = isWallet
-                      ? "Thanh toán qua ví"
-                      : "Tiền mặt";
-
-                    return (
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-2">
-                          {paymentMethodIcon}
-                          <span className="text-sm">{paymentMethodText}</span>
-                        </div>
-
-                        <Badge className={`${payment.color} text-white text-xs`}>
-                          {payment.text}
-                        </Badge>
-                      </div>
-                    );
-                  })()}
-                </CardContent>
-              </Card>
+                            <Badge className={`${payment.color} text-white text-xs`}>
+                              {payment.text}
+                            </Badge>
+                          </div>
+                        );
+                      })()}
+                    </CardContent>
+                  </Card>
 
 
-              <Button
-                onClick={() => {
-                  setDetailOpen(false);
-                  setDetailOrder(null);
-                }}
-                className="w-full"
-              >
-                Đóng
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
+                  <Button
+                    onClick={() => {
+                      setDetailOpen(false);
+                      setDetailOrder(null);
+                    }}
+                    className="w-full"
+                  >
+                    Đóng
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
 
         </Dialog>
       )}

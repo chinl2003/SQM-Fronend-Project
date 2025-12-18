@@ -144,11 +144,11 @@ export function Navigation({
       };
 
       setNotifications((prev) => [n, ...prev]);
-      const kind = n.type === "warning" ? "warning" : "info";
-      if (kind === "warning") {
+      // Show toast based on notification type from backend
+      if (n.type === "warning") {
         toast.warning(n.title, { description: n.message });
       } else {
-        toast.info(n.title, { description: n.message });
+        toast.success(n.title, { description: n.message });
       }
 
       const notifType = (msg?.type ?? "").toString();
