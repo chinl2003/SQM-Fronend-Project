@@ -47,7 +47,7 @@ const Auth = () => {
   const [fullName, setFullName] = useState("");
   const [address, setAddress] = useState("");
   const [gender, setGender] = useState<"male" | "female">("male");
-  const [birthday, setBirthday] = useState(""); 
+  const [birthday, setBirthday] = useState("");
 
   // Forgot password state
   const [forgotPhone, setForgotPhone] = useState("");
@@ -58,6 +58,11 @@ const Auth = () => {
   const [showOtpVerification, setShowOtpVerification] = useState(false);
   const [otpForVerification, setOtpForVerification] = useState("");
   const [signupPhoneForOtp, setSignupPhoneForOtp] = useState("");
+
+  // Field-specific error states for duplicate validation
+  const [emailError, setEmailError] = useState("");
+  const [phoneError, setPhoneError] = useState("");
+  const [usernameError, setUsernameError] = useState("");
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -101,7 +106,7 @@ const Auth = () => {
       } else if (role === "admin") {
         navigate("/admin/dashboard");
       } else {
-        navigate("/"); 
+        navigate("/");
       }
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -116,6 +121,11 @@ const Auth = () => {
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Clear previous errors
+    setEmailError("");
+    setPhoneError("");
+    setUsernameError("");
 
     try {
       signupSchema.parse({ phone: signupPhone, password: signupPassword, fullName, address });
@@ -142,13 +152,39 @@ const Auth = () => {
       toast.success("Đăng ký thành công", {
         description: "Tài khoản của bạn đã được tạo!",
       });
-    } catch (error) {
-      toast.error("Đăng ký thất bại", {
-        description:
-          error instanceof z.ZodError
-            ? error.errors[0].message
-            : error.message || "Vui lòng thử lại",
-      });
+    } catch (error: any) {
+      // Handle duplicate validation errors (409 Conflict)
+      if (error?.response?.status === 409 || error?.code === "EXISTED") {
+        const errorMessage = error?.message || error?.response?.data?.message || "";
+
+        if (errorMessage.includes("Email")) {
+          setEmailError("Email đã tồn tại trong hệ thống");
+          toast.error("Email đã được sử dụng", {
+            description: "Vui lòng sử dụng email khác",
+          });
+        } else if (errorMessage.includes("Số điện thoại") || errorMessage.includes("phone")) {
+          setPhoneError("Số điện thoại đã tồn tại trong hệ thống");
+          toast.error("Số điện thoại đã được sử dụng", {
+            description: "Vui lòng sử dụng số điện thoại khác",
+          });
+        } else if (errorMessage.includes("UserName") || errorMessage.includes("username")) {
+          setUsernameError("Tên đăng nhập đã tồn tại trong hệ thống");
+          toast.error("Tên đăng nhập đã được sử dụng", {
+            description: "Vui lòng sử dụng tên đăng nhập khác",
+          });
+        } else {
+          toast.error("Thông tin đã tồn tại", {
+            description: errorMessage || "Vui lòng kiểm tra lại thông tin",
+          });
+        }
+      } else {
+        toast.error("Đăng ký thất bại", {
+          description:
+            error instanceof z.ZodError
+              ? error.errors[0].message
+              : error.message || "Vui lòng thử lại",
+        });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -158,7 +194,7 @@ const Auth = () => {
     if (forgotPasswordStep === "phone") {
       toast.success("OTP đã được gửi! Vui lòng kiểm tra điện thoại của bạn.");
       setForgotPasswordStep("otp");
-    } 
+    }
     else if (forgotPasswordStep === "otp") {
       if (otp.length === 6) {
         toast.success("Xác thực OTP thành công!");
@@ -166,7 +202,7 @@ const Auth = () => {
       } else {
         toast.error("OTP không hợp lệ! Vui lòng nhập đúng mã OTP.");
       }
-    } 
+    }
     else if (forgotPasswordStep === "newPassword") {
       toast.success("Đổi mật khẩu thành công! Vui lòng đăng nhập lại với mật khẩu mới.");
       setShowForgotPassword(false);
@@ -321,8 +357,34 @@ const Auth = () => {
                   </div>
 
                   <IconInput id="fullname" label="Họ và tên" placeholder="Nguyễn Văn A" value={fullName} onChange={(e) => setFullName(e.target.value)} icon={<Users />} />
-                  <IconInput id="signup-phone" label="Số điện thoại" placeholder="Vui lòng nhập số điện thoại" value={signupPhone} onChange={(e) => setSignupPhone(e.target.value)} icon={<Phone />} />
-                  <IconInput id="signup-email" label="Email" placeholder="Vui lòng nhập email" value={signupEmail} onChange={(e) => setSignupEmail(e.target.value)} icon={<Mail  />} />
+                  <div className="space-y-2">
+                    <IconInput
+                      id="signup-phone"
+                      label="Số điện thoại"
+                      placeholder="Vui lòng nhập số điện thoại"
+                      value={signupPhone}
+                      onChange={(e) => {
+                        setSignupPhone(e.target.value);
+                        setPhoneError("");
+                      }}
+                      icon={<Phone />}
+                    />
+                    {phoneError && <p className="text-sm text-red-500">{phoneError}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <IconInput
+                      id="signup-email"
+                      label="Email"
+                      placeholder="Vui lòng nhập email"
+                      value={signupEmail}
+                      onChange={(e) => {
+                        setSignupEmail(e.target.value);
+                        setEmailError("");
+                      }}
+                      icon={<Mail />}
+                    />
+                    {emailError && <p className="text-sm text-red-500">{emailError}</p>}
+                  </div>
                   <IconInput id="address" label="Địa chỉ" placeholder="123 Đường ABC, Quận XYZ" value={address} onChange={(e) => setAddress(e.target.value)} icon={<Store />} />
                   <div className="space-y-2">
                     <Label className="text-base">Giới tính</Label>
@@ -449,30 +511,30 @@ const Auth = () => {
         </DialogContent>
       </Dialog>
 
-       {/* OTP Verification Modal */}
-        {showOtpVerification && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-white p-6 rounded-lg w-96">
-              <h2 className="text-2xl font-bold mb-4">Xác thực OTP</h2>
-              <p className="mb-4">Nhập mã OTP đã gửi tới số {signupPhoneForOtp}</p>
-              <Input
-                placeholder="000000"
-                value={otpForVerification}
-                onChange={(e) => setOtpForVerification(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                maxLength={6}
-                className="mb-4 text-center text-xl"
-              />
-              <div className="flex gap-4">
-                <Button className="flex-1" onClick={handleOtpVerification} disabled={isLoading}>
-                  {isLoading ? "Đang xác thực..." : "Xác thực"}
-                </Button>
-                <Button className="flex-1" onClick={() => setShowOtpVerification(false)}>
-                  Hủy
-                </Button>
-              </div>
+      {/* OTP Verification Modal */}
+      {showOtpVerification && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg w-96">
+            <h2 className="text-2xl font-bold mb-4">Xác thực OTP</h2>
+            <p className="mb-4">Nhập mã OTP đã gửi tới số {signupPhoneForOtp}</p>
+            <Input
+              placeholder="000000"
+              value={otpForVerification}
+              onChange={(e) => setOtpForVerification(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              maxLength={6}
+              className="mb-4 text-center text-xl"
+            />
+            <div className="flex gap-4">
+              <Button className="flex-1" onClick={handleOtpVerification} disabled={isLoading}>
+                {isLoading ? "Đang xác thực..." : "Xác thực"}
+              </Button>
+              <Button className="flex-1" onClick={() => setShowOtpVerification(false)}>
+                Hủy
+              </Button>
             </div>
           </div>
-        )}
+        </div>
+      )}
     </div>
   );
 };
