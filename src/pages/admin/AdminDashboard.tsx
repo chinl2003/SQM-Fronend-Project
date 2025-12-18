@@ -20,7 +20,7 @@ totalCount: number;
 increaseCount: number;
 decreaseCount: number;
 };
-additionalData: any;
+additionalData: unknown;
 message: string;
 statusCode: number;
 code: string;
@@ -31,7 +31,7 @@ data: {
 totalCount: number;
 totalCountLastWeek: number;
 };
-additionalData: any;
+additionalData: unknown;
 message: string;
 statusCode: number;
 code: string;
@@ -42,11 +42,25 @@ data: {
 totalCount: number;
 totalCountYesterday: number;
 };
-additionalData: any;
+additionalData: unknown;
 message: string;
 statusCode: number;
 code: string;
 }
+
+interface PaginatedResponse<T> {
+  data: T[];
+  totalRecords: number;
+  pageNumber: number;
+  pageSize: number;
+}
+
+interface CommonResponse<T> {
+  status: string;
+  message: string;
+  data: T;
+}
+
 
 
 interface VendorForMonthResponse
@@ -60,7 +74,7 @@ interface VendorForMonthResponse
         hasNextPage: boolean;
         data: Vendor[];
       };
-additionalData: any;
+additionalData: unknown;
 message: string;
 statusCode: number;
 code: string;
@@ -77,6 +91,34 @@ interface Vendor
   status: number;
   amount: number
 }
+
+interface VendorDelayRateResponse {
+  data: VendorDelayRate[];
+  additionalData: unknown;
+  message: string;
+  statusCode: number;
+  code: string;
+}
+
+
+interface VendorDelayRate {
+  id: number;
+  name: string;
+  type: string;
+  dailyDelays: number;
+  monthlyDelays: number;
+  delayRate: number;
+  isHighDelay: boolean;
+  delayedOrders: DelayedOrder[];
+}
+
+interface DelayedOrder {
+  orderId: string;
+  customerName: string;
+  expectedTime: string;
+  currentDelay: string;
+}
+
 
 const [activeVendorCount, setActiveVendorCount] = useState(0);
 const [todayVendorCount, setTodayVendorCount] = useState(0);
@@ -97,6 +139,9 @@ const [loading, setLoading] = useState(true);
 const [pageNumber, setPageNumber] = useState(1);
 const [totalPages, setTotalPages] = useState(1);
 const [totalRecords, setTotalRecords] = useState(0);
+
+const [vendorDelayRates, setVendorDelayRates] = useState<VendorDelayRate[]>([]);
+const [delayLoading, setDelayLoading] = useState(true);
 const PAGE_SIZE = 4;
 
 const fetchActiveVendors = async () => {
@@ -215,6 +260,7 @@ useEffect(() => {
   fetchActiveVendors();
   fetchQueueEntryCount();
   fetchOrderCancleCount();
+  fetchVendorDelayRates();
   fetchVendorsForMonth(pageNumber);
 }, [pageNumber]);
 
@@ -280,70 +326,31 @@ const alerts = [
 { id: 3, type: "info", message: "Lượng đăng ký nhà cung cấp mới tăng đột biến", time: "25 phút trước" }
 ];
 
-const vendorDelayRates = [
-{
-id: 1,
-name: "Phở Hà Nội",
-type: "Nhà hàng",
-dailyDelays: 8,
-monthlyDelays: 45,
-delayRate: 28,
-isHighDelay: true,
-delayedOrders: [
-{ orderId: "#ORD-2847", customerName: "Nguyễn An", expectedTime: "19:30", currentDelay: "15 phút" },
-{ orderId: "#ORD-2851", customerName: "Trần Bình", expectedTime: "19:45", currentDelay: "8 phút" }
-]
-},
-{
-id: 2,
-name: "Coffee House",
-type: "Quán cà phê",
-dailyDelays: 12,
-monthlyDelays: 78,
-delayRate: 35,
-isHighDelay: true,
-delayedOrders: [
-{ orderId: "#ORD-2849", customerName: "Lê Cường", expectedTime: "19:25", currentDelay: "22 phút" },
-{ orderId: "#ORD-2852", customerName: "Phạm Dung", expectedTime: "19:50", currentDelay: "5 phút" },
-{ orderId: "#ORD-2853", customerName: "Hoàng Ế", expectedTime: "19:55", currentDelay: "12 phút" }
-]
-},
-{
-id: 3,
-name: "Bánh Mì Sài Gòn",
-type: "Đồ ăn nhanh",
-dailyDelays: 2,
-monthlyDelays: 15,
-delayRate: 8,
-isHighDelay: false,
-delayedOrders: []
-},
-{
-id: 4,
-name: "Bún Bò Huế",
-type: "Nhà hàng",
-dailyDelays: 5,
-monthlyDelays: 32,
-delayRate: 18,
-isHighDelay: false,
-delayedOrders: [
-{ orderId: "#ORD-2850", customerName: "Vũ Giang", expectedTime: "19:40", currentDelay: "10 phút" }
-]
-},
-{
-id: 5,
-name: "Trà Sữa Ngon",
-type: "Đồ uống",
-dailyDelays: 15,
-monthlyDelays: 92,
-delayRate: 42,
-isHighDelay: true,
-delayedOrders: [
-{ orderId: "#ORD-2848", customerName: "Đỗ Hạnh", expectedTime: "19:20", currentDelay: "28 phút" },
-{ orderId: "#ORD-2854", customerName: "Bùi Khánh", expectedTime: "20:00", currentDelay: "3 phút" }
-]
-}
-];
+
+
+const fetchVendorDelayRates = async () => {
+  try {
+    setDelayLoading(true);
+
+    const res = await api.get<
+      CommonResponse<{
+        data: VendorDelayRate[];
+        totalRecords: number;
+        pageNumber: number;
+        pageSize: number;
+      }>
+    >("/api/vendor/delay-rate-monitor");
+
+    setVendorDelayRates(res.data.data ?? []);
+  } catch (error) {
+    console.error("Error fetching vendor delay rates:", error);
+    setVendorDelayRates([]);
+  } finally {
+    setDelayLoading(false);
+  }
+};
+
+
 
 return ( <AdminLayout title="Tổng quan hệ thống"> <div className="space-y-6"> <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
 {stats.map((stat, index) => (
@@ -463,7 +470,13 @@ return ( <AdminLayout title="Tổng quan hệ thống"> <div className="space-y-
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {vendorDelayRates.map((vendor) => (
+          {delayLoading ? (
+            <p>Đang tải dữ liệu giám sát trễ món...</p>
+          ) : vendorDelayRates.length === 0 ? (
+            <p>Không có dữ liệu trễ món.</p>
+          ) : (
+            vendorDelayRates.map((vendor) => (
+
             <div 
               key={vendor.id} 
               className={`p-4 border rounded-lg ${
@@ -525,17 +538,13 @@ return ( <AdminLayout title="Tổng quan hệ thống"> <div className="space-y-
                           <span className="font-medium">{order.orderId}</span>
                           <span className="text-muted-foreground ml-2">- {order.customerName}</span>
                         </div>
-                        <div className="text-right">
-                          <p className="text-destructive font-medium">+{order.currentDelay}</p>
-                          <p className="text-xs text-muted-foreground">Dự kiến: {order.expectedTime}</p>
-                        </div>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
             </div>
-          ))}
+          )))}
         </div>
       </CardContent>
     </Card>

@@ -28,7 +28,7 @@ const AdminLayout = ({ children, title }: AdminLayoutProps) => {
     { name: "Đánh giá", href: "/admin/reviews", icon: MessageSquare },
     { name: "Thanh toán", href: "/admin/payments", icon: DollarSign },
     { name: "Phân tích", href: "/admin/analytics", icon: BarChart3 },
-    { name: "Thông báo", href: "/admin/notifications", icon: Bell },
+    // { name: "Thông báo", href: "/admin/notifications", icon: Bell },
     { name: "Cài đặt", href: "/admin/settings", icon: Settings },
   ];
 
