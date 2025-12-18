@@ -23,6 +23,7 @@ import {
   Store,
   LogOut,
   Home,
+  MessageCircle,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -34,6 +35,7 @@ import { NotificationDialog } from "./NotificationDialog";
 import { ProfileDialog } from "./ProfileDialog";
 import { NoStoreDialog } from "./customer/NoStoreDialog";
 import { VendorRegisterDialog } from "./customer/VendorRegisterDialog";
+import { ChatDialog } from "./ui/chat";
 import { api } from "@/lib/api";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 interface NavigationProps {
@@ -70,6 +72,7 @@ export function Navigation({
   const [searchQuery, setSearchQuery] = useState("");
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
   const [fullName, setFullName] = useState<string | null>(
     localStorage.getItem("fullName")
   );
@@ -141,11 +144,11 @@ export function Navigation({
       };
 
       setNotifications((prev) => [n, ...prev]);
-      const kind = n.type === "warning" ? "warning" : "info";
-      if (kind === "warning") {
+      // Show toast based on notification type from backend
+      if (n.type === "warning") {
         toast.warning(n.title, { description: n.message });
       } else {
-        toast.info(n.title, { description: n.message });
+        toast.success(n.title, { description: n.message });
       }
 
       const notifType = (msg?.type ?? "").toString();
@@ -159,7 +162,7 @@ export function Navigation({
       }
     });
 
-    newConnection.start().catch(() => {});
+    newConnection.start().catch(() => { });
 
     setConnection(newConnection);
 
@@ -186,7 +189,7 @@ export function Navigation({
         const headers: Record<string, string> = {};
         if (token) headers.Authorization = `Bearer ${token}`;
 
-        const res = await api.get<NotificationApiItem[]>(
+        const res = await api.get<{ code: string; message: string; data: NotificationApiItem[] }>(
           "/api/Notification",
           headers
         );
@@ -205,7 +208,7 @@ export function Navigation({
         }));
 
         setNotifications(mapped);
-      } catch {}
+      } catch { }
     })();
 
     return () => {
@@ -261,7 +264,7 @@ export function Navigation({
       if (token) headers.Authorization = `Bearer ${token}`;
 
       await api.put<void>("/api/Notification/mark-all-read", {}, headers);
-    } catch {}
+    } catch { }
   };
 
   return (
@@ -328,12 +331,23 @@ export function Navigation({
               </>
             )}
 
+            {/* Chat button - only for authenticated customers */}
+            {/* {userId && (userType === "customer" || userType === "guest") && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsChatOpen(true)}
+                className="relative"
+              >
+                <MessageCircle className="h-4 w-4" />
+              </Button>
+            )} */}
+
             <Button
               variant="ghost"
               size="sm"
-              className={`relative ${
-                unreadCount > 0 ? "text-amber-500 animate-pulse" : ""
-              }`}
+              className={`relative ${unreadCount > 0 ? "text-amber-500 animate-pulse" : ""
+                }`}
               onClick={handleOpenNotification}
             >
               <Bell className="h-4 w-4" />
@@ -544,7 +558,7 @@ export function Navigation({
                     await api.post<void>(`/api/order/${vendorConfirm.orderId}/vendor-confirm`, { onTime: false }, headers);
                   }
                   toast.info("Đã xác nhận: Trễ ETA");
-                } catch {}
+                } catch { }
                 setVendorConfirm({ open: false, orderId: undefined });
               }}
             >
@@ -559,7 +573,7 @@ export function Navigation({
                     await api.post<void>(`/api/order/${vendorConfirm.orderId}/vendor-confirm`, { onTime: true }, headers);
                   }
                   toast.success("Đã xác nhận: Đúng ETA");
-                } catch {}
+                } catch { }
                 setVendorConfirm({ open: false, orderId: undefined });
               }}
             >
@@ -568,6 +582,8 @@ export function Navigation({
           </div>
         </DialogContent>
       </Dialog>
+
+      <ChatDialog isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
     </nav>
   );
 }
