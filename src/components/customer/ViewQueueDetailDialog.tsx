@@ -53,6 +53,7 @@ interface QueueItem {
   canUpdate: boolean;
   estimatedWaitTimeRaw?: string | null;
   estimatedServeTimeRaw?: string | null;
+  note?: string | null;
 }
 
 interface ViewQueueDetailDialogProps {
@@ -305,6 +306,17 @@ export function ViewQueueDetailDialog({
               </div>
             </CardContent>
           </Card>
+          
+          {queueItem.note && (
+            <Card>
+              <CardContent className="p-4">
+                <h4 className="font-medium mb-2">Ghi chú</h4>
+                <div className="text-sm text-muted-foreground whitespace-pre-line">
+                  {queueItem.note}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardContent className="p-4">

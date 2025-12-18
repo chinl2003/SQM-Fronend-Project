@@ -38,7 +38,7 @@ type ApiVendor = {
   queueCount?: number | null;
   allowPreorder?: boolean | null;
   distance?: number | null;
-
+  act?: number | null;
   businessTypeId?: string | null;
 };
 
@@ -74,6 +74,7 @@ function extractVendorsFromResponse(res: any): ApiVendor[] {
     queueCount: v.queueCount,
     allowPreorder: v.allowPreorder,
     distance: v.distance,
+    act: v.act ?? v.eta ?? null,
     businessTypeId:
       v.businessTypeId ??
       v.BusinessTypeId ??
@@ -174,6 +175,7 @@ export default function Index() {
 
         if (searchKeyword) {
           params.append("nameSearch", searchKeyword);
+          params.append("categoryFoodSearch", searchKeyword);
         }
 
         if (selectedCategory) {
@@ -248,7 +250,7 @@ export default function Index() {
         coverImage: buildMediaUrl(v.logoUrl) || heroImage,
         rating: typeof v.averageRating === "number" ? v.averageRating : 0,
         reviewCount: 0,
-        eta: "",
+        eta: v.act != null ? String(v.act) : "0",
         queueSize: v.queueCount ?? 0,
         distance: getVendorDistance(v),
         cuisineType: "",
@@ -288,13 +290,13 @@ export default function Index() {
             <p className="text-lg md:text-xl mb-6 opacity-90">
               Tham gia xếp hàng từ xa và nhận cập nhật thời gian thực
             </p>
-            <Button
+            {/* <Button
               size="lg"
               className="bg-primary hover:bg-primary-dark text-primary-foreground"
             >
               <MapPin className="mr-2 h-5 w-5" />
               Tìm nhà hàng gần bạn
-            </Button>
+            </Button> */}
           </div>
         </div>
       </section>

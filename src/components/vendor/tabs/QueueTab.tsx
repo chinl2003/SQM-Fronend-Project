@@ -1366,6 +1366,17 @@ function QueueList({
                   </div>
                 </CardContent>
               </Card>
+              
+              {(detailOrder as any)?.note && (
+                <Card>
+                  <CardContent className="p-4">
+                    <h4 className="font-medium mb-2">Ghi chú</h4>
+                    <div className="text-sm text-muted-foreground whitespace-pre-line">
+                      {(detailOrder as any).note}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
               <Card>
                 <CardContent className="p-4">

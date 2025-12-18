@@ -34,7 +34,8 @@ export function VendorCard({
   reviewCount,
   eta = "0",          // mặc định "0"
   queueSize,
-  distance = "0",     // mặc định "0"
+  distance = "0", 
+  act,   
   isPreOrderAvailable = false,
   cuisineType,
   priceRange = "€€",
