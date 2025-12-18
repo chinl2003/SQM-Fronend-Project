@@ -332,7 +332,7 @@ export function Navigation({
             )}
 
             {/* Chat button - only for authenticated customers */}
-            {userId && (userType === "customer" || userType === "guest") && (
+            {/* {userId && (userType === "customer" || userType === "guest") && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -341,7 +341,7 @@ export function Navigation({
               >
                 <MessageCircle className="h-4 w-4" />
               </Button>
-            )}
+            )} */}
 
             <Button
               variant="ghost"
