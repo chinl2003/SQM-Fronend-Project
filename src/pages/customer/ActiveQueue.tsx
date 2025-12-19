@@ -37,6 +37,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import orderHubService from "@/services/orderHub.service";
 
 type OrderRatingApi = {
   id: string;
@@ -658,6 +659,48 @@ export default function ActiveQueue() {
       mounted = false;
     };
   }, [mainTab, statusTab, reloadKey]);
+
+  // Real-time order updates via SignalR
+  useEffect(() => {
+    const userId = localStorage.getItem("userId");
+    if (!userId) return;
+
+    const setupRealTimeUpdates = async () => {
+      try {
+        await orderHubService.startConnection();
+
+        //Subscribe to customer's all orders
+        await orderHubService.joinCustomerOrders(userId);
+
+        // Listen for order status changes
+        orderHubService.onOrderStatusChanged((event) => {
+          console.log(" Order status updated:", event);
+
+          // Reload orders to reflect changes
+          setReloadKey(prev => prev + 1);
+        });
+
+        // Listen for order delays
+        orderHubService.onOrderDelayed((event) => {
+          console.log("⚠️ Order delayed:", event);
+          setReloadKey(prev => prev + 1);
+        });
+
+        console.log("✅ Real-time order updates connected");
+      } catch (error) {
+        console.error("Failed to setup real-time updates:", error);
+      }
+    };
+
+    setupRealTimeUpdates();
+
+    return () => {
+      if (userId) {
+        orderHubService.leaveCustomerOrders(userId);
+      }
+      orderHubService.removeAllHandlers();
+    };
+  }, []);
 
   const handleCancelOrder = (queueId: string) => {
     setActiveQueues((prev) => prev.filter((item) => item.id !== queueId));
