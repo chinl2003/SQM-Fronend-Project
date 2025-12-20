@@ -14,6 +14,7 @@ import {
   Download,
   Plus,
   CheckCircle2,
+  Bell,
 } from "lucide-react";
 
 import QueueTab from "./tabs/QueueTab";
@@ -21,7 +22,10 @@ import SettingsMenu from "./SettingsMenu";
 import AnalyticsTab from "./tabs/AnalyticsTab";
 import ReviewsTab from "./tabs/ReviewsTab";
 import SettingsTab from "./tabs/SettingsTab";
-import VendorWalletTab from "./tabs/VendorWalletTab"; 
+import VendorWalletTab from "./tabs/VendorWalletTab";
+import { Badge } from "@/components/ui/badge";
+import { HubConnectionBuilder, LogLevel, HubConnection, HttpTransportType } from "@microsoft/signalr";
+import { NotificationDialog } from "../NotificationDialog";
 
 type VendorFromApi = {
   id: string;
@@ -98,8 +102,13 @@ export default function VendorDashboard() {
   const [loadingVendor, setLoadingVendor] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<
-    "queue" | "menu" | "analytics" | "reviews" | "wallet" | "settings" // <- THÊM "wallet"
+    "queue" | "menu" | "analytics" | "reviews" | "wallet" | "settings"
   >("queue");
+
+  // Notification states
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [connection, setConnection] = useState<HubConnection | null>(null);
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -146,6 +155,94 @@ export default function VendorDashboard() {
     };
   }, [params.userId]);
 
+  // SignalR notification connection
+  useEffect(() => {
+    const userId = localStorage.getItem("userId");
+    if (!userId) return;
+
+    const apiBaseUrl = import.meta.env.VITE_API_URL;
+    const token = localStorage.getItem("accessToken") || "";
+
+    const newConnection = new HubConnectionBuilder()
+      .withUrl(`${apiBaseUrl}/hubs/notifications`, {
+        accessTokenFactory: () => token,
+        transport: HttpTransportType.LongPolling,
+      })
+      .withAutomaticReconnect()
+      .configureLogging(LogLevel.None)
+      .build();
+
+    newConnection.on("ReceiveNotification", (msg) => {
+      const now = new Date();
+      const n: any = {
+        id: crypto.randomUUID(),
+        title: msg.title ?? "Thông báo",
+        message: msg.body ?? "",
+        type: msg.type === "warning" ? "warning" : "info",
+        time: now.toLocaleTimeString("vi-VN", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        read: false,
+      };
+
+      setNotifications((prev) => [n, ...prev]);
+      toast.success(n.title, { description: n.message });
+    });
+
+    newConnection.start().catch(() => { });
+    setConnection(newConnection);
+
+    return () => {
+      newConnection.stop();
+    };
+  }, []);
+
+  // Load notification history from API
+  useEffect(() => {
+    const userId = localStorage.getItem("userId");
+    if (!userId) {
+      setNotifications([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const token = localStorage.getItem("accessToken") || "";
+        const headers: Record<string, string> = {};
+        if (token) headers.Authorization = `Bearer ${token}`;
+
+        const res = await api.get<{ code: string; message: string; data: any[] }>(
+          "/api/Notification",
+          headers
+        );
+        if (cancelled || !res) return;
+
+        const mapped: any[] = res.data.map((n: any) => ({
+          id: String(n.id),
+          title: n.title,
+          message: n.body ?? n.message ?? "",
+          type: n.type === "warning" ? "warning" : "info",
+          time: new Date(n.createdAt).toLocaleTimeString("vi-VN", {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+          read: n.isRead,
+        }));
+
+        setNotifications(mapped);
+      } catch (err) {
+        console.error("Failed to load notifications", err);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const vendorTitle = vendor?.name ? `Quán ${vendor.name}` : "Smart Queue - Vendor Dashboard";
   const statusInfo = statusToLabel(vendor?.status);
   const isEditable = ["draft", "pendingreview"].includes(normalizeStatus(vendor?.status));
@@ -160,6 +257,10 @@ export default function VendorDashboard() {
     }),
     [vendor, vendorInfo]
   );
+
+  const markAllNotificationsRead = () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -177,6 +278,21 @@ export default function VendorDashboard() {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Notification Bell */}
+            <Button
+              variant="ghost"
+              size="sm"
+              className={`relative ${notifications.filter(n => !n.read).length > 0 ? "text-amber-500 animate-pulse" : ""}`}
+              onClick={() => setIsNotificationOpen(true)}
+            >
+              <Bell className="h-4 w-4" />
+              {notifications.filter(n => !n.read).length > 0 && (
+                <Badge className="absolute -top-2 -right-2 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs">
+                  {notifications.filter(n => !n.read).length > 9 ? "9+" : notifications.filter(n => !n.read).length}
+                </Badge>
+              )}
+            </Button>
+
             <Button variant="outline" onClick={() => toast.info("Xuất báo cáo (placeholder)")}>
               <Download className="h-4 w-4 mr-2" />
               Xuất báo cáo
@@ -331,7 +447,7 @@ export default function VendorDashboard() {
           </TabsContent>
 
           <TabsContent value="reviews">
-            <ReviewsTab vendorId={vendor?.id}/>
+            <ReviewsTab vendorId={vendor?.id} />
           </TabsContent>
 
           {/* NỘI DUNG TAB VÍ CỦA BẠN */}
@@ -344,6 +460,13 @@ export default function VendorDashboard() {
           </TabsContent>
         </Tabs>
       </div>
+
+      <NotificationDialog
+        isOpen={isNotificationOpen}
+        onClose={() => setIsNotificationOpen(false)}
+        notifications={notifications}
+        onMarkAllRead={markAllNotificationsRead}
+      />
     </div>
   );
 }
