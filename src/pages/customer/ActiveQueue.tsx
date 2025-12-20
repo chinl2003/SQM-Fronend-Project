@@ -30,13 +30,6 @@ import { toast } from "@/hooks/use-toast";
 import { api, ApiResponse } from "@/lib/api";
 import VendorReviewDialog from "@/components/customer/VendorReviewDialog";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 type OrderRatingApi = {
   id: string;
@@ -88,10 +81,6 @@ type OrderWithDetailsDto = {
   paymentMethod?: number;
   paymentStatus?: number;
   ratings?: OrderRatingApi[];
-  delayConfirmToPreparingMinutes?: number | null;
-  delayConfirmToPreparingReason?: string | null;
-  delayPreparingToReadyMinutes?: number | null;
-  delayPreparingToReadyReason?: string | null;
 };
 
 type RatingDto = {
@@ -115,12 +104,13 @@ interface QueueItem {
   position?: number;
   estimatedTime: string;
   status:
-  | "pending"
-  | "confirmed"
-  | "preparing"
-  | "ready"
-  | "completed"
-  | "cancelled";
+    | "pending"
+    | "processing"
+    | "confirmed"
+    | "preparing"
+    | "ready"
+    | "completed"
+    | "cancelled";
   items: Array<{
     id: string;
     name: string;
@@ -137,14 +127,10 @@ interface QueueItem {
   estimatedServeTimeRaw?: string | null;
   rating?: RatingDto | null;
   completedTimeRaw?: string | null;
-  delayMinutes?: number | null;
-  delayReason?: string | null;
-  hasDelay?: boolean;
   note?: string | null;
 }
 
 type OrderStatusNumber = 0 | 1 | 2 | 3 | 4 | 5 | 6;
-type MainTab = "current" | "history";
 type StatusTab = "pending" | "confirmed" | "preparing" | "ready" | "completed" | "cancelled";
 type ReviewMode = "create" | "view" | "update";
 
@@ -156,7 +142,7 @@ const uiStatusFromApi = (
       case 0:
         return "pending";
       case 1:
-        return "pending"; // processing -> pending
+        return "processing";
       case 2:
         return "completed";
       case 3:
@@ -173,7 +159,7 @@ const uiStatusFromApi = (
   }
   const t = (s || "").toString().toLowerCase();
   if (t === "pending") return "pending";
-  if (t === "processing") return "pending"; // processing -> pending
+  if (t === "processing") return "processing";
   if (t === "accepted" || t === "confirmed") return "confirmed";
   if (t === "prepareing" || t === "preparing") return "preparing";
   if (t === "ready") return "ready";
@@ -191,6 +177,8 @@ const getStatusColor = (status: QueueItem["status"]) => {
   switch (status) {
     case "pending":
       return "bg-yellow-500";
+    case "processing":
+      return "bg-indigo-500";
     case "confirmed":
       return "bg-blue-500";
     case "preparing":
@@ -210,6 +198,8 @@ const getStatusText = (status: QueueItem["status"]) => {
   switch (status) {
     case "pending":
       return "Chờ xác nhận";
+    case "processing":
+      return "Đang xử lý";
     case "confirmed":
       return "Đã xác nhận";
     case "preparing":
@@ -253,6 +243,8 @@ const getStatusIcon = (status: QueueItem["status"]) => {
   switch (status) {
     case "pending":
       return <Clock className="h-4 w-4" />;
+    case "processing":
+      return <RefreshCw className="h-4 w-4 animate-spin" />;
     case "confirmed":
       return <CheckCircle2 className="h-4 w-4" />;
     case "preparing":
@@ -494,30 +486,6 @@ function mapOrderToQueueItem(
   } else {
     estimatedWaitTimeRaw = null;
   }
-
-  // Calculate delay information
-  let delayMinutes: number | null = null;
-  let delayReason: string | null = null;
-  let hasDelay = false;
-
-  const confirmDelay = o.delayConfirmToPreparingMinutes ?? 0;
-  const preparingDelay = o.delayPreparingToReadyMinutes ?? 0;
-  const totalDelay = confirmDelay + preparingDelay;
-
-  if (totalDelay > 0) {
-    delayMinutes = totalDelay;
-    hasDelay = true;
-
-    const reasons: string[] = [];
-    if (o.delayConfirmToPreparingReason) {
-      reasons.push(o.delayConfirmToPreparingReason);
-    }
-    if (o.delayPreparingToReadyReason) {
-      reasons.push(o.delayPreparingToReadyReason);
-    }
-    delayReason = reasons.length > 0 ? reasons.join(", ") : null;
-  }
-
   return {
     id: o.id,
     code: o.code || "",
@@ -545,9 +513,6 @@ function mapOrderToQueueItem(
     estimatedServeTimeRaw: estimatedServeTime,
     rating,
     completedTimeRaw: o.lastUpdatedTime ?? null,
-    delayMinutes,
-    delayReason,
-    hasDelay,
     note: o.note ?? null,
   };
 }
@@ -556,14 +521,13 @@ const tabToApiStatus: Record<StatusTab, number> = {
   pending: 0,
   confirmed: 4,
   preparing: 5,
-  ready: 6,
+  ready: 6,    
   completed: 2,
-  cancelled: 3,
+   cancelled: 3,
 };
 
 export default function ActiveQueue() {
   const navigate = useNavigate();
-  const [mainTab, setMainTab] = useState<MainTab>("current");
   const [statusTab, setStatusTab] = useState<StatusTab>("pending");
   const [activeQueues, setActiveQueues] = useState<QueueItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -627,48 +591,16 @@ export default function ActiveQueue() {
           return;
         }
         const token = localStorage.getItem("accessToken") || "";
-
-        // Determine which statuses to fetch based on mainTab
-        let statusCodes: number[];
-        if (mainTab === "current") {
-          // Current orders: pending, confirmed, preparing, ready
-          statusCodes = [
-            tabToApiStatus.pending,
-            tabToApiStatus.confirmed,
-            tabToApiStatus.preparing,
-            tabToApiStatus.ready,
-          ];
-        } else {
-          // History: completed, cancelled
-          statusCodes = [
-            tabToApiStatus.completed,
-            tabToApiStatus.cancelled,
-          ];
-        }
-
-        // Fetch orders for all relevant statuses
-        const allOrders: OrderWithDetailsDto[] = [];
-        for (const statusCode of statusCodes) {
-          const orders = await fetchOrdersByStatus(userId, statusCode, token);
-          allOrders.push(...orders);
-        }
-
-        const vendorIds = allOrders.map((o) => o.vendorId).filter(Boolean);
+        const statusCode = tabToApiStatus[statusTab];
+        const orders = await fetchOrdersByStatus(userId, statusCode, token);
+        const vendorIds = orders.map((o) => o.vendorId).filter(Boolean);
         const vendorsMap = await fetchVendorsMap(vendorIds, token);
 
-        const items = allOrders.map((o) =>
+        const items = orders.map((o) =>
           mapOrderToQueueItem(o, vendorsMap[o.vendorId])
         );
 
-        // For current orders, show all. For history, filter by statusTab
-        let filteredItems: QueueItem[];
-        if (mainTab === "current") {
-          filteredItems = items;
-        } else {
-          filteredItems = items.filter(item => item.status === statusTab);
-        }
-
-        if (mounted) setActiveQueues(filteredItems);
+        if (mounted) setActiveQueues(items);
       } catch (e) {
         console.error(e);
         toast({
@@ -683,7 +615,7 @@ export default function ActiveQueue() {
     return () => {
       mounted = false;
     };
-  }, [mainTab, statusTab, reloadKey]);
+  }, [statusTab, reloadKey]);
 
   const handleCancelOrder = (queueId: string) => {
     setActiveQueues((prev) => prev.filter((item) => item.id !== queueId));
@@ -741,25 +673,6 @@ export default function ActiveQueue() {
                   </div>
                 )}
               </div>
-
-              {/* Delay Alert - only show if order has delay */}
-              {queueItem.hasDelay && (
-                <div className="mb-3 p-2 border border-amber-500 bg-amber-50 rounded-md">
-                  <div className="flex items-start gap-2">
-                    <AlertCircle className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
-                    <div className="flex-1 text-sm">
-                      <p className="font-semibold text-amber-900">
-                        ⚠️ Đơn hàng bị trễ {queueItem.delayMinutes} phút
-                      </p>
-                      {queueItem.delayReason && (
-                        <p className="text-amber-800 mt-1">
-                          Lý do: {queueItem.delayReason}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
 
               {/* Thời gian dự kiến / hoàn tất */}
               <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground mb-3">
@@ -901,8 +814,8 @@ export default function ActiveQueue() {
                       {/* Ẩn Hủy & Cập nhật ở tab Đã xác nhận và Đang chế biến */}
                       {queueItem.canUpdate &&
                         statusTab !== "confirmed" &&
-                        statusTab !== "preparing" &&
-                        statusTab !== "ready" && (
+                        statusTab !== "preparing" && 
+                        statusTab !== "ready" &&(
                           <Button
                             size="sm"
                             variant="outline"
@@ -916,22 +829,16 @@ export default function ActiveQueue() {
                           </Button>
                         )}
 
-                      {queueItem.canCancel &&
-                        statusTab !== "confirmed" &&
-                        statusTab !== "preparing" &&
-                        statusTab !== "ready" && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              setSelectedQueueItem(queueItem);
-                              setShowCancelDialog(true);
-                            }}
-                          >
-                            <CloseIcon className="h-3 w-3 mr-1" />
-                            Hủy
-                          </Button>
-                        )}
+                      {(statusTab === "pending" || statusTab === "confirmed") && (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleForceCancelOrder(queueItem.id)}
+                        >
+                          <CloseIcon className="h-3 w-3 mr-1" />
+                          Hủy
+                        </Button>
+                      )}
                     </>
                   )}
                 </div>
@@ -963,58 +870,41 @@ export default function ActiveQueue() {
           <h1 className="text-2xl font-bold">Hàng đợi của bạn</h1>
         </div>
 
-        {/* Main tabs: Đơn hiện tại vs Lịch sử */}
         <Tabs
-          value={mainTab}
-          onValueChange={(v) => {
-            const newMainTab = v as MainTab;
-            setMainTab(newMainTab);
-            // Auto-select first sub-tab when switching main tabs
-            if (newMainTab === "current") {
-              setStatusTab("pending");
-            } else {
-              setStatusTab("completed");
-            }
-          }}
+          value={statusTab}
+          onValueChange={(v) => setStatusTab(v as StatusTab)}
           className="space-y-4"
         >
-          <TabsList className="w-full grid grid-cols-2 gap-2 bg-transparent p-0">
-            <TabsTrigger
-              value="current"
-              className="
-                text-base font-semibold py-3
-                border-2 border-gray-300 rounded-md
-                data-[state=active]:bg-[#00a759]
-                data-[state=active]:text-white
-                data-[state=active]:border-[#00914b]
-                data-[state=active]:shadow-md
-                data-[state=inactive]:bg-white
-                data-[state=inactive]:text-gray-700
-                hover:data-[state=inactive]:bg-green-50
-              "
-            >
-              Đơn hiện tại
-            </TabsTrigger>
-            <TabsTrigger
-              value="history"
-              className="
-                text-base font-semibold py-3
-                border-2 border-gray-300 rounded-md
-                data-[state=active]:bg-[#00a759]
-                data-[state=active]:text-white
-                data-[state=active]:border-[#00914b]
-                data-[state=active]:shadow-md
-                data-[state=inactive]:bg-white
-                data-[state=inactive]:text-gray-700
-                hover:data-[state=inactive]:bg-green-50
-              "
-            >
-              Lịch sử
-            </TabsTrigger>
+          <TabsList className="w-full grid grid-cols-5 gap-2 bg-transparent p-0">
+            {(
+              ["pending", "confirmed", "preparing", "ready", "completed", "cancelled"] as StatusTab[]
+            ).map((tab) => (
+              <TabsTrigger
+                key={tab}
+                value={tab}
+                className="
+                  text-sm font-medium py-2
+                  border border-gray-300 rounded-md
+                  data-[state=active]:bg-[#00a759]
+                  data-[state=active]:text-white
+                  data-[state=active]:border-[#00914b]
+                  data-[state=active]:shadow
+                  data-[state=inactive]:bg-white
+                  data-[state=inactive]:text-gray-700
+                  hover:data-[state=inactive]:bg-green-50
+                "
+              >
+                {tab === "pending" && "Chưa xác nhận"}
+                {tab === "confirmed" && "Đã xác nhận"}
+                {tab === "preparing" && "Đang chế biến"}
+                {tab === "ready" && "Chờ nhận đơn"}    
+                {tab === "completed" && "Hoàn tất"}
+                {tab === "cancelled" && "Đã hủy"}
+              </TabsTrigger>
+            ))}
           </TabsList>
 
-          {/* Current orders tab content */}
-          <TabsContent value="current" className="space-y-4">
+          <TabsContent value={statusTab}>
             {loading && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
                 <RefreshCw className="h-4 w-4 animate-spin text-emerald-500" />
@@ -1026,68 +916,37 @@ export default function ActiveQueue() {
               {activeQueues.length > 0
                 ? activeQueues.map(renderQueueCard)
                 : !loading && (
-                  <Card>
-                    <CardContent className="text-center py-12">
-                      <Clock className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                      <h3 className="text-lg font-medium mb-2">
-                        Không có đơn hàng hiện tại
-                      </h3>
-                      <p className="text-muted-foreground mb-4">
-                        Hãy tìm kiếm và đặt món từ các quán yêu thích!
-                      </p>
-                      <Button onClick={() => navigate("/")}>
-                        Khám phá quán ăn
-                      </Button>
-                    </CardContent>
-                  </Card>
-                )}
-            </div>
-          </TabsContent>
+                    <Card>
+                      <CardContent className="text-center py-12">
+                        <Clock className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                        <h3 className="text-lg font-medium mb-2">
+                          {statusTab === "pending" &&
+                            "Không có đơn hàng nào chờ xác nhận"}
+                          {statusTab === "confirmed" &&
+                            "Không có đơn hàng đã xác nhận"}
+                          {statusTab === "preparing" &&
+                            "Không có đơn hàng nào đang chế biến"}
+                          {statusTab === "completed" &&
+                            "Chưa có đơn hàng nào hoàn tất"}
+                          {statusTab === "ready" &&
+                            "Không có đơn hàng nào đang chờ nhận"}
+                          {statusTab === "cancelled" &&
+                            "Không có đơn hàng nào đã bị hủy"}
+                        </h3>
 
-
-
-          {/* History tab content */}
-          <TabsContent value="history" className="space-y-4">
-            {/* Dropdown filter for history */}
-            <div className="flex items-center gap-2 mb-4">
-              <span className="text-sm font-medium">Lọc theo:</span>
-              <Select
-                value={statusTab}
-                onValueChange={(v) => setStatusTab(v as StatusTab)}
-              >
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Chọn trạng thái" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="completed">Hoàn tất</SelectItem>
-                  <SelectItem value="cancelled">Đã hủy</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {loading && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
-                <RefreshCw className="h-4 w-4 animate-spin text-emerald-500" />
-                <span>Đang tải dữ liệu...</span>
-              </div>
-            )}
-
-            <div className="space-y-4">
-              {activeQueues.length > 0
-                ? activeQueues.map(renderQueueCard)
-                : !loading && (
-                  <Card>
-                    <CardContent className="text-center py-12">
-                      <Clock className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                      <h3 className="text-lg font-medium mb-2">
-                        {statusTab === "completed" &&
-                          "Chưa có đơn hàng nào hoàn tất"}
-                        {statusTab === "cancelled" &&
-                          "Chưa có đơn hàng nào bị hủy"}
-                      </h3>
-                    </CardContent>
-                  </Card>
-                )}
+                        {statusTab === "pending" && (
+                          <>
+                            <p className="text-muted-foreground mb-4">
+                              Hãy tìm kiếm và đặt món từ các quán yêu thích!
+                            </p>
+                            <Button onClick={() => navigate("/")}>
+                              Khám phá quán ăn
+                            </Button>
+                          </>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )}
             </div>
           </TabsContent>
         </Tabs>
@@ -1141,10 +1000,10 @@ export default function ActiveQueue() {
             initialRating={
               currentRating
                 ? {
-                  rating: currentRating.stars,
-                  comment: currentRating.comment || "",
-                  imageUrls: currentRating.imageUrls || [],
-                }
+                    rating: currentRating.stars,
+                    comment: currentRating.comment || "",
+                    imageUrls: currentRating.imageUrls || [],
+                  }
                 : undefined
             }
             onSubmit={async ({ rating, comment, images }) => {

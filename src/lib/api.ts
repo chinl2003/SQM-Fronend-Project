@@ -32,7 +32,7 @@ export type RegisterResponse = {
   email: string;
 };
 
-async function request<T = unknown>(route: string, options: RequestOptions = {}): Promise<T> {
+async function request< T = unknown>(route: string, options: RequestOptions = {}): Promise<T> {
   const { method = "GET", body, headers = {} } = options;
 
   let fullRoute = route;
@@ -71,22 +71,4 @@ export const api = {
   post: <T>(route: string, body?: any, headers?: Record<string, string>) => request<T>(route, { method: "POST", body, headers }),
   put: <T>(route: string, body?: any, headers?: Record<string, string>) => request<T>(route, { method: "PUT", body, headers }),
   delete: <T>(route: string, body?: any, headers?: Record<string, string>) => request<T>(route, { method: "DELETE", body, headers }),
-};
-
-// Chat API endpoints
-export const chatApi = {
-  createConversation: (headers?: Record<string, string>) =>
-    api.post<ApiResponse<any>>("/api/chat/conversations", {}, headers),
-
-  getConversation: (conversationId: string, headers?: Record<string, string>) =>
-    api.get<ApiResponse<any>>(`/api/chat/conversations/${conversationId}`, headers),
-
-  getUserConversations: (headers?: Record<string, string>) =>
-    api.get<ApiResponse<any[]>>("/api/chat/conversations", headers),
-
-  sendMessage: (body: { conversationId?: string; message: string }, headers?: Record<string, string>) =>
-    api.post<ApiResponse<any>>("/api/chat/messages", body, headers),
-
-  closeConversation: (conversationId: string, headers?: Record<string, string>) =>
-    api.post<ApiResponse<void>>(`/api/chat/conversations/${conversationId}/close`, {}, headers),
 };

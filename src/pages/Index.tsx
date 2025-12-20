@@ -13,8 +13,6 @@ import heroImage from "@/assets/hero-image.jpg";
 import { api, ApiResponse } from "@/lib/api";
 import { useGeolocation } from "@/hooks/useGeolocation";
 import { calculateDistance, formatDistance } from "@/lib/geolocation";
-import { MessageCircle } from "lucide-react";
-import { ChatDialog } from "@/components/ui/chat";
 
 // ---------- Types ----------
 type VendorFilter = "Rating" | "Queue" | "NearestMe" | "MostSelling";
@@ -102,7 +100,6 @@ function extractBusinessTypesFromResponse(res: any): BusinessType[] {
 
 export default function Index() {
   const navigate = useNavigate();
-  const [isChatOpen, setIsChatOpen] = useState(false);
   const location = useLocation()
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -449,26 +446,6 @@ export default function Index() {
             </div>
           )}
         </section>
-        {/* Floating Chat Button */}
-          <button
-            onClick={() => setIsChatOpen(true)}
-            className="
-              fixed bottom-6 right-6 z-50
-              h-14 w-14 rounded-full
-              bg-primary text-primary-foreground
-              flex items-center justify-center
-              shadow-lg
-              hover:scale-105 transition-transform
-            "
-            aria-label="Chat hỗ trợ"
-          >
-            <MessageCircle className="h-6 w-6" />
-          </button>
-
-          <ChatDialog
-            isOpen={isChatOpen}
-            onClose={() => setIsChatOpen(false)}
-          />
       </div>
 
       <div className="h-16 md:h-0" />
