@@ -36,6 +36,14 @@ type VendorFromApi = {
   parallelFactor?: number;
 };
 
+type VendorInfo = {
+  customerCountWaiting: number;
+  orderStatusCompleteCountToday?: number;
+  totalInToday?: number;
+  cancelRating?: number;
+};
+
+
 const STATUS_NUM_TO_TEXT: Record<number, string> = {
   0: "draft",
   1: "pendingreview",
@@ -85,6 +93,8 @@ function formatCurrencyVND(v?: number) {
 export default function VendorDashboard() {
   const params = useParams();
   const [vendor, setVendor] = useState<VendorFromApi | null>(null);
+  const [vendorInfo, setVendorInfo] = useState<VendorInfo | null>(null);
+
   const [loadingVendor, setLoadingVendor] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<
@@ -116,6 +126,14 @@ export default function VendorDashboard() {
           [];
 
         if (mounted) setVendor(vendors?.[0] ?? null);
+
+        const resInfo = await api.get<ApiResponse<VendorInfo>>(
+          `/api/vendor/vendor-info/${userId}`,
+          token ? { Authorization: `Bearer ${token}` } : undefined
+        );
+
+        const vendorInfoData = resInfo.data;
+        setVendorInfo(vendorInfoData);
       } catch (e: any) {
         console.error(e);
         if (mounted) setLoadError(e?.message || "Không thể tải dữ liệu quán.");
@@ -134,13 +152,13 @@ export default function VendorDashboard() {
 
   const stats = useMemo(
     () => ({
-      activeQueue: vendor?.queueCount ?? 0,
-      totalToday: vendor?.totalCompletedToday ?? 0,
-      revenue: vendor?.revenueToday ?? 0,
+      activeQueue: vendorInfo?.customerCountWaiting ?? 0,
+      totalToday: vendorInfo?.orderStatusCompleteCountToday ?? 0,
+      revenue: vendorInfo?.totalInToday ?? 0,
       avgWaitTime: vendor?.act ?? vendor?.avgWaitMinutes ?? 0,
-      cancelRate: vendor?.cancelRatePercent ?? 0,
+      cancelRate: vendorInfo?.cancelRating ?? 0,
     }),
-    [vendor]
+    [vendor, vendorInfo]
   );
 
   return (
