@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { 
   LayoutDashboard, Users, ShoppingBag, MessageSquare, 
   DollarSign, BarChart3, Bell, Settings, LogOut,
-  Menu, X
+  Menu, X, FileText
 } from "lucide-react";
 import { useState } from "react";
 
@@ -28,8 +28,13 @@ const AdminLayout = ({ children, title }: AdminLayoutProps) => {
     { name: "Đánh giá", href: "/admin/reviews", icon: MessageSquare },
     { name: "Thanh toán", href: "/admin/payments", icon: DollarSign },
     { name: "Phân tích", href: "/admin/analytics", icon: BarChart3 },
-    // { name: "Thông báo", href: "/admin/notifications", icon: Bell },
+    {
+      name: "Yêu cầu thanh toán công nợ",
+      href: "/admin/debt-payment-request",
+      icon: FileText,
+    },
     { name: "Cài đặt", href: "/admin/settings", icon: Settings },
+    
   ];
 
   return (

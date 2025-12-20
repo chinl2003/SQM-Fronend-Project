@@ -274,7 +274,7 @@ const QueueMonitoring = () => {
                         )}
                       </div>
                       
-                      <div className="flex gap-1">
+                      {/* <div className="flex gap-1">
                         <Button
                           size="sm"
                           variant="outline"
@@ -289,7 +289,7 @@ const QueueMonitoring = () => {
                         >
                           <X className="w-4 h-4" />
                         </Button>
-                      </div>
+                      </div> */}
                     </div>
                   </div>
                 </div>

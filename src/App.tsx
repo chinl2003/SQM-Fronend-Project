@@ -27,6 +27,7 @@ import SystemSettings from "./pages/admin/SystemSettings";
 import Wallet from "./pages/customer/Wallet";
 import VendorDetailPage from "./pages/vendor/VendorDetailPage";
 import PaymentRevenue from "./pages/admin/PaymentRevenue";
+import PaymentRequest from "./pages/admin/PaymentRequest";
 // import Profile from "./pages/Profile";
 
 const queryClient = new QueryClient();
@@ -69,6 +70,8 @@ const App = () => (
           <Route path="/admin/reviews" element={<ReviewModeration />} />
 
           <Route path="/admin/payments" element={<PaymentRevenue />} />
+          <Route path="/admin/debt-payment-request" element={<PaymentRequest />} />
+
           <Route path="/vendor" element={<VendorDashboard />} />
           <Route
             path="/admin/user-management"
