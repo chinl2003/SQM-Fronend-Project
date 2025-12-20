@@ -190,7 +190,7 @@ export default function ReviewsTab({ vendorId }: ReviewsTabProps) {
   const avgStars = useMemo(() => {
     if (!ratings.length) return 0;
     const sum = ratings.reduce((acc, r) => acc + parseStars(r.stars), 0);
-    return +(sum / ratings.length).toFixed(1);
+    return +(sum * 2/ ratings.length).toFixed(1);
   }, [ratings]);
 
   const renderStars = (stars: number) => {
