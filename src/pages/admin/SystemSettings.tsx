@@ -11,8 +11,19 @@ import {
   Eye, Edit, Trash2, UserPlus,
   AlertTriangle, CheckCircle, Clock
 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { api } from "@/lib/api";
+import { toast } from "sonner";
+
 
 const SystemSettings = () => {
+
+  const [commissionRate, setCommissionRate] = useState<number | null>(null);
+  const [loadingSettings, setLoadingSettings] = useState(false);
+  const [hasSetting, setHasSetting] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+
   const staffRoles = [
     { id: 1, name: "Admin User", email: "admin@smartqueue.com", role: "Siêu Admin", permissions: ["Toàn quyền"], lastActive: "2 giờ trước", status: "active", avatar: "AU" },
     { id: 2, name: "Jane Manager", email: "jane@smartqueue.com", role: "Quản lý", permissions: ["Quản lý người dùng", "Phê duyệt vendor"], lastActive: "1 ngày trước", status: "active", avatar: "JM" },
@@ -30,6 +41,74 @@ const SystemSettings = () => {
     { id: 2, error: "Đồng bộ Queue thất bại", severity: "trung bình", occurrences: 3, lastSeen: "2 giờ trước", status: "đã giải quyết" }
   ];
 
+  useEffect(() => {
+    const loadSystemSettings = async () => {
+      try {
+        setLoadingSettings(true);
+
+        const token = localStorage.getItem("accessToken") || "";
+        const headers: Record<string, string> = {};
+        if (token) headers.Authorization = `Bearer ${token}`;
+
+        const res = await api.get("/api/systemSetting", headers);
+
+        const data = res;
+
+        if (data) {
+          setCommissionRate(data.commissionRate);
+          setHasSetting(true);
+        } else {
+          setCommissionRate(null);
+          setHasSetting(false);
+        }
+      } catch (err) {
+        console.error(err);
+        toast.error("Không tải được cấu hình hệ thống");
+      } finally {
+        setLoadingSettings(false);
+      }
+    };
+
+    loadSystemSettings();
+  }, []);
+
+  const handleSaveSettings = async () => {
+    if (commissionRate === null || commissionRate < 0) {
+      toast.error("Tỷ lệ hoa hồng không hợp lệ");
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      const token = localStorage.getItem("accessToken") || "";
+      const headers: Record<string, string> = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      if (hasSetting) {
+        await api.put(
+          "/api/systemSetting",
+          { commissionRate },
+          headers
+        );
+        toast.success("Cập nhật cấu hình thành công");
+      } else {
+        await api.post(
+          "/api/systemSetting",
+          { commissionRate },
+          headers
+        );
+        toast.success("Tạo cấu hình hệ thống thành công");
+        setHasSetting(true);
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Lưu cấu hình thất bại");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <AdminLayout title="Cài đặt hệ thống">
       <div className="space-y-6">
@@ -45,7 +124,14 @@ const SystemSettings = () => {
               <div className="space-y-4">
                 <div>
                   <Label htmlFor="commission">Tỷ lệ hoa hồng (%)</Label>
-                  <Input id="commission" type="number" defaultValue="10" />
+                  <Input
+                    id="commission"
+                    type="number"
+                    value={commissionRate ?? ""}
+                    onChange={(e) => setCommissionRate(Number(e.target.value))}
+                    disabled={loadingSettings}
+                  />
+
                 </div>
                 <div>
                   <Label htmlFor="queue-limit">Số lượng tối đa trong hàng đợi</Label>
@@ -76,11 +162,23 @@ const SystemSettings = () => {
               </div>
             </div>
             
-            <Button>Lưu cấu hình</Button>
+            <Button
+              onClick={handleSaveSettings}
+              disabled={loadingSettings || saving}
+            >
+              {saving ? "Đang lưu..." : "Lưu cấu hình"}
+            </Button>
+            {hasSetting && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Cấu hình hiện tại đang được áp dụng cho toàn hệ thống
+              </p>
+            )}
+
+
           </CardContent>
         </Card>
 
-        <div className="grid lg:grid-cols-2 gap-6">
+        {/* <div className="grid lg:grid-cols-2 gap-6">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="flex items-center gap-2">
@@ -245,7 +343,7 @@ const SystemSettings = () => {
               </div>
             </div>
           </CardContent>
-        </Card>
+        </Card> */}
       </div>
     </AdminLayout>
   );

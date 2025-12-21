@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import VendorSettlementDetailModal
+  from "@/components/vendor/tabs/VendorSettlementDetailModal";
+
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -12,9 +15,12 @@ import {
 } from "lucide-react";
 import { api, ApiResponse } from "@/lib/api";
 import { toast } from "sonner";
+import {
+  Eye
+} from "lucide-react";
 
 type WalletTransactionStatus = 0 | 1 | 2 | 3 | 4;
-type WalletTransactionType = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+type WalletTransactionType = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13;
 
 type TransactionResponseDto = {
     id?: string | null;
@@ -32,6 +38,18 @@ type TransactionResponseDto = {
     message?: string | null;
     walletBalance: number;
 };
+
+export interface VendorSettlementDetailDto {
+  id: string;
+  vendorId: string;
+  walletId: string | null;
+  period: string;
+  commissionRate: number;
+  totalRevenue: number;
+  totalPayment: number;
+  dueDate: string;
+  note?: string | null;
+}
 
 type WalletHistoryPageDto = {
     data: TransactionResponseDto[];
@@ -64,6 +82,7 @@ type WalletInfoDto = {
     owner: number;
     userId?: string | null;
     vendorId?: string | null;
+    totalTransaction?: number;
 };
 
 type WalletInfoApiResponse = ApiResponse<WalletInfoDto>;
@@ -76,6 +95,71 @@ type VendorFromApi = {
 interface VendorWalletTabProps {
     vendor: VendorFromApi | null;
 }
+
+interface TransactionListProps {
+  transactions: Transaction[];
+  loading: boolean;
+  currentPage: number;
+  totalPages: number;
+  totalRecords: number;
+  onPrev: () => void;
+  onNext: () => void;
+  mode?: "normal" | "debt";
+  onLoadDebtDetail?: (walletTransactionId: string) => void;
+}
+
+function isIncome(type?: WalletTransactionType | null) {
+  return type === 0 || type === 2 || type === 4;
+}
+
+function isOutcome(
+  type?: WalletTransactionType | null,
+  status?: WalletTransactionStatus | null
+) {
+  return (
+    type === 1 || 
+    (type === 13 && status === 2) || 
+    (type === 10 && status === 2)  
+  );
+}
+
+function isDebt(
+  type?: WalletTransactionType | null,
+  status?: WalletTransactionStatus | null
+) {
+  return type === 13 && status === 0; 
+}
+
+
+function getDescription(
+  type?: WalletTransactionType | null,
+  status?: WalletTransactionStatus | null,
+  message?: string | null
+) {
+  if (message) return message;
+
+  switch (type) {
+    case 0:
+      return "Nạp tiền vào ví";
+    case 1:
+      return "Thanh toán đơn hàng";
+    case 2:
+      return "Hoàn tiền";
+    case 4:
+      return "Nhận tiền từ đơn hàng";
+    case 13:
+      return status === 2
+        ? "Phí hoa hồng hàng tháng"
+        : "Phí hoa hồng (đang xử lý)";
+    case 10:
+      return status === 2
+        ? "Phí đăng ký quán"
+        : "Tạm giữ phí đăng ký";
+    default:
+      return "Giao dịch ví";
+  }
+}
+
 
 function mapType(t?: WalletTransactionType | null): Transaction["type"] {
     switch (t) {
@@ -108,7 +192,7 @@ function formatCurrency(amount: number) {
 }
 
 export default function VendorWalletTab({ vendor }: VendorWalletTabProps) {
-    const [subTab, setSubTab] = useState<"in" | "out">("in");
+    const [subTab, setSubTab] = useState<"in" | "out" | "debt">("in");
 
     const [balance, setBalance] = useState(0);
     const [availableBalance, setAvailableBalance] = useState(0);
@@ -118,13 +202,22 @@ export default function VendorWalletTab({ vendor }: VendorWalletTabProps) {
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [loadingInfo, setLoadingInfo] = useState(false);
     const [loadingHistory, setLoadingHistory] = useState(false);
+    const [totalInApi, setTotalInApi] = useState(0);
+    const [totalOutApi, setTotalOutApi] = useState(0);
+    const [totalTransactionApi, setTotalTransaction] = useState(0);
+
+    const [openDebtDetail, setOpenDebtDetail] = useState(false);
+    const [debtDetail, setDebtDetail] =
+  useState<any | null>(null);
+
+    const [loadingDebtDetail, setLoadingDebtDetail] = useState(false);
+    const [walletTransactionId, setWalletTransactionId] = useState<string | null>(null);
 
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize] = useState(10);
     const [totalPages, setTotalPages] = useState(1);
     const [totalRecords, setTotalRecords] = useState(0);
 
-    // ====== LOAD WALLET INFO BY vendorId ======
     useEffect(() => {
         const load = async () => {
             if (!vendor?.id) return;
@@ -157,7 +250,9 @@ export default function VendorWalletTab({ vendor }: VendorWalletTabProps) {
                 const avail = Number(
                     info.availableBalance ?? info.AvailableBalance ?? info.balance - held
                 );
-                setHeldBalance(held);
+                setTotalInApi(Number(info.totalIn ?? info.TotalIn ?? 0));
+                setTotalOutApi(Number(info.totalOut ?? info.TotalOut ?? 0));
+                setTotalTransaction(Number(info.totalTransaction ?? info.totalTransaction ?? 0));
                 setAvailableBalance(avail);
             } catch (err) {
                 console.error(err);
@@ -209,17 +304,14 @@ export default function VendorWalletTab({ vendor }: VendorWalletTabProps) {
                         id: t.id ?? "",
                         amount: t.amount,
                         date: new Date(t.date).toLocaleString("vi-VN"),
-                        type: mapType(t.type),                // string: "deposit" | "payment" | "refund"
-                        rawType: t.type ?? null,              // <- giữ type số gốc
+                        rawType: t.type ?? null,
                         status: mapStatus(t.status),
                         paymentMethod: t.paymentMethod || "Hệ thống",
-                        description:
-                            t.message ||
-                            (t.type === 4
-                                ? "Nhận tiền về ví đối tác"
-                                : "Giao dịch ví đối tác"),
+                        description: getDescription(t.type, t.status, t.message),
+                        type: mapType(t.type),
                     }))
-                );
+                    );
+
             } catch (err) {
                 console.error(err);
                 toast.error("Không tải được lịch sử ví đối tác.");
@@ -231,34 +323,57 @@ export default function VendorWalletTab({ vendor }: VendorWalletTabProps) {
         load();
     }, [vendor?.id, currentPage, pageSize]);
 
-    // ====== TÍNH TOÁN TỔNG QUAN TỪ DATA THẬT ======
-    const totalIn = useMemo(
-        () =>
-            transactions
-                .filter((t) => t.amount > 0)
-                .reduce((s, t) => s + t.amount, 0),
-        [transactions]
-    );
-
-    const totalOut = useMemo(
-        () =>
-            transactions
-                .filter((t) => t.amount < 0)
-                .reduce((s, t) => s + t.amount, 0),
-        [transactions]
-    );
 
     const incomeTransactions = useMemo(
-        () => transactions.filter((t) => t.amount > 0),
-        [transactions]
+    () => transactions.filter(t => isIncome(t.rawType)),
+    [transactions]
     );
+
+    const loadDebtDetail = async (walletTransactionId: string) => {
+  try {
+    setLoadingDebtDetail(true);
+
+    setWalletTransactionId(walletTransactionId);
+    const token = localStorage.getItem("accessToken") || "";
+    const headers: Record<string, string> = {};
+    if (token) headers.Authorization = `Bearer ${token}`;
+
+    const res = await api.get<ApiResponse<VendorSettlementDetailDto>>(
+      `/api/vendorSettlement/by-wallet-transaction/${walletTransactionId}`,
+      headers
+    );
+
+    setDebtDetail(res);
+    setOpenDebtDetail(true);
+  } catch (err) {
+    console.error(err);
+    toast.error("Không tải được chi tiết công nợ.");
+  } finally {
+    setLoadingDebtDetail(false);
+  }
+};
+
+
 
     const outcomeTransactions = useMemo(
-        () => transactions.filter((t) => t.amount < 0),
-        [transactions]
-    );
+  () => transactions.filter(t => isOutcome(t.rawType, t.status === "completed" ? 2 : 0)),
+  [transactions]
+);
 
-    const currentList = subTab === "in" ? incomeTransactions : outcomeTransactions;
+const debtTransactions = useMemo(
+  () => transactions.filter(t => isDebt(t.rawType, t.status === "pending" ? 0 : 2)),
+  [transactions]
+);
+    const currentList =
+  subTab === "in"
+    ? incomeTransactions
+    : subTab === "out"
+    ? outcomeTransactions
+    : debtTransactions;
+
+
+  
+
 
     if (!vendor?.id) {
         return (
@@ -327,7 +442,7 @@ export default function VendorWalletTab({ vendor }: VendorWalletTabProps) {
                         <div>
                             <p className="text-sm text-muted-foreground mb-1">Tổng tiền nhận</p>
                             <p className="text-xl font-semibold text-emerald-600">
-                                {formatCurrency(totalIn)}
+                                {formatCurrency(totalInApi)}
                             </p>
                         </div>
                         <div className="p-3 bg-emerald-50 rounded-lg">
@@ -341,7 +456,7 @@ export default function VendorWalletTab({ vendor }: VendorWalletTabProps) {
                         <div>
                             <p className="text-sm text-muted-foreground mb-1">Tổng tiền chi</p>
                             <p className="text-xl font-semibold text-rose-600">
-                                {formatCurrency(Math.abs(totalOut))}
+                                {formatCurrency(Math.abs(totalOutApi))}
                             </p>
                         </div>
                         <div className="p-3 bg-rose-50 rounded-lg">
@@ -355,7 +470,8 @@ export default function VendorWalletTab({ vendor }: VendorWalletTabProps) {
                         <div>
                             <p className="text-sm text-muted-foreground mb-1">Số giao dịch</p>
                             <p className="text-xl font-semibold text-foreground">
-                                {transactions.length}
+                                {formatCurrency(totalTransactionApi)}
+
                             </p>
                         </div>
                         <div className="p-3 bg-primary/10 rounded-lg">
@@ -395,6 +511,13 @@ export default function VendorWalletTab({ vendor }: VendorWalletTabProps) {
                             >
                                 Tiền chi
                             </TabsTrigger>
+
+                            <TabsTrigger
+                                value="debt"
+                                className="px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-green-500 data-[state=active]:text-white data-[state=active]:shadow-sm hover:bg-muted/60 rounded-md"
+                            >
+                                Công nợ & phí
+                            </TabsTrigger>
                         </TabsList>
 
                         <TabsContent value="in" className="pt-4">
@@ -425,9 +548,33 @@ export default function VendorWalletTab({ vendor }: VendorWalletTabProps) {
                                 showSummary={subTab === "out"}
                             />
                         </TabsContent>
+                        <TabsContent value="debt" className="pt-4">
+                            <TransactionList
+                                transactions={currentList}
+                                loading={loadingHistory}
+                                currentPage={currentPage}
+                                totalPages={totalPages}
+                                totalRecords={totalRecords}
+                                onPrev={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                                onNext={() => setCurrentPage((p) => (p >= totalPages ? p : p + 1))}
+                                mode="debt"  
+                                onLoadDebtDetail={loadDebtDetail}
+                            />
+                        </TabsContent>
+
+
                     </Tabs>
                 </CardHeader>
             </Card>
+            <VendorSettlementDetailModal
+            open={openDebtDetail}
+            onClose={() => setOpenDebtDetail(false)}
+            loading={loadingDebtDetail}
+            data={debtDetail}
+            walletTransactionId = {walletTransactionId}
+            availableBalance = {availableBalance}
+            />
+
         </div>
     );
 }
@@ -451,6 +598,8 @@ function TransactionList({
     totalRecords,
     onPrev,
     onNext,
+    mode = "normal",
+    onLoadDebtDetail,
 }: TransactionListProps) {
     if (loading) {
         return (
@@ -472,63 +621,94 @@ function TransactionList({
         <CardContent className="pt-0">
             <div className="space-y-4">
                 {transactions.map((t, i) => {
-                    // QUY TẮC MỚI:
-                    // type = 4  -> nhận tiền (in)
-                    // type != 4 -> chi tiền (out)
-                    const isIncome = t.rawType === 4;
+                    const isDebtMode = mode === "debt";
+                    const isIn = isIncome(t.rawType);
 
                     return (
                         <div key={t.id}>
-                            <div className="flex items-center justify-between py-3">
-                                <div className="flex items-start gap-4 flex-1">
-                                    <div className="p-3 bg-muted rounded-lg">
-                                        {isIncome ? (
-                                            <ArrowDownLeft className="h-4 w-4 text-emerald-600" />
-                                        ) : (
-                                            <ArrowUpRight className="h-4 w-4 text-rose-600" />
-                                        )}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="font-medium mb-1">{t.description}</p>
-                                        <div className="flex items-center gap-3 flex-wrap text-xs text-muted-foreground">
-                                            <span className="flex items-center gap-1">
-                                                <Clock className="h-3 w-3" />
-                                                {t.date}
-                                            </span>
-                                            <span>•</span>
-                                            <span>{t.paymentMethod}</span>
-                                            <span>•</span>
-                                            <Badge
-                                                variant={
-                                                    t.status === "completed"
-                                                        ? "default"
-                                                        : t.status === "failed"
-                                                            ? "destructive"
-                                                            : "secondary"
-                                                }
-                                            >
-                                                {t.status === "completed"
-                                                    ? "Thành công"
-                                                    : t.status === "failed"
-                                                        ? "Thất bại"
-                                                        : "Đang xử lý"}
-                                            </Badge>
-                                        </div>
-                                    </div>
-                                </div>
+                        <div className="flex items-center justify-between py-3">
+                            <div className="flex items-start gap-4 flex-1">
 
-                                <p
-                                    className={`text-lg font-semibold ${isIncome ? "text-emerald-600" : "text-rose-600"
-                                        }`}
-                                >
-                                    {isIncome ? "+" : "-"}
-                                    {formatCurrency(Math.abs(t.amount))}
-                                </p>
+                            {!isDebtMode && (
+                                <div className="p-3 bg-muted rounded-lg">
+                                {isIn ? (
+                                    <ArrowDownLeft className="h-4 w-4 text-emerald-600" />
+                                ) : (
+                                    <ArrowUpRight className="h-4 w-4 text-rose-600" />
+                                )}
+                                </div>
+                            )}
+
+                            <div className="flex-1 min-w-0">
+                                <p className="font-medium mb-1">{t.description}</p>
+
+                                <div className="flex items-center gap-3 flex-wrap text-xs text-muted-foreground">
+                                <span className="flex items-center gap-1">
+                                    <Clock className="h-3 w-3" />
+                                    {t.date}
+                                </span>
+
+                                <span>•</span>
+                                <span>{t.paymentMethod}</span>
+
+                                <span>•</span>
+
+                                {isDebtMode ? (
+                                    <Badge variant="outline" className="text-amber-600 border-amber-300">
+                                    Chưa thanh toán
+                                    </Badge>
+                                ) : (
+                                    <Badge
+                                    variant={
+                                        t.status === "completed"
+                                        ? "default"
+                                        : t.status === "failed"
+                                        ? "destructive"
+                                        : "secondary"
+                                    }
+                                    >
+                                    {t.status === "completed"
+                                        ? "Thành công"
+                                        : t.status === "failed"
+                                        ? "Thất bại"
+                                        : "Đang xử lý"}
+                                    </Badge>
+                                )}
+                                </div>
                             </div>
-                            {i < transactions.length - 1 && <Separator />}
+                            </div>
+
+                            <div className="flex items-center gap-4">
+                            <p
+                                className={`text-lg font-semibold ${
+                                isDebtMode
+                                    ? "text-amber-600"
+                                    : isIn
+                                    ? "text-emerald-600"
+                                    : "text-rose-600"
+                                }`}
+                            >
+                                {formatCurrency(Math.abs(t.amount))}
+                            </p>
+
+                            {isDebtMode && (
+                            <button
+                                className="p-2 rounded-md hover:bg-muted text-muted-foreground"
+                                onClick={() => onLoadDebtDetail?.(t.id)}
+                                title="Xem chi tiết công nợ"
+                            >
+                                <Eye className="w-4 h-4" />
+                            </button>
+                            )}
+
+                            </div>
+                        </div>
+
+                        {i < transactions.length - 1 && <Separator />}
                         </div>
                     );
-                })}
+                    })}
+
             </div>
 
             <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
