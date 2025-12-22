@@ -75,7 +75,7 @@ const parseStars = (stars?: string | null): number => {
   if (!stars) return 0;
   const points = parseInt(stars, 10);
   if (Number.isNaN(points)) return 0;
-  const s = points / 2;
+  const s = points;
   return Math.max(1, Math.min(5, s));
 };
 
@@ -190,26 +190,44 @@ export default function ReviewsTab({ vendorId }: ReviewsTabProps) {
   const avgStars = useMemo(() => {
     if (!ratings.length) return 0;
     const sum = ratings.reduce((acc, r) => acc + parseStars(r.stars), 0);
-    return +(sum * 2/ ratings.length).toFixed(1);
+    return +(sum/ ratings.length).toFixed(1);
   }, [ratings]);
 
   const renderStars = (stars: number) => {
     return (
       <div className="flex items-center gap-0.5">
         {Array.from({ length: 5 }).map((_, idx) => {
-          const active = idx < stars;
+          const diff = stars - idx;
+
+          if (diff >= 1) {
+            return (
+              <Star
+                key={idx}
+                className="h-4 w-4 fill-yellow-400 text-yellow-400"
+              />
+            );
+          }
+
+          if (diff >= 0.5) {
+            return (
+              <div key={idx} className="relative h-4 w-4">
+                <Star className="absolute h-4 w-4 text-gray-300" />
+                <Star
+                  className="absolute h-4 w-4 fill-yellow-400 text-yellow-400"
+                  style={{ clipPath: "inset(0 50% 0 0)" }}
+                />
+              </div>
+            );
+          }
+
           return (
-            <Star
-              key={idx}
-              className={`h-4 w-4 ${
-                active ? "fill-yellow-400 text-yellow-400" : "text-gray-300"
-              }`}
-            />
+            <Star key={idx} className="h-4 w-4 text-gray-300" />
           );
         })}
       </div>
     );
   };
+
 
   const openReplyDialog = (rating: VendorRatingApi) => {
     setSelectedRating(rating);
@@ -277,7 +295,7 @@ export default function ReviewsTab({ vendorId }: ReviewsTabProps) {
               <div className="flex flex-col leading-tight text-xs text-muted-foreground">
                 <span>Điểm trung bình</span>
                 <span className="flex items-center gap-1">
-                  {renderStars(Math.round(avgStars))}
+                  {renderStars(avgStars)}
                 </span>
               </div>
             </div>
