@@ -339,7 +339,7 @@ export default function VendorWalletTab() {
                         <div>
                             <p className="text-sm text-muted-foreground mb-1">Số giao dịch</p>
                             <p className="text-xl font-semibold text-foreground">
-                                {totalTransaction}
+                                {totalTransaction?.toLocaleString('en-US')}
                             </p>
                         </div>
                         <div className="p-3 bg-primary/10 rounded-lg">
