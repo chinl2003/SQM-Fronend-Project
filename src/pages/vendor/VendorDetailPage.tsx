@@ -478,25 +478,25 @@ export default function VendorDetailPage() {
 
   const handleConfirmJoin = async () => {
     if (!vendor?.id || !customerId) {
-      toast.error("Thiếu thông tin quán hoặc khách hàng!");
+      toast.warning("Thiếu thông tin quán hoặc khách hàng!");
       return;
     }
     if (!queueId) {
-      toast.error("Không tìm thấy hàng đợi phù hợp cho quán này.");
+      toast.warning("Không tìm thấy hàng đợi phù hợp cho quán này.");
       return;
     }
 
     if (isPreOrderMode) {
       if (!pickupTime) {
-        toast.error("Vui lòng chọn thời gian nhận hàng.");
+        toast.warning("Vui lòng chọn thời gian nhận hàng.");
         return;
       }
       if (preOrderStart && pickupTime < preOrderStart) {
-        toast.error(`Thời gian nhận hàng phải sau ${preOrderStart}.`);
+        toast.warning(`Thời gian nhận hàng phải sau ${preOrderStart}.`);
         return;
       }
       if (preOrderEnd && pickupTime > preOrderEnd) {
-        toast.error(`Thời gian nhận hàng phải trước ${preOrderEnd}.`);
+        toast.warning(`Thời gian nhận hàng phải trước ${preOrderEnd}.`);
         return;
       }
     }
@@ -601,7 +601,7 @@ export default function VendorDetailPage() {
           return;
         }
 
-        toast.error(message);
+        toast.warning(message);
       }
 
     finally {
