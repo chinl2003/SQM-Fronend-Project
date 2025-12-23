@@ -12,6 +12,9 @@ import { Input } from "@/components/ui/input";
 import { api, ApiResponse } from "@/lib/api";
 import { toast } from "sonner";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { WithdrawDialog } from "@/pages/customer/components/WithdrawDialog";
+import { BankLinkDialog } from "@/pages/customer/components/BankLinkDialog";
+
 
 type WalletTransactionStatus = 0 | 1 | 2 | 3 | 4;
 type WalletTransactionType = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
@@ -112,6 +115,9 @@ export default function Wallet() {
   const [totalTransaction, setTotalTransaction] = useState(0);
   const location = useLocation();
   const navigate = useNavigate();
+  const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
+  const [isBankLinkOpen, setIsBankLinkOpen] = useState(false);
+
 
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(amount);
@@ -349,7 +355,7 @@ export default function Wallet() {
                 <div className="p-4 bg-white/10 rounded-2xl backdrop-blur-sm">
                   <CreditCard className="h-12 w-12 text-white" />
                 </div>
-                <div className="mt-4">
+                <div className="mt-4 flex gap-3">
                   <Dialog open={isTopupOpen} onOpenChange={setIsTopupOpen}>
                     <Button
                       className="bg-white text-primary"
@@ -358,10 +364,12 @@ export default function Wallet() {
                     >
                       Nạp tiền
                     </Button>
+
                     <DialogContent>
                       <DialogHeader>
                         <DialogTitle>Nạp tiền vào ví</DialogTitle>
                       </DialogHeader>
+
                       <div className="space-y-2">
                         <label className="text-sm font-medium">Số tiền</label>
                         <Input
@@ -370,12 +378,8 @@ export default function Wallet() {
                           onChange={handleTopupAmountChange}
                           className="text-lg"
                         />
-                        {topupAmount && (
-                          <p className="text-xs">
-                            Bạn đang nạp: <span className="font-semibold">{topupAmount} VND</span>
-                          </p>
-                        )}
                       </div>
+
                       <DialogFooter>
                         <Button variant="outline" onClick={() => setIsTopupOpen(false)}>
                           Hủy
@@ -386,7 +390,24 @@ export default function Wallet() {
                       </DialogFooter>
                     </DialogContent>
                   </Dialog>
+
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    onClick={() => setIsWithdrawOpen(true)}
+                  >
+                    Rút tiền
+                  </Button>
+
+                  <Button
+                    variant="secondary"
+                    size="lg"
+                    onClick={() => setIsBankLinkOpen(true)}
+                  >
+                    Liên kết ngân hàng
+                  </Button>
                 </div>
+
               </div>
             </div>
           </CardContent>
@@ -536,6 +557,23 @@ export default function Wallet() {
           </CardContent>
         </Card>
       </div>
+      <WithdrawDialog
+        open={isWithdrawOpen}
+        onOpenChange={setIsWithdrawOpen}
+        availableBalance={availableBalance}
+        walletId={walletId}
+        isVendor={false}
+        onSuccess={() => {  
+        }}
+      />
+
+      <BankLinkDialog
+        open={isBankLinkOpen}
+        isVendor={false}
+        onOpenChange={setIsBankLinkOpen}
+      />
+
+
     </div>
   );
 }
