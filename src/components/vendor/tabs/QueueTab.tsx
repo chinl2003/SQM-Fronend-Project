@@ -39,9 +39,10 @@ import { toast } from "sonner";
 
 type Props = {
   vendor?: { id?: string } | null;
+  reloadKey?: number;
 };
 
-export default function QueueTab({ vendor }: Props) {
+export default function QueueTab({ vendor, reloadKey }: Props) {
   const [liveCount, setLiveCount] = useState<number>(0);
   const [preCount, setPreCount] = useState<number>(0);
   const [loading, setLoading] = useState(false);
@@ -88,6 +89,13 @@ export default function QueueTab({ vendor }: Props) {
   useEffect(() => {
     loadAllQueues();
   }, [vendor?.id]);
+
+  // Reload when reloadKey changes (triggered by new order notification)
+  useEffect(() => {
+    if (reloadKey !== undefined && reloadKey > 0) {
+      loadAllQueues();
+    }
+  }, [reloadKey]);
 
   const badgeCls =
     "inline-flex items-center justify-center ml-2 min-w-[1.6rem] px-2 py-0.5 rounded-full text-xs font-semibold";

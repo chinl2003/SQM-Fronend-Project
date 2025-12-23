@@ -26,6 +26,7 @@ import VendorWalletTab from "./tabs/VendorWalletTab";
 import { Badge } from "@/components/ui/badge";
 import { HubConnectionBuilder, LogLevel, HubConnection, HttpTransportType } from "@microsoft/signalr";
 import { NotificationDialog } from "../NotificationDialog";
+import { useVendorOrderUpdates } from "@/hooks/useVendorOrderUpdates";
 
 type VendorFromApi = {
   id: string;
@@ -109,6 +110,22 @@ export default function VendorDashboard() {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [connection, setConnection] = useState<HubConnection | null>(null);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  const [queueReloadKey, setQueueReloadKey] = useState(0);
+
+  // Real-time order updates for vendor
+  const { newOrdersCount, resetNewOrdersCount } = useVendorOrderUpdates({
+    vendorId: vendor?.id || '',
+    enabled: !!vendor?.id,
+    playNotificationSound: true,
+    onNewOrder: () => {
+      // Trigger queue tab refresh
+      setQueueReloadKey(prev => prev + 1);
+    },
+    onOrderStatusChange: () => {
+      // Trigger queue tab refresh
+      setQueueReloadKey(prev => prev + 1);
+    }
+  });
 
   useEffect(() => {
     let mounted = true;
@@ -428,7 +445,7 @@ export default function VendorDashboard() {
           </TabsList>
 
           <TabsContent value="queue">
-            <QueueTab vendor={vendor} />
+            <QueueTab vendor={vendor} reloadKey={queueReloadKey} />
           </TabsContent>
 
           <TabsContent value="menu">

@@ -22,10 +22,9 @@ type SettingsAccountProps = {
 };
 
 export default function SettingsAccount({ vendorId }: SettingsAccountProps) {
-  const [isOpen, setIsOpen] = useState(true);
-  const [bufferMinutes, setBufferMinutes] = useState<number>(0);
-  const [shortThresholdMinutes, setShortThresholdMinutes] = useState<number>(0);
-  const [maxPrepMinutes, setMaxPrepMinutes] = useState<number>(0);
+  const [isOpen, setIsOpen] = useState(true); // trạng thái quán
+  const [bufferMinutes, setBufferMinutes] = useState<number | string>(10); // thời gian chênh lệch (phút)
+  const [shortThresholdMinutes, setShortThresholdMinutes] = useState<number | string>(3); // ngưỡng thời gian ngắn (phút)
   const [saving, setSaving] = useState(false);
   const [toggling, setToggling] = useState(false);
 
@@ -44,10 +43,17 @@ export default function SettingsAccount({ vendorId }: SettingsAccountProps) {
           headers
         );
 
-        const data = res.data;
-
-        if (typeof data?.bufferMinutes === "number") {
-          setBufferMinutes(data.bufferMinutes);
+        const payload = (res as any)?.data ?? res;
+        console.log(payload);
+        const data = payload;
+        console.log(data);
+        if (data) {
+          if (typeof data.bufferMinutes === "number") {
+            setBufferMinutes(data.bufferMinutes);
+          }
+          if (typeof data.shortThresholdMinutes === "number") {
+            setShortThresholdMinutes(data.shortThresholdMinutes);
+          }
         }
 
         if (typeof data?.shortThresholdMinutes === "number") {
@@ -102,25 +108,34 @@ export default function SettingsAccount({ vendorId }: SettingsAccountProps) {
     try {
       setSaving(true);
 
+      const bufferMins = Number(bufferMinutes);
+      const shortThresholdMins = Number(shortThresholdMinutes);
+
+      if (Number.isNaN(bufferMins)) {
+        toast.error("Vui lòng nhập số phút hợp lệ cho thời gian chênh lệch.");
+        return;
+      }
+
+      if (Number.isNaN(shortThresholdMins)) {
+        toast.error("Vui lòng nhập số phút hợp lệ cho ngưỡng thời gian ngắn.");
+        return;
+      }
+
       const token = localStorage.getItem("accessToken") || "";
       const headers = token
         ? { Authorization: `Bearer ${token}` }
         : undefined;
 
-      await Promise.all([
-        api.post<ApiResponse<any>>(
-          `/api/vendor/${vendorId}/eta-setting/buffer`,
-          { bufferMinutes },
-          headers
-        ),
-        api.post<ApiResponse<any>>(
-          `/api/vendor/${vendorId}/eta-setting/short-threshold`,
-          { shortThresholdMinutes },
-          headers
-        ),
-      ]);
+      await api.put<ApiResponse<any>>(
+        `/api/vendor/${vendorId}/eta-setting`,
+        {
+          bufferMinutes: bufferMins,
+          shortThresholdMinutes: shortThresholdMins
+        },
+        headers
+      );
 
-      toast.success("Đã lưu cấu hình thời gian của quán.");
+      toast.success("Đã lưu cấu hình ETA của quán.");
     } catch (err) {
       console.error(err);
       toast.error("Lưu cấu hình thất bại. Vui lòng thử lại.");
@@ -188,40 +203,78 @@ export default function SettingsAccount({ vendorId }: SettingsAccountProps) {
             </div>
           </section>
 
-          <section className="rounded-xl border border-emerald-100 bg-white/80 p-4 space-y-4">
+          {/* Section: Thời gian chênh lệch */}
+          <section className="rounded-xl border border-emerald-100 bg-white/80 p-4 shadow-[0_1px_4px_rgba(0,0,0,0.02)] space-y-4">
             <div className="flex items-start justify-between gap-4">
-              <Label className="flex items-center gap-2 font-semibold">
-                <Clock className="h-4 w-4 text-emerald-700" />
-                Thời gian chênh lệch của quán (phút)
-              </Label>
-              <Input
-                type="number"
-                className="w-24 text-right"
-                value={bufferMinutes}
-                onChange={(e) => setBufferMinutes(Number(e.target.value))}
-              />
+              <div className="space-y-1 flex-1">
+                <Label className="flex items-center gap-2 font-semibold">
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100">
+                    <Clock className="h-3 w-3 text-emerald-700" />
+                  </span>
+                  Thời gian chênh lệch của quán (phút)
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Dùng để bù trễ thực tế so với thời gian phục vụ dự kiến.
+                  Dữ liệu này giúp hệ thống dự đoán chính xác hơn thời gian nhận món của khách.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  className="w-24 text-right"
+                  value={bufferMinutes}
+                  onChange={(e) => setBufferMinutes(e.target.value)}
+                />
+                <span className="text-sm text-muted-foreground">phút</span>
+              </div>
             </div>
 
-            <div className="flex items-start justify-between gap-4">
-              <Label className="flex items-center gap-2 font-semibold">
-                <Clock className="h-4 w-4 text-emerald-700" />
-                Ngưỡng đơn ngắn (phút)
-              </Label>
-              <Input
-                type="number"
-                className="w-24 text-right"
-                value={shortThresholdMinutes}
-                onChange={(e) =>
-                  setShortThresholdMinutes(Number(e.target.value))
-                }
-              />
-            </div>
-
+            {/* Hint box */}
             <div className="flex items-start gap-2 rounded-lg border border-dashed border-emerald-100 bg-emerald-50/60 px-3 py-2.5">
               <Info className="mt-0.5 h-4 w-4 text-emerald-600" />
-              <p className="text-xs text-emerald-800">
-                Các giá trị này được dùng để hệ thống ước tính chính xác thời
-                gian hoàn thành đơn hàng.
+              <p className="text-xs leading-snug text-emerald-800">
+                Ví dụ: quán thường hoàn thành món{" "}
+                <span className="font-semibold">sớm hơn 5 phút</span> so với
+                dự kiến, bạn có thể nhập{" "}
+                <span className="font-semibold">5</span> thì thời gian dự kiến khách hàng nhận đơn sẽ được cộng thêm 5 phút.
+              </p>
+            </div>
+          </section>
+
+          {/* Section: Ngưỡng thời gian ngắn */}
+          <section className="rounded-xl border border-emerald-100 bg-white/80 p-4 shadow-[0_1px_4px_rgba(0,0,0,0.02)] space-y-4">
+            <div className="flex items-start justify-between gap-4">
+              <div className="space-y-1 flex-1">
+                <Label className="flex items-center gap-2 font-semibold">
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100">
+                    <Clock className="h-3 w-3 text-emerald-700" />
+                  </span>
+                  Ngưỡng thời gian ngắn (phút)
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Thời gian tối thiểu để đánh dấu đơn hàng có thời gian chờ ngắn.
+                  Hệ thống sẽ sử dụng giá trị này để phân loại đơn hàng.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  className="w-24 text-right"
+                  value={shortThresholdMinutes}
+                  onChange={(e) => setShortThresholdMinutes(e.target.value)}
+                />
+                <span className="text-sm text-muted-foreground">phút</span>
+              </div>
+            </div>
+
+            {/* Hint box */}
+            <div className="flex items-start gap-2 rounded-lg border border-dashed border-emerald-100 bg-emerald-50/60 px-3 py-2.5">
+              <Info className="mt-0.5 h-4 w-4 text-emerald-600" />
+              <p className="text-xs leading-snug text-emerald-800">
+                Ví dụ: nhập{" "}
+                <span className="font-semibold">3</span> phút nghĩa là các đơn hàng có thời gian chờ dưới 3 phút được xem là &quot;ngắn&quot;.
               </p>
             </div>
           </section>

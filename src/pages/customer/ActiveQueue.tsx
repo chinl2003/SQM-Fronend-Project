@@ -37,6 +37,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import orderHubService from "@/services/orderHub.service";
 
 type OrderRatingApi = {
   id: string;
@@ -435,36 +436,6 @@ const mapRatingFromOrder = (r: OrderRatingApi): RatingDto => {
   };
 };
 
-const handleForceCancelOrder = async (orderId: string) => {
-  try {
-    const token = localStorage.getItem("accessToken") || "";
-
-    await api.post(
-      `/api/order/${orderId}/force-cancel`,
-      null,
-      {
-        Authorization: `Bearer ${token}`,
-      }
-    );
-
-    toast({
-      title: "Hủy đơn hàng thành công",
-      description: "Đơn hàng đã được hủy.",
-    });
-
-    // reload danh sách
-    setReloadKey((prev) => prev + 1);
-  } catch (error: any) {
-    console.error(error);
-    toast({
-      title: "Hủy đơn hàng thất bại",
-      description:
-        error?.response?.data?.message || "Vui lòng thử lại sau.",
-      variant: "destructive",
-    });
-  }
-};
-
 function mapOrderToQueueItem(
   o: OrderWithDetailsDto,
   vendor?: VendorMini
@@ -567,6 +538,7 @@ export default function ActiveQueue() {
   const [statusTab, setStatusTab] = useState<StatusTab>("pending");
   const [activeQueues, setActiveQueues] = useState<QueueItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [cancelLoading, setCancelLoading] = useState(false);
   const [selectedQueueItem, setSelectedQueueItem] = useState<QueueItem | null>(
     null
   );
@@ -589,6 +561,7 @@ export default function ActiveQueue() {
 
   const handleForceCancelOrder = async (orderId: string) => {
     try {
+      setCancelLoading(true);
       const token = localStorage.getItem("accessToken") || "";
 
       await api.post(
@@ -613,6 +586,8 @@ export default function ActiveQueue() {
           error?.response?.data?.message || "Vui lòng thử lại.",
         variant: "destructive",
       });
+    } finally {
+      setCancelLoading(false);
     }
   };
 
@@ -684,6 +659,48 @@ export default function ActiveQueue() {
       mounted = false;
     };
   }, [mainTab, statusTab, reloadKey]);
+
+  // Real-time order updates via SignalR
+  useEffect(() => {
+    const userId = localStorage.getItem("userId");
+    if (!userId) return;
+
+    const setupRealTimeUpdates = async () => {
+      try {
+        await orderHubService.startConnection();
+
+        //Subscribe to customer's all orders
+        await orderHubService.joinCustomerOrders(userId);
+
+        // Listen for order status changes
+        orderHubService.onOrderStatusChanged((event) => {
+          console.log(" Order status updated:", event);
+
+          // Reload orders to reflect changes
+          setReloadKey(prev => prev + 1);
+        });
+
+        // Listen for order delays
+        orderHubService.onOrderDelayed((event) => {
+          console.log("⚠️ Order delayed:", event);
+          setReloadKey(prev => prev + 1);
+        });
+
+        console.log("✅ Real-time order updates connected");
+      } catch (error) {
+        console.error("Failed to setup real-time updates:", error);
+      }
+    };
+
+    setupRealTimeUpdates();
+
+    return () => {
+      if (userId) {
+        orderHubService.leaveCustomerOrders(userId);
+      }
+      orderHubService.removeAllHandlers();
+    };
+  }, []);
 
   const handleCancelOrder = (queueId: string) => {
     setActiveQueues((prev) => prev.filter((item) => item.id !== queueId));
@@ -899,7 +916,7 @@ export default function ActiveQueue() {
                       </Button> */}
 
                       {/* Ẩn Hủy & Cập nhật ở tab Đã xác nhận và Đang chế biến */}
-                      {queueItem.canUpdate &&
+                      {/* {queueItem.canUpdate &&
                         statusTab !== "confirmed" &&
                         statusTab !== "preparing" &&
                         statusTab !== "ready" && (
@@ -914,7 +931,7 @@ export default function ActiveQueue() {
                             <Edit className="h-3 w-3 mr-1" />
                             Cập nhật
                           </Button>
-                        )}
+                        )} */}
 
                       {queueItem.canCancel &&
                         statusTab !== "confirmed" &&
@@ -1126,8 +1143,9 @@ export default function ActiveQueue() {
           <CancelConfirmDialog
             isOpen={showCancelDialog}
             onClose={() => setShowCancelDialog(false)}
-            onConfirm={() => handleCancelOrder(selectedQueueItem.id)}
+            onConfirm={() => handleForceCancelOrder(selectedQueueItem.id)}
             queueItem={selectedQueueItem}
+            isLoading={cancelLoading}
           />
 
           <VendorReviewDialog
