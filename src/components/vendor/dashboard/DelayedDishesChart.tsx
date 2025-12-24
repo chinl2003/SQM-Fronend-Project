@@ -88,7 +88,7 @@ export function DelayedDishesChart({ items, loading }: { items?: MenuItemEtaAccu
           <BarChart data={data} layout="vertical" margin={{ top: 0, right: 20, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(40, 20%, 88%)" horizontal={true} vertical={false} />
             <XAxis type="number" domain={[0, Math.max(50, ...data.map(d => d.delayRate))]} axisLine={false} tickLine={false} tick={{ fill: "hsl(25, 15%, 45%)", fontSize: 12 }} tickFormatter={(value) => `${value}%`} />
-            <YAxis type="category" dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "hsl(25, 15%, 45%)", fontSize: 12 }} width={120} />
+            <YAxis type="category" dataKey="name"  interval={0} axisLine={false} tickLine={false} tick={{ fill: "hsl(25, 15%, 45%)", fontSize: 12 }} width={120} />
             <Tooltip content={<CustomTooltip />} cursor={{ fill: "hsl(40, 20%, 92%)" }} />
             <Bar dataKey="delayRate" radius={[0, 4, 4, 0]} barSize={22}>
               {data.map((entry, index) => (
