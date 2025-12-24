@@ -304,7 +304,7 @@ export default function Wallet() {
       <div className="w-full px-4 py-8">
         <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground mb-2">Ví của tôi</h1>
+            <h1 className="text-3xl font-bold text-foreground mb-2">Ví của bạn</h1>
             <p className="text-muted-foreground">Quản lý số dư và lịch sử giao dịch</p>
           </div>
 
@@ -412,54 +412,6 @@ export default function Wallet() {
             </div>
           </CardContent>
         </Card>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm mb-1">Tổng nạp</p>
-                  <p className="text-2xl font-bold text-green-600">
-                    {formatCurrency(totalIn)}
-                  </p>
-                </div>
-                <div className="p-3 bg-green-200 rounded-lg">
-                  <ArrowDownLeft className="h-6 w-6 text-green-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm mb-1">Tổng chi tiêu</p>
-                  <p className="text-2xl font-bold text-red-600">
-                    {formatCurrency(totalOut)}
-                  </p>
-                </div>
-                <div className="p-3 bg-red-200 rounded-lg">
-                  <ArrowUpRight className="h-6 w-6 text-red-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm mb-1">Giao dịch</p>
-                  <p className="text-2xl font-bold">{totalTransaction}</p>
-                </div>
-                <div className="p-3 bg-primary/20 rounded-lg">
-                  <Clock className="h-6 w-6 text-primary" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
 
         <Card>
           <CardHeader>

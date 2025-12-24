@@ -106,6 +106,7 @@ export function VendorRegisterDialog({
   const [banksError, setBanksError] = useState<string | null>(null);
   const [registrationFee, setRegistrationFee] = useState<number | null>(null);
 const [loadingFee, setLoadingFee] = useState(false);
+const isFeeReady = registrationFee !== null;
 
   const [selectedBankBin, setSelectedBankBin] = useState<string>("");
   const [bankAccount, setBankAccount] = useState<string>("");
@@ -131,7 +132,7 @@ const [loadingFee, setLoadingFee] = useState(false);
 
   const [paymentMethod, setPaymentMethod] = useState<"vnpay">("vnpay");
   const [submitting, setSubmitting] = useState(false);
-
+  const REGISTER_FEE = 500_000;
   const [checkingBalance, setCheckingBalance] = useState(false);
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
@@ -177,23 +178,17 @@ const [loadingFee, setLoadingFee] = useState(false);
 
   (async () => {
     try {
-      setLoadingFee(true);
-
       const token = localStorage.getItem("accessToken") || "";
       const headers: Record<string, string> = {};
       if (token) headers.Authorization = `Bearer ${token}`;
 
       const res = await api.get("/api/systemSetting", headers);
-      const data = res;
 
-      if (!cancelled && typeof data?.registrationFee === "number") {
-        setRegistrationFee(data.registrationFee);
+      if (!cancelled && typeof res?.registrationFee === "number") {
+        setRegistrationFee(res.registrationFee);
       }
-    } catch (err) {
-      console.error(err);
-      toast.error("Không tải được phí đăng ký quán");
-    } finally {
-      if (!cancelled) setLoadingFee(false);
+    } catch {
+      toast.error("Không tải được phí đăng ký");
     }
   })();
 
@@ -1091,7 +1086,7 @@ const [loadingFee, setLoadingFee] = useState(false);
                       Phí đăng ký cần thanh toán:
                     </span>
                     <span className="font-semibold text-emerald-700 text-right">
-                      {REGISTER_FEE.toLocaleString("vi-VN")} VND
+                      {registrationFee?.toLocaleString("vi-VN")} VND
                     </span>
 
                     <span className="text-muted-foreground">

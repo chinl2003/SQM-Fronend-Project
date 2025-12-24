@@ -467,51 +467,6 @@ const debtTransactions = useMemo(
                     </div>
                 </CardContent>
             </Card>
-
-            {/* Thống kê nhanh */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card className="shadow-sm">
-                    <CardContent className="p-5 flex items-center justify-between">
-                        <div>
-                            <p className="text-sm text-muted-foreground mb-1">Tổng tiền nhận</p>
-                            <p className="text-xl font-semibold text-emerald-600">
-                                {formatCurrency(totalInApi)}
-                            </p>
-                        </div>
-                        <div className="p-3 bg-emerald-50 rounded-lg">
-                            <ArrowDownLeft className="h-5 w-5 text-emerald-600" />
-                        </div>
-                    </CardContent>
-                </Card>
-
-                <Card className="shadow-sm">
-                    <CardContent className="p-5 flex items-center justify-between">
-                        <div>
-                            <p className="text-sm text-muted-foreground mb-1">Tổng tiền chi</p>
-                            <p className="text-xl font-semibold text-rose-600">
-                                {formatCurrency(Math.abs(totalOutApi))}
-                            </p>
-                        </div>
-                        <div className="p-3 bg-rose-50 rounded-lg">
-                            <ArrowUpRight className="h-5 w-5 text-rose-600" />
-                        </div>
-                    </CardContent>
-                </Card>
-
-                <Card className="shadow-sm">
-                    <CardContent className="p-5 flex items-center justify-between">
-                        <div>
-                            <p className="text-sm text-muted-foreground mb-1">Số giao dịch</p>
-                            <p className="text-xl font-semibold text-foreground">
-                                {totalTransactionApi?.toLocaleString('en-US')}
-                            </p>
-                        </div>
-                        <div className="p-3 bg-primary/10 rounded-lg">
-                            <Clock className="h-5 w-5 text-primary" />
-                        </div>
-                    </CardContent>
-                </Card>
-            </div>
             <WithdrawDialog
                     open={isWithdrawOpen}
                     onOpenChange={setIsWithdrawOpen}
