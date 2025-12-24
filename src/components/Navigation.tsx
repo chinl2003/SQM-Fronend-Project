@@ -303,12 +303,6 @@ export function Navigation({
             </div>
           )}
 
-          {/* Location */}
-          <div className="hidden md:flex items-center space-x-2 text-sm">
-            <MapPin className="h-4 w-4 text-muted-foreground" />
-            <span className="text-foreground">Vị trí hiện tại</span>
-          </div>
-
           {/* Action buttons */}
           <div className="flex items-center space-x-2">
             {(userType === "customer" || userType === "guest") && (

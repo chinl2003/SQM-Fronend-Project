@@ -13,9 +13,27 @@ import {
 } from "lucide-react";
 import { api, ApiResponse } from "@/lib/api";
 import { toast } from "sonner";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { List } from "lucide-react";
 
+type LinkedBank = {
+  id: string;
+  bankName: string;
+  bankCode: string;
+  accountNumber: string;
+  accountHolder: string;
+  isDefault: boolean;
+};
 type WalletTransactionStatus = 0 | 1 | 2 | 3 | 4;
 type WalletTransactionType = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+type PublicBank = {
+  id: number;
+  name: string;
+  code: string;
+  shortName: string;
+  logo: string;
+};
 
 type TransactionResponseDto = {
     id?: string | null;
@@ -71,7 +89,51 @@ type WalletInfoDto = {
     totalTransaction: number | 0;
 };
 
+type WithdrawRequestDto = {
+  transactionId: string;
+  amount: number;
+  date: string;
+  requesterName: string;
+  requesterType: "User" | "Vendor";
+  vendorName?: string;
+  status: number;
+  bankName: string;
+};
+
+
+
 type WalletInfoApiResponse = ApiResponse<WalletInfoDto>;
+
+function normalizeText(text: string) {
+  return text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function getBankLogoByName(
+  bankName?: string,
+  banks?: PublicBank[]
+) {
+  if (!bankName || !banks?.length) return null;
+
+  const normalized = normalizeText(bankName);
+
+  return (
+    banks.find((b) => {
+      const name = normalizeText(b.name);
+      const shortName = normalizeText(b.shortName);
+      const code = normalizeText(b.code);
+
+      return (
+        normalized.includes(name) ||
+        normalized.includes(shortName) ||
+        normalized.includes(code)
+      );
+    })?.logo ?? null
+  );
+}
+
 
 function mapType(t?: WalletTransactionType | null): Transaction["type"] {
     switch (t) {
@@ -128,6 +190,59 @@ export default function VendorWalletTab() {
     const [totalPages, setTotalPages] = useState(1);
     const [totalRecords, setTotalRecords] = useState(0);
     const [isIncome, setIsIncome] = useState(true);
+    type PublicBank = {
+        id: number;
+        name: string;
+        code: string;
+        shortName: string;
+        logo: string;
+    };
+
+    const [publicBanks, setPublicBanks] = useState<PublicBank[]>([]);
+
+    function normalizeText(text: string) {
+  return text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+    function getBankLogoByName(
+    bankName?: string,
+    banks?: PublicBank[]
+    ) {
+    if (!bankName || !banks?.length) return null;
+
+    const normalized = normalizeText(bankName);
+
+    return (
+        banks.find((b) => {
+        const name = normalizeText(b.name);
+        const shortName = normalizeText(b.shortName);
+        const code = normalizeText(b.code);
+
+        return (
+            normalized.includes(name) ||
+            normalized.includes(shortName) ||
+            normalized.includes(code)
+        );
+        })?.logo ?? null
+    );
+    }
+
+
+    useEffect(() => {
+        const loadBanks = async () => {
+            const res = await fetch(
+            import.meta.env.VITE_PUBLIC_BANK_API ??
+            "https://api.vietqr.io/v2/banks"
+        );
+            const json = await res.json();
+            setPublicBanks(json?.data ?? []);
+        };
+        loadBanks();
+    }, []);
+
     useEffect(() => {
         const load = async () => {
             if (!userId) return;
@@ -358,6 +473,23 @@ export default function VendorWalletTab() {
                                 Phân loại theo dòng tiền vào / ra ví
                             </CardDescription>
                         </div>
+
+                        <Dialog>
+                            <DialogTrigger asChild>
+                            <Button variant="outline" size="sm" className="gap-2">
+                                <List className="h-4 w-4" />
+                                Danh sách yêu cầu rút tiền
+                            </Button>
+                            </DialogTrigger>
+
+                            <DialogContent className="max-w-3xl">
+                            <DialogHeader>
+                                <DialogTitle>Yêu cầu rút tiền của khách hàng</DialogTitle>
+                            </DialogHeader>
+
+                            <WithdrawRequestList publicBanks={publicBanks} />   
+                            </DialogContent>
+                        </Dialog>
                     </div>
 
                     <Tabs
@@ -425,6 +557,184 @@ interface TransactionListProps {
     onNext: () => void;
     showSummary?: boolean;
 }
+
+const updateStatus = async (id: string, isApproved: boolean) => {
+    try {
+        await api.post("/api/walletTransaction/require/update-status", {
+            id,
+            isApproved
+        });
+
+        toast.success(
+            isApproved ? "Đã duyệt yêu cầu rút tiền" : "Đã từ chối yêu cầu"
+        );
+    } catch (err) {
+        toast.error("Cập nhật trạng thái thất bại");
+    }
+};
+
+
+function WithdrawRequestList({
+  publicBanks,
+}: {
+  publicBanks: PublicBank[];
+})  {
+    const [data, setData] = useState<WithdrawRequestDto[]>([]);
+    const [loading, setLoading] = useState(false);
+
+    const [page, setPage] = useState(1);
+    const [pageSize] = useState(5);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalRecords, setTotalRecords] = useState(0);
+
+    const load = async (pageNumber = page) => {
+        try {
+            setLoading(true);
+            const token = localStorage.getItem("accessToken") || "";
+            const headers: Record<string, string> = {};
+            if (token) headers.Authorization = `Bearer ${token}`;
+
+            const res = await api.get<ApiResponse<any>>(
+                `/api/wallet/require?pageNumber=${pageNumber}&pageSize=${pageSize}`,
+                headers
+            );
+
+            const payload = res.data;
+
+            setData(payload?.data ?? []);
+            setTotalPages(payload?.totalPages ?? 1);
+            setTotalRecords(payload?.totalRecords ?? 0);
+            setPage(pageNumber);
+        } catch (err) {
+            console.error(err);
+            toast.error("Không tải được danh sách yêu cầu rút tiền.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        load(1);
+    }, []);
+
+    if (loading) {
+        return <p className="text-sm text-muted-foreground">Đang tải...</p>;
+    }
+
+    if (!data.length) {
+        return <p className="text-sm text-muted-foreground">Không có yêu cầu rút tiền.</p>;
+    }
+
+    return (
+        <div className="space-y-4">
+            {/* HEADER ACTION */}
+            <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">
+                    Tổng {totalRecords} yêu cầu
+                </p>
+            </div>
+
+            {/* LIST */}
+            {data.map((r, i) => {
+  const logo = getBankLogoByName(r.bankName, publicBanks);
+
+  return (
+    <div key={r.transactionId}>
+      <div className="flex items-start justify-between gap-4">
+
+        <div className="flex items-start gap-3 flex-1">
+          {logo && (
+            <img
+              src={logo}
+              alt={r.bankName}
+              className="h-10 w-10 rounded bg-white object-contain p-1 border"
+            />
+          )}
+
+           <div>
+                <p className="font-medium">
+                    {r.bankName}
+                </p>
+
+                <p className="text-xs text-muted-foreground">
+                    {r.requesterType}
+                </p>
+
+                {r.vendorName && (
+                    <p className="text-xs text-muted-foreground">
+                    {r.vendorName}
+                    </p>
+                )}
+
+                <p className="text-xs text-muted-foreground mt-1">
+                    <Clock className="inline h-3 w-3 mr-1" />
+                    {new Date(r.date).toLocaleString("vi-VN")}
+                </p>
+            </div>
+
+        </div>
+
+        <div className="text-right space-y-2">
+          <p className="font-semibold text-rose-600">
+            -{formatCurrency(r.amount)}
+          </p>
+
+          <Badge variant="secondary">Chờ duyệt</Badge>
+
+          <div className="flex gap-2 justify-end">
+            <Button size="sm" onClick={() => updateStatus(r.transactionId, true)}>
+              Duyệt
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={() => updateStatus(r.transactionId, false)}
+            >
+              Từ chối
+            </Button>
+          </div>
+        </div>
+
+      </div>
+
+      {i < data.length - 1 && <Separator className="mt-3" />}
+    </div>
+  );
+})}
+
+
+            {/* PAGINATION */}
+            <div className="pt-4 flex items-center justify-between">
+                <p className="text-xs text-muted-foreground">
+                    Trang {page}/{totalPages}
+                </p>
+
+                <div className="flex gap-2">
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={page <= 1}
+                        onClick={() => load(page - 1)}
+                    >
+                        Trang trước
+                    </Button>
+
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={page >= totalPages}
+                        onClick={() => load(page + 1)}
+                    >
+                        Trang sau
+                    </Button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+
+
 
 function TransactionList({
     transactions,

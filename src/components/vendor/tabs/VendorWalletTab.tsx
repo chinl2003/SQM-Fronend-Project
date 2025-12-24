@@ -265,6 +265,8 @@ export default function VendorWalletTab({ vendor }: VendorWalletTabProps) {
                 const avail = Number(
                     info.availableBalance ?? info.AvailableBalance ?? info.balance - held
                 );
+
+                setHeldBalance(Number(info.heldBalance ?? info.heldBalance ?? 0));
                 setTotalInApi(Number(info.totalIn ?? info.TotalIn ?? 0));
                 setTotalOutApi(Number(info.totalOut ?? info.TotalOut ?? 0));
                 setTotalTransaction(Number(info.totalTransaction ?? info.totalTransaction ?? 0));

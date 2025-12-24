@@ -158,7 +158,7 @@ export function WithdrawDialog({
     try {
       setSubmitting(true);
 
-      await withdrawWallet(walletId, numericAmount);
+      await withdrawWallet(walletId, numericAmount, selectedBank);
 
       toast.success("Yêu cầu rút tiền đã được gửi");
       onOpenChange(false);
@@ -172,11 +172,12 @@ export function WithdrawDialog({
 
     const withdrawWallet = async (
         walletId: string,
-        amount: number
+        amount: number,
+        bank: LinkedBank
         ) => {
         return api.post(
             `/api/WalletTransaction/withdraw/${walletId}`,
-            { amount, isVendor }
+            { amount, isVendor, bankName: bank.bankName, }
         );
     };
 
