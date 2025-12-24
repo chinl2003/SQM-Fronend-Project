@@ -510,8 +510,8 @@ export default function VendorDetailPage() {
     const paymentMethodEnumValue = isPreOrderMode
       ? 1
       : paymentMethod === "WALLET"
-      ? 1
-      : 2;
+        ? 1
+        : 2;
 
     const preOrderPosition = isPreOrderMode
       ? preOrderPositionMax + 1
@@ -534,9 +534,8 @@ export default function VendorDetailPage() {
       const token = localStorage.getItem("accessToken") || "";
       const url = isPreOrderMode
         ? "/api/order/preorder-checkout"
-        : `/api/order/checkout${
-            queueId ? `?queueId=${encodeURIComponent(queueId)}` : ""
-          }`;
+        : `/api/order/checkout${queueId ? `?queueId=${encodeURIComponent(queueId)}` : ""
+        }`;
 
       const checkoutRes = await api.post<ApiResponse<OrderCheckoutResponse>>(
         url,
@@ -589,25 +588,25 @@ export default function VendorDetailPage() {
       toast.success("Tham gia hàng đợi thành công!");
     } catch (e: any) {
 
-        const message =
-          typeof e?.message === "string"
-            ? e.message
-            : "Tạo đơn hàng thất bại.";
+      const message =
+        typeof e?.message === "string"
+          ? e.message
+          : "Tạo đơn hàng thất bại.";
 
-            console.log("message", message);
-        if (message.includes("Ví không đủ tiền")) {
-          setInsufficientBalanceMessage(message);
-          setInsufficientBalanceOpen(true);
-          return;
-        }
-
-        toast.warning(message);
+      console.log("message", message);
+      if (message.includes("Ví không đủ tiền")) {
+        setInsufficientBalanceMessage(message);
+        setInsufficientBalanceOpen(true);
+        return;
       }
 
+      toast.warning(message);
+    }
+
     finally {
-          setSubmitting(false);
-        }
-      };
+      setSubmitting(false);
+    }
+  };
 
   const renderStars = (rating: number) => (
     <div className="flex items-center gap-0.5">
@@ -814,87 +813,87 @@ export default function VendorDetailPage() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
               {ratings.map((r) => {
-  const numericStars =
-    typeof r.stars === "string"
-      ? parseFloat(r.stars) || 0
-      : r.stars ?? 0;
+                const numericStars =
+                  typeof r.stars === "string"
+                    ? parseFloat(r.stars) || 0
+                    : r.stars ?? 0;
 
-  const imageList = !r.imageUrls
-    ? []
-    : Array.isArray(r.imageUrls)
-    ? r.imageUrls
-    : String(r.imageUrls)     
-        .split(";")
-        .map((x) => x.trim())
-        .filter(Boolean);
+                const imageList = !r.imageUrls
+                  ? []
+                  : Array.isArray(r.imageUrls)
+                    ? r.imageUrls
+                    : String(r.imageUrls)
+                      .split(";")
+                      .map((x) => x.trim())
+                      .filter(Boolean);
 
-  return (
-    <div
-      key={r.id}
-      className="rounded-2xl border bg-background/80 shadow-sm p-3 md:p-4 flex flex-col gap-2"
-    >
-      <div className="flex items-start gap-3">
-        <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center overflow-hidden text-sm font-semibold text-emerald-700 shrink-0">
-          {(r.customerName?.[0] || "?").toUpperCase()}
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between gap-2">
-            <div className="truncate font-medium text-sm">
-              {r.customerName || "Khách hàng ẩn danh"}
-            </div>
-            {renderStars(numericStars)}
-          </div>
-          {r.createdTime && (
-            <div className="text-[11px] text-muted-foreground mt-0.5">
-              {fmtTime(r.createdTime)}
-            </div>
-          )}
-          <p className="text-xs md:text-sm text-foreground mt-1 whitespace-pre-line">
-            {r.comment || "Không có nội dung đánh giá."}
-          </p>
+                return (
+                  <div
+                    key={r.id}
+                    className="rounded-2xl border bg-background/80 shadow-sm p-3 md:p-4 flex flex-col gap-2"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center overflow-hidden text-sm font-semibold text-emerald-700 shrink-0">
+                        {(r.customerName?.[0] || "?").toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="truncate font-medium text-sm">
+                            {r.customerName || "Khách hàng ẩn danh"}
+                          </div>
+                          {renderStars(numericStars)}
+                        </div>
+                        {r.createdTime && (
+                          <div className="text-[11px] text-muted-foreground mt-0.5">
+                            {fmtTime(r.createdTime)}
+                          </div>
+                        )}
+                        <p className="text-xs md:text-sm text-foreground mt-1 whitespace-pre-line">
+                          {r.comment || "Không có nội dung đánh giá."}
+                        </p>
 
-          {imageList.length > 0 && (
-            <div className="mt-2 flex gap-2">
-              {imageList.slice(0, 3).map((img, idx) => (
-                <div
-                  key={idx}
-                  className="relative w-14 h-14 rounded-lg overflow-hidden bg-muted"
-                >
-                  <img
-                    src={buildMediaUrl(img)}
-                    alt={`Review ${idx + 1}`}
-                    className="w-full h-full object-cover"
-                  />
-                  {idx === 2 && imageList.length > 3 && (
-                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center text-[11px] text-white font-medium">
-                      +{imageList.length - 3}
+                        {imageList.length > 0 && (
+                          <div className="mt-2 flex gap-2">
+                            {imageList.slice(0, 3).map((img, idx) => (
+                              <div
+                                key={idx}
+                                className="relative w-14 h-14 rounded-lg overflow-hidden bg-muted"
+                              >
+                                <img
+                                  src={buildMediaUrl(img)}
+                                  alt={`Review ${idx + 1}`}
+                                  className="w-full h-full object-cover"
+                                />
+                                {idx === 2 && imageList.length > 3 && (
+                                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center text-[11px] text-white font-medium">
+                                    +{imageList.length - 3}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {r.replies && r.replies.length > 0 && (
+                          <div className="mt-2 space-y-1 border-t pt-2">
+                            {r.replies.map((rep) => (
+                              <div
+                                key={rep.id}
+                                className="text-xs text-muted-foreground"
+                              >
+                                <span className="font-semibold">
+                                  {rep.senderName || "Quán"}:
+                                </span>{" "}
+                                {rep.content}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {r.replies && r.replies.length > 0 && (
-            <div className="mt-2 space-y-1 border-t pt-2">
-              {r.replies.map((rep) => (
-                <div
-                  key={rep.id}
-                  className="text-xs text-muted-foreground"
-                >
-                  <span className="font-semibold">
-                    {rep.senderName || "Quán"}:
-                  </span>{" "}
-                  {rep.content}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-})}
+                  </div>
+                );
+              })}
 
             </div>
           )}
@@ -1168,15 +1167,15 @@ export default function VendorDetailPage() {
                     {etaLoading
                       ? "Đang tính..."
                       : eta?.estimatedWaitMinutes != null
-                      ? `${eta.estimatedWaitMinutes} phút`
-                      : "—"}
+                        ? `${eta.estimatedWaitMinutes} phút`
+                        : "—"}
                   </div>
                 </div>
               ) : (
                 <div className="mt-3 space-y-2 text-sm">
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">
-                      Thời gian cho phép đặt trước
+                      Khung thời gian nhận đơn
                     </span>
                     <span className="font-medium">
                       {preOrderStart && preOrderEnd
@@ -1304,8 +1303,8 @@ export default function VendorDetailPage() {
                 {submitting
                   ? "Đang xử lý..."
                   : isPreOrderMode
-                  ? "Xác nhận đặt trước"
-                  : "Xác nhận"}
+                    ? "Xác nhận đặt trước"
+                    : "Xác nhận"}
               </Button>
             </div>
           </div>
@@ -1350,7 +1349,7 @@ export default function VendorDetailPage() {
                     : "—"}
                 </span>
               </div>
-              
+
               <div className="flex items-center justify-between">
                 <span className="font-semibold">Thời gian chờ quán chế biến</span>
                 <span>~

@@ -510,7 +510,7 @@ function mapOrderToQueueItem(
     paymentMethod: o.paymentMethod === 1 ? "vnpay" : "cash",
     paymentStatus,
     orderTime: o.createdAt || new Date().toISOString(),
-    canCancel: !["completed", "cancelled"].includes(uiStatus),
+    canCancel: !["completed", "cancelled"].includes(uiStatus) && !o.queueEntryPreOrder,
     canUpdate: ["pending", "confirmed"].includes(uiStatus),
     estimatedWaitTimeRaw,
     estimatedServeTimeRaw: estimatedServeTime,
