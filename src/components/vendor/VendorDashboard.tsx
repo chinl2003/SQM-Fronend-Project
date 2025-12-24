@@ -275,8 +275,20 @@ export default function VendorDashboard() {
     [vendor, vendorInfo]
   );
 
-  const markAllNotificationsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  const markAllNotificationsRead = async () => {
+    try {
+      const token = localStorage.getItem("accessToken") || "";
+      await api.put("/api/notification/mark-all-read", null, {
+        Authorization: `Bearer ${token}`,
+      });
+
+      // Update local state after successful API call
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+      toast.success("Đã đánh dấu tất cả thông báo là đã đọc");
+    } catch (error) {
+      console.error("Failed to mark notifications as read", error);
+      toast.error("Không thể đánh dấu thông báo");
+    }
   };
 
   return (

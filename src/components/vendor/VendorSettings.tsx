@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,10 +31,39 @@ import {
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { toast } from "sonner";
+import { api } from "@/lib/api";
 
 const VendorSettings = () => {
+  useEffect(() => {
+  const loadRegistrationFee = async () => {
+    try {
+      setLoadingFee(true);
+
+      const token = localStorage.getItem("accessToken") || "";
+      const headers: Record<string, string> = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      const res = await api.get("/api/systemSetting", headers);
+      const data = res;
+
+      if (data?.registrationFee !== undefined) {
+        setRegistrationFee(data.registrationFee);
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error("Không tải được phí đăng ký quán");
+    } finally {
+      setLoadingFee(false);
+    }
+  };
+
+  loadRegistrationFee();
+}, []);
   const [registrationStatus, setRegistrationStatus] = useState<'pending' | 'approved' | 'rejected'>('pending');
   const [preOrderEnabled, setPreOrderEnabled] = useState(false);
+  const [registrationFee, setRegistrationFee] = useState<number | null>(null);
+  const [loadingFee, setLoadingFee] = useState(false);
   const [slots, setSlots] = useState([
     { id: 1, timeFrom: '09:00', timeTo: '12:00', maxQueue: 20 },
     { id: 2, timeFrom: '13:00', timeTo: '18:00', maxQueue: 30 }
@@ -56,7 +85,7 @@ const VendorSettings = () => {
       ]
     }
   ]);
-
+  
   const addSlot = () => {
     const newSlot = {
       id: slots.length + 1,
@@ -273,22 +302,25 @@ const VendorSettings = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="text-sm font-medium">Phí đăng ký lần đầu:</Label>
-                  <p className="text-lg font-bold text-green-600">500,000 VND</p>
-                </div>
-                <div>
-                  <Label className="text-sm font-medium">Phí hàng tháng:</Label>
-                  <p className="text-lg font-bold text-blue-600">200,000 VND/tháng</p>
+                  <p className="text-lg font-bold text-green-600">{loadingFee
+                    ? "Đang tải..."
+                    : registrationFee !== null
+                      ? `${registrationFee.toLocaleString("en-US")} VND`
+                      : ""}</p>
                 </div>
               </div>
 
               <Alert>
                 <AlertTriangle className="h-4 w-4" />
                 <AlertDescription className="text-sm">
-                  <strong>Quy định thanh toán:</strong><br/>
-                  • Thời hạn: Trước ngày 30 mỗi tháng<br/>
-                  • Chậm thanh toán: Shop bị khóa và không hoàn lại phí thuê slot<br/>
-                  • Phí phạt mở lại: 50% phí thuê slot + số tiền nợ tháng trước<br/>
-                  • Yêu cầu đóng shop: Phải tạo yêu cầu trước 1 tháng
+                  <strong>Quy định thanh toán:</strong>
+                      <br />
+                      • Thời hạn: Theo công nợ từ hệ thống gửi mỗi tháng qua mail
+                      <br />
+                      • Chậm thanh toán: Quán của bạn sẽ bị khóa 
+                      <br />
+                      • Phí phạt mở lại: 50% phí đăng kí + số tiền nợ tháng
+                      trước
                 </AlertDescription>
               </Alert>
 

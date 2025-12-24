@@ -19,6 +19,8 @@ import { toast } from "sonner";
 const SystemSettings = () => {
 
   const [commissionRate, setCommissionRate] = useState<number | null>(null);
+  const [registrationFee, setRegistrationFee] = useState<number | null>(null);
+  const [registrationFeeDisplay, setRegistrationFeeDisplay] = useState("");
   const [loadingSettings, setLoadingSettings] = useState(false);
   const [hasSetting, setHasSetting] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -56,6 +58,10 @@ const SystemSettings = () => {
 
         if (data) {
           setCommissionRate(data.commissionRate);
+          setRegistrationFee(data.registrationFee);
+           setRegistrationFeeDisplay(
+            data.registrationFee?.toLocaleString("en-US") ?? ""
+          );
           setHasSetting(true);
         } else {
           setCommissionRate(null);
@@ -72,9 +78,23 @@ const SystemSettings = () => {
     loadSystemSettings();
   }, []);
 
+  const formatNumber = (value: number | null) => {
+    if (value === null) return "";
+    return value.toLocaleString("en-US");
+  };
+
+  const parseNumber = (value: string) => {
+    return Number(value.replace(/,/g, ""));
+  };
+
   const handleSaveSettings = async () => {
     if (commissionRate === null || commissionRate < 0) {
       toast.error("Tỷ lệ hoa hồng không hợp lệ");
+      return;
+    }
+
+    if (registrationFee === null || registrationFee < 0) {
+      toast.error("Phí đăng ký quán không hợp lệ");
       return;
     }
 
@@ -86,18 +106,36 @@ const SystemSettings = () => {
       if (token) headers.Authorization = `Bearer ${token}`;
 
       if (hasSetting) {
+        // update commission
         await api.put(
           "/api/systemSetting",
-          { commissionRate },
+          { commissionRate, registrationFee },
           headers
         );
+
+        // 👉 update / create registration fee
+        await api.post(
+          "/api/systemSetting/registration-fee",
+          { registrationFee },
+          headers
+        );
+
         toast.success("Cập nhật cấu hình thành công");
       } else {
+        // create commission
         await api.post(
           "/api/systemSetting",
           { commissionRate },
           headers
         );
+
+        // create registration fee
+        await api.post(
+          "/api/systemSetting/registration-fee",
+          { registrationFee },
+          headers
+        );
+
         toast.success("Tạo cấu hình hệ thống thành công");
         setHasSetting(true);
       }
@@ -133,31 +171,26 @@ const SystemSettings = () => {
                   />
 
                 </div>
-                <div>
-                  <Label htmlFor="queue-limit">Số lượng tối đa trong hàng đợi</Label>
-                  <Input id="queue-limit" type="number" defaultValue="50" />
-                </div>
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="auto-approve">Tự động phê duyệt vendor</Label>
-                  <Switch id="auto-approve" />
-                </div>
               </div>
               
               <div className="space-y-4">
                 <div>
-                  <Label htmlFor="timeout">Thời gian chờ phiên (phút)</Label>
-                  <Input id="timeout" type="number" defaultValue="30" />
-                </div>
-                <div>
-                  <Label htmlFor="maintenance">Chế độ bảo trì</Label>
-                  <div className="flex items-center gap-2">
-                    <Switch id="maintenance" />
-                    <span className="text-sm text-muted-foreground">Hiện tại: TẮT</span>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="notifications">Thông báo đẩy</Label>
-                  <Switch id="notifications" defaultChecked />
+                  <Label htmlFor="timeout">Phí thanh toán đăng kí quán</Label>
+                  <Input
+                    id="timeout"
+                    type="text"
+                    value={registrationFeeDisplay}
+                    onChange={(e) => {
+                      const rawValue = e.target.value.replace(/[^0-9,]/g, "");
+                      const numericValue = parseNumber(rawValue);
+
+                      setRegistrationFee(numericValue);
+                      setRegistrationFeeDisplay(
+                        numericValue ? numericValue.toLocaleString("en-US") : ""
+                      );
+                    }}
+                    disabled={loadingSettings}
+                  />
                 </div>
               </div>
             </div>
