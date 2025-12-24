@@ -310,7 +310,7 @@ export default function VendorDashboard() {
               )}
             </Button>
 
-              <Button
+            <Button
               variant="destructive"
               onClick={() => {
                 localStorage.removeItem("accessToken");
@@ -405,7 +405,7 @@ export default function VendorDashboard() {
         </div>
 
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger
               value="queue"
               className="py-2 text-sm font-medium transition-all data-[state=active]:bg-green-500 data-[state=active]:text-white data-[state=active]:shadow-sm hover:bg-muted/60 rounded-md"
@@ -420,12 +420,12 @@ export default function VendorDashboard() {
               Thực đơn
             </TabsTrigger>
 
-            <TabsTrigger
+            {/* <TabsTrigger
               value="analytics"
               className="py-2 text-sm font-medium transition-all data-[state=active]:bg-green-500 data-[state=active]:text-white data-[state=active]:shadow-sm hover:bg-muted/60 rounded-md"
             >
               Thống kê
-            </TabsTrigger>
+            </TabsTrigger> */}
 
             <TabsTrigger
               value="reviews"
@@ -465,9 +465,9 @@ export default function VendorDashboard() {
           </TabsContent>
 
 
-          <TabsContent value="analytics">
+          {/* <TabsContent value="analytics">
             <AnalyticsTab vendor={vendor} />
-          </TabsContent>
+          </TabsContent> */}
 
           <TabsContent value="reviews">
             <ReviewsTab vendorId={vendor?.id} />
