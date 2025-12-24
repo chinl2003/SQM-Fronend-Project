@@ -14,7 +14,7 @@ import {
   Download,
   Plus,
   CheckCircle2,
-  Bell,
+  Bell, LogOut
 } from "lucide-react";
 
 import QueueTab from "./tabs/QueueTab";
@@ -310,14 +310,20 @@ export default function VendorDashboard() {
               )}
             </Button>
 
-            <Button variant="outline" onClick={() => toast.info("Xuất báo cáo (placeholder)")}>
-              <Download className="h-4 w-4 mr-2" />
-              Xuất báo cáo
-            </Button>
-
-            <Button onClick={() => toast.info("Thêm món (placeholder)")}>
-              <Plus className="h-4 w-4 mr-2" />
-              Thêm món mới
+            <Button
+              variant="destructive"
+              onClick={() => {
+                localStorage.removeItem("accessToken");
+                localStorage.removeItem("userId");
+                toast.success("Đăng xuất thành công!");
+                setTimeout(() => {
+                  window.location.href = "/auth";
+                }, 500);
+              }}
+              className="flex items-center gap-2"
+            >
+              <LogOut className="h-4 w-4" />
+              Đăng xuất
             </Button>
           </div>
         </div>
@@ -399,7 +405,7 @@ export default function VendorDashboard() {
         </div>
 
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger
               value="queue"
               className="py-2 text-sm font-medium transition-all data-[state=active]:bg-green-500 data-[state=active]:text-white data-[state=active]:shadow-sm hover:bg-muted/60 rounded-md"
@@ -414,12 +420,12 @@ export default function VendorDashboard() {
               Thực đơn
             </TabsTrigger>
 
-            <TabsTrigger
+            {/* <TabsTrigger
               value="analytics"
               className="py-2 text-sm font-medium transition-all data-[state=active]:bg-green-500 data-[state=active]:text-white data-[state=active]:shadow-sm hover:bg-muted/60 rounded-md"
             >
               Thống kê
-            </TabsTrigger>
+            </TabsTrigger> */}
 
             <TabsTrigger
               value="reviews"
@@ -459,9 +465,9 @@ export default function VendorDashboard() {
           </TabsContent>
 
 
-          <TabsContent value="analytics">
+          {/* <TabsContent value="analytics">
             <AnalyticsTab vendor={vendor} />
-          </TabsContent>
+          </TabsContent> */}
 
           <TabsContent value="reviews">
             <ReviewsTab vendorId={vendor?.id} />
