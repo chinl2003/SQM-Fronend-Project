@@ -275,8 +275,20 @@ export default function VendorDashboard() {
     [vendor, vendorInfo]
   );
 
-  const markAllNotificationsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  const markAllNotificationsRead = async () => {
+    try {
+      const token = localStorage.getItem("accessToken") || "";
+      await api.put("/api/notification/mark-all-read", null, {
+        Authorization: `Bearer ${token}`,
+      });
+
+      // Update local state after successful API call
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+      toast.success("Đã đánh dấu tất cả thông báo là đã đọc");
+    } catch (error) {
+      console.error("Failed to mark notifications as read", error);
+      toast.error("Không thể đánh dấu thông báo");
+    }
   };
 
   return (
@@ -310,7 +322,7 @@ export default function VendorDashboard() {
               )}
             </Button>
 
-              <Button
+            <Button
               variant="destructive"
               onClick={() => {
                 localStorage.removeItem("accessToken");
@@ -397,7 +409,7 @@ export default function VendorDashboard() {
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-foreground">{stats.cancelRate}%</p>
-                  <p className="text-sm text-muted-foreground">Tỷ lệ hủy</p>
+                  <p className="text-sm text-muted-foreground">Tỷ lệ trễ</p>
                 </div>
               </div>
             </CardContent>
@@ -405,7 +417,7 @@ export default function VendorDashboard() {
         </div>
 
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger
               value="queue"
               className="py-2 text-sm font-medium transition-all data-[state=active]:bg-green-500 data-[state=active]:text-white data-[state=active]:shadow-sm hover:bg-muted/60 rounded-md"
@@ -420,12 +432,12 @@ export default function VendorDashboard() {
               Thực đơn
             </TabsTrigger>
 
-            <TabsTrigger
+            {/* <TabsTrigger
               value="analytics"
               className="py-2 text-sm font-medium transition-all data-[state=active]:bg-green-500 data-[state=active]:text-white data-[state=active]:shadow-sm hover:bg-muted/60 rounded-md"
             >
               Thống kê
-            </TabsTrigger>
+            </TabsTrigger> */}
 
             <TabsTrigger
               value="reviews"
@@ -465,9 +477,9 @@ export default function VendorDashboard() {
           </TabsContent>
 
 
-          <TabsContent value="analytics">
+          {/* <TabsContent value="analytics">
             <AnalyticsTab vendor={vendor} />
-          </TabsContent>
+          </TabsContent> */}
 
           <TabsContent value="reviews">
             <ReviewsTab vendorId={vendor?.id} />

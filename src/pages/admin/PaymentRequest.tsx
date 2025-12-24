@@ -166,6 +166,18 @@ export default function DebtPaymentRequest() {
 
 
   return (
+    <>
+    {submitting && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+    <div className="rounded-lg bg-white px-6 py-4 shadow">
+      <div className="flex items-center gap-3">
+        <div className="h-6 w-6 animate-spin rounded-full border-4 border-green-600 border-t-transparent" />
+        <p className="text-sm font-medium">Đang xử lý, vui lòng chờ...</p>
+      </div>
+    </div>
+  </div>
+)}
+
     <AdminLayout title="Yêu cầu thanh toán công nợ">
       <div className="space-y-6">
         <Card>
@@ -275,5 +287,6 @@ export default function DebtPaymentRequest() {
         </Button>
       </div>
     </AdminLayout>
+    </>
   );
 }
