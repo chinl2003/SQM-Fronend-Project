@@ -18,6 +18,18 @@ import { toast } from "sonner";
 import {
   Eye
 } from "lucide-react";
+import { WithdrawDialog } from "@/pages/customer/components/WithdrawDialog";
+import { BankLinkDialog } from "@/pages/customer/components/BankLinkDialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 type WalletTransactionStatus = 0 | 1 | 2 | 3 | 4;
 type WalletTransactionType = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13;
@@ -119,7 +131,8 @@ function isOutcome(
   return (
     type === 1 || 
     (type === 13 && status === 2) || 
-    (type === 10 && status === 2)  
+    (type === 10 && status === 2) ||
+    (type === 6 && status === 2)
   );
 }
 
@@ -210,6 +223,8 @@ export default function VendorWalletTab({ vendor }: VendorWalletTabProps) {
     const [debtDetail, setDebtDetail] =
   useState<any | null>(null);
 
+    const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
+    const [isBankLinkOpen, setIsBankLinkOpen] = useState(false);
     const [loadingDebtDetail, setLoadingDebtDetail] = useState(false);
     const [walletTransactionId, setWalletTransactionId] = useState<string | null>(null);
 
@@ -428,8 +443,26 @@ const debtTransactions = useMemo(
 
                         <div className="mt-4 lg:mt-0 flex flex-col items-end gap-3">
                             <div className="p-4 bg-white/10 rounded-2xl backdrop-blur-sm">
-                                <CreditCard className="h-8 w-8 text-white" />
-                            </div>
+                  <CreditCard className="h-12 w-12 text-white" />
+                </div>
+                <div className="mt-4 flex gap-3">
+                   <Button
+                        variant="secondary"
+                        size="lg"
+                        onClick={() => setIsWithdrawOpen(true)}
+                        >
+                        Rút tiền
+                    </Button>
+
+
+                  <Button
+                    variant="secondary"
+                    size="lg"
+                    onClick={() => setIsBankLinkOpen(true)}
+                  >
+                    Liên kết ngân hàng
+                  </Button>
+                </div>
                         </div>
                     </div>
                 </CardContent>
@@ -479,6 +512,21 @@ const debtTransactions = useMemo(
                     </CardContent>
                 </Card>
             </div>
+            <WithdrawDialog
+                    open={isWithdrawOpen}
+                    onOpenChange={setIsWithdrawOpen}
+                    availableBalance={availableBalance}
+                    walletId={walletId}
+                    isVendor={true}
+                    onSuccess={() => {  
+                    }}
+                  />
+            
+                  <BankLinkDialog
+                    open={isBankLinkOpen}
+                    isVendor={true}
+                    onOpenChange={setIsBankLinkOpen}
+                  />
 
             {/* Sub-tabs + lịch sử giao dịch */}
             <Card className="shadow-sm">
