@@ -748,7 +748,7 @@ export default function ActiveQueue() {
                   </span>
                 </div>
 
-                {!isReadyTab && !isCompletedTab && (
+                {!isReadyTab && !isCompletedTab && queueItem.type !== "pre_order" && (
                   <div className="flex items-center space-x-1">
                     <Users className="h-3 w-3 text-sky-500" />
                     <span>
@@ -805,15 +805,17 @@ export default function ActiveQueue() {
                   </>
                 ) : (
                   <>
-                    <div className="flex items-center space-x-1">
-                      <Clock className="h-3 w-3 text-amber-500" />
-                      <span>
-                        <span className="font-semibold">
-                          Thời gian đợi đến lượt:
-                        </span>{" "}
-                        {fmtWaitTimeFromSpan(queueItem.estimatedWaitTimeRaw)}
-                      </span>
-                    </div>
+                    {queueItem.type !== "pre_order" && (
+                      <div className="flex items-center space-x-1">
+                        <Clock className="h-3 w-3 text-amber-500" />
+                        <span>
+                          <span className="font-semibold">
+                            Thời gian đợi đến lượt:
+                          </span>{" "}
+                          {fmtWaitTimeFromSpan(queueItem.estimatedWaitTimeRaw)}
+                        </span>
+                      </div>
+                    )}
 
                     <div className="flex items-center space-x-1">
                       <Clock className="h-3 w-3 text-emerald-500" />
