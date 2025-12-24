@@ -391,7 +391,7 @@ export default function VendorDashboard() {
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-foreground">{stats.cancelRate}%</p>
-                  <p className="text-sm text-muted-foreground">Tỷ lệ hủy</p>
+                  <p className="text-sm text-muted-foreground">Tỷ lệ trễ</p>
                 </div>
               </div>
             </CardContent>
