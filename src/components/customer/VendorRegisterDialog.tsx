@@ -104,6 +104,8 @@ export function VendorRegisterDialog({
   const [banks, setBanks] = useState<VietQRBank[]>([]);
   const [banksLoading, setBanksLoading] = useState(false);
   const [banksError, setBanksError] = useState<string | null>(null);
+  const [registrationFee, setRegistrationFee] = useState<number | null>(null);
+const [loadingFee, setLoadingFee] = useState(false);
 
   const [selectedBankBin, setSelectedBankBin] = useState<string>("");
   const [bankAccount, setBankAccount] = useState<string>("");
@@ -130,7 +132,6 @@ export function VendorRegisterDialog({
   const [paymentMethod, setPaymentMethod] = useState<"vnpay">("vnpay");
   const [submitting, setSubmitting] = useState(false);
 
-  const REGISTER_FEE = 500_000;
   const [checkingBalance, setCheckingBalance] = useState(false);
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
@@ -169,7 +170,37 @@ export function VendorRegisterDialog({
       cancelled = true;
     };
   }, [isOpen]);
+  useEffect(() => {
+  if (!isOpen) return;
 
+  let cancelled = false;
+
+  (async () => {
+    try {
+      setLoadingFee(true);
+
+      const token = localStorage.getItem("accessToken") || "";
+      const headers: Record<string, string> = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      const res = await api.get("/api/systemSetting", headers);
+      const data = res;
+
+      if (!cancelled && typeof data?.registrationFee === "number") {
+        setRegistrationFee(data.registrationFee);
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Không tải được phí đăng ký quán");
+    } finally {
+      if (!cancelled) setLoadingFee(false);
+    }
+  })();
+
+  return () => {
+    cancelled = true;
+  };
+}, [isOpen]);
   useEffect(() => {
     if (!isOpen) return;
 
@@ -217,7 +248,10 @@ export function VendorRegisterDialog({
 
   async function handleTopupViaVnPay() {
     try {
-      const amountNeeded = Math.max(REGISTER_FEE - (walletBalance ?? 0), 0);
+      const amountNeeded = Math.max(
+  (registrationFee ?? 0) - (walletBalance ?? 0),
+  0
+);
 
       if (amountNeeded <= 0) {
         toast.message("Số dư đã đủ hoặc không xác định số tiền cần nạp.");
@@ -468,7 +502,7 @@ export function VendorRegisterDialog({
         return;
       }
       setWalletBalance(available);
-      setHasEnoughBalance(available >= REGISTER_FEE);
+      setHasEnoughBalance(registrationFee != null && available >= registrationFee);
       setShowPaymentDialog(true);
     } catch (err: any) {
       console.error(err);
@@ -522,7 +556,7 @@ export function VendorRegisterDialog({
       // 9 = CustomerRegisterVendor, 1 = Processing (tuỳ enum backend của bạn)
       const transactionBody = {
         walletId,
-        amount: REGISTER_FEE, // hoặc -REGISTER_FEE tùy convention
+        amount: registrationFee, // hoặc -REGISTER_FEE tùy convention
         type: 10,
         status: 1,
         message: `Thanh toán phí đăng kí quán ${brandName}`,
@@ -964,15 +998,11 @@ export function VendorRegisterDialog({
                         Phí đăng ký lần đầu:
                       </Label>
                       <p className="text-lg font-bold text-green-600">
-                        500,000 VND
-                      </p>
-                    </div>
-                    <div>
-                      <Label className="text-sm font-medium">
-                        Phí hàng tháng:
-                      </Label>
-                      <p className="text-lg font-bold text-blue-600">
-                        200,000 VND/tháng
+                        {loadingFee
+    ? "Đang tải..."
+    : registrationFee != null
+      ? `${registrationFee.toLocaleString("vi-VN")} VND`
+      : ""}
                       </p>
                     </div>
                   </div>
@@ -982,14 +1012,12 @@ export function VendorRegisterDialog({
                     <AlertDescription className="text-sm">
                       <strong>Quy định thanh toán:</strong>
                       <br />
-                      • Thời hạn: Trước ngày 30 mỗi tháng
+                      • Thời hạn: Theo công nợ từ hệ thống gửi mỗi tháng qua mail
                       <br />
-                      • Chậm thanh toán: Shop bị khóa và không hoàn lại phí thuê
-                      slot
+                      • Chậm thanh toán: Quán của bạn sẽ bị khóa 
                       <br />
-                      • Phí phạt mở lại: 50% phí thuê slot + số tiền nợ tháng
+                      • Phí phạt mở lại: 50% phí đăng kí + số tiền nợ tháng
                       trước
-                      <br />• Yêu cầu đóng shop: Phải tạo yêu cầu trước 1 tháng
                     </AlertDescription>
                   </Alert>
 
@@ -1030,7 +1058,7 @@ export function VendorRegisterDialog({
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <span className="text-muted-foreground">Phí đăng ký:</span>
                     <span className="font-semibold text-emerald-600 text-right">
-                      {REGISTER_FEE.toLocaleString("vi-VN")} VND
+                      {registrationFee?.toLocaleString("vi-VN")} VND
                     </span>
 
                     <span className="text-muted-foreground">

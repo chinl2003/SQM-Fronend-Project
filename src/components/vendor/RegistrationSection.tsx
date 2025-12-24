@@ -58,6 +58,8 @@ export default function RegistrationSection({
   const [banks, setBanks] = useState<VietQRBank[]>([]);
   const [banksLoading, setBanksLoading] = useState(false);
   const [banksError, setBanksError] = useState<string | null>(null);
+  const [registrationFee, setRegistrationFee] = useState<number | null>(null);
+const [loadingFee, setLoadingFee] = useState(false);
 
   const [businessTypeId, setBusinessTypeId] = useState<string>(
     vendor?.businessTypeId || ""
@@ -89,7 +91,37 @@ export default function RegistrationSection({
     vendor?.bankAccountNumber,
     vendor?.bankAccountHolder,
   ]);
+  useEffect(() => {
+  let cancelled = false;
 
+  const loadRegistrationFee = async () => {
+    try {
+      setLoadingFee(true);
+
+      const token = localStorage.getItem("accessToken") || "";
+      const headers: Record<string, string> = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      const res = await api.get("/api/systemSetting", headers);
+      const data = res;
+
+      if (!cancelled && data?.registrationFee !== undefined) {
+        setRegistrationFee(data.registrationFee);
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error("Không tải được phí đăng ký quán");
+    } finally {
+      if (!cancelled) setLoadingFee(false);
+    }
+  };
+
+  loadRegistrationFee();
+
+  return () => {
+    cancelled = true;
+  };
+}, []);
   // LOAD BANK LIST FROM VIET QR
   useEffect(() => {
     let cancelled = false;
@@ -725,14 +757,11 @@ export default function RegistrationSection({
               <Label className="text-sm font-medium">
                 Phí đăng ký lần đầu:
               </Label>
-              <p className="text-lg font-bold text-green-600">500,000 VND</p>
-            </div>
-
-            <div>
-              <Label className="text-sm font-medium">Phí hàng tháng:</Label>
-              <p className="text-lg font-bold text-blue-600">
-                200,000 VND/tháng
-              </p>
+              <p className="text-lg font-bold text-green-600">{loadingFee
+    ? "Đang tải..."
+    : registrationFee !== null
+      ? `${registrationFee.toLocaleString("en-US")} VND`
+      : ""}</p>
             </div>
           </div>
 
@@ -740,12 +769,13 @@ export default function RegistrationSection({
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription className="text-sm">
               <strong>Quy định thanh toán:</strong>
-              <br />• Thời hạn: Trước ngày 30 mỗi tháng
-              <br />• Chậm thanh toán: Shop bị khóa và không hoàn lại phí thuê
-              slot
-              <br />• Phí phạt mở lại: 50% phí thuê slot + số tiền nợ tháng
-              trước
-              <br />• Yêu cầu đóng shop: Phải tạo yêu cầu trước 1 tháng
+                      <br />
+                      • Thời hạn: Theo công nợ từ hệ thống gửi mỗi tháng qua mail
+                      <br />
+                      • Chậm thanh toán: Quán của bạn sẽ bị khóa 
+                      <br />
+                      • Phí phạt mở lại: 50% phí đăng kí + số tiền nợ tháng
+                      trước
             </AlertDescription>
           </Alert>
 
